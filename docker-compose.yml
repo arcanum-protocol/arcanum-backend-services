@@ -1,0 +1,68 @@
+version: '3.9'
+
+services:
+  indexer:
+    build:
+      context: .
+      dockerfile: indexer.Dockerfile
+    volumes:
+      - ./indexer:/app
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_DATABASE=mydb
+      - PG_USER=myuser
+      - PG_PASSWORD=mypassword
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  ohlc-builder:
+    build:
+      context: .
+      dockerfile: ohlc-builder.Dockerfile
+    volumes:
+      - ./ohlc-builder:/app
+    environment:
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_DATABASE=mydb
+      - PG_USER=myuser
+      - PG_PASSWORD=mypassword
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  frontend-api:
+    build:
+      context: .
+      dockerfile: frontend-api.Dockerfile
+    volumes:
+      - ./frontend-api:/app
+    environment:
+      - OHLC_HOST=ohlc-builder
+      - OHLC_PORT=3002
+      - PG_HOST=postgres
+      - PG_PORT=5432
+      - PG_DATABASE=mydb
+      - PG_USER=myuser
+      - PG_PASSWORD=mypassword
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ohlc-builder
+      - postgres
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypassword
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  dbdata:
