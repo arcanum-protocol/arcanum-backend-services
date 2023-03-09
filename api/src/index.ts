@@ -1,6 +1,26 @@
 import express, { Request, Response } from 'express';
 import { Pool } from 'pg';
 
+interface Candle {
+  ts_group: number;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+}
+
+enum Timespan {
+  "1m" = 60,
+  "5m" = 5 * 60,
+  "15m" = 15 * 60,
+  "30m" = 30 * 60,
+  "1h" = 60 * 60,
+  "4h" = 4 * 60 * 60,
+  "1d" = 24 * 60 * 60,
+  "1w" = 7 * 24 * 60 * 60,
+  "1M" = 30 * 24 * 60 * 60,
+}
+
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
@@ -13,40 +33,50 @@ const app = express();
 
 // Define API endpoint to retrieve candles
 app.get('/api/candles', async (req: Request, res: Response) => {
-  const { timespan, countback } = req.query;
+  let { countback, timespan } = req.query;
 
-  // Validate parameters
-  if (!timespan || !countback) {
-    return res.status(400).json({ error: 'Missing required parameters' });
-  }
+  const pgCountback = Number(countback);
+  const pgTimespan = Timespan[timespan as keyof typeof Timespan];
 
-  // Convert parameters to numbers
-  const timespanNum = parseInt(timespan as string, 10);
-  const countbackNum = parseInt(countback as string, 10);
+  const now = Math.floor(Date.now() / 1000);
+  const startTime = (now - pgTimespan * pgCountback);
+  const endTime = now;
 
-  // Retrieve candles from database
+  console.log(`startTime: ${startTime}, endTime: ${endTime}, timespan: ${pgTimespan}`);
+
+  const query = `
+  SELECT 
+    FLOOR(ts / ${pgTimespan}) * ${pgTimespan} AS ts_group,
+    MAX(high) AS high,
+    MIN(low) AS low,
+    (SELECT open FROM candles c2 WHERE c2.ts = MIN(c1.ts)) AS open,
+    (SELECT close FROM candles c3 WHERE c3.ts = MAX(c1.ts)) AS close
+  FROM 
+    candles c1
+  WHERE c1.ts > ${startTime} AND c1.ts < ${endTime}
+  GROUP BY 
+    ts_group
+  ORDER BY 
+    ts_group ASC;
+  `;
+
   try {
-    const result = await pool.query(
-      `SELECT ts, open, close, high, low FROM candles
-       WHERE ts <= $1 ORDER BY ts DESC LIMIT $2`,
-      [Date.now() - timespanNum, countbackNum]
-    );
-    const candles = result.rows.reverse();
+    const result = await pool.query(query);
 
-    // Format response in TradingView format
-    const response = {
-      s: 'ok',
-      t: candles.map((candle) => candle.ts / 1000),
-      o: candles.map((candle) => candle.open),
-      c: candles.map((candle) => candle.close),
-      h: candles.map((candle) => candle.high),
-      l: candles.map((candle) => candle.low),
-    };
-    res.json(response);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    const candles = {
+      "status": "ok",
+      "ts": result.rows.map((row: Candle) => row.ts_group),
+      "open": result.rows.map((row: Candle) => row.open),
+      "close": result.rows.map((row: Candle) => row.close),
+      "high": result.rows.map((row: Candle) => row.high),
+      "low": result.rows.map((row: Candle) => row.low),
+    }
+    res.status(200).json(candles);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal Server Error');
   }
+
 });
 
 const PORT = 3000;
