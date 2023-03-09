@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import { Pool } from 'pg';
+import cors from 'cors';
 
 interface Candle {
   ts_group: number;
@@ -30,6 +31,19 @@ const pool = new Pool({
 });
 
 const app = express();
+
+const allowedOrigins = ['http://localhost:9999'];
+app.use(cors({
+  origin: function(origin, callback){
+    if(!origin) return callback(null, true);
+    if(allowedOrigins.indexOf(origin) === -1){
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  }
+
+}));
 
 // Define API endpoint to retrieve candles
 app.get('/api/candles', async (req: Request, res: Response) => {
