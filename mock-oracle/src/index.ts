@@ -1,5 +1,11 @@
-import { ethers } from "ethers";
+import { abi as ABI } from "../ABI/Multipool.json";
+import { ethers, parseEther } from "ethers";
+import { config } from "dotenv";
 import pg from "pg";
+import { BigNumber } from "@ethersproject/bignumber";
+
+// Load environment variables from .env file
+config();
 
 // Connect to Postgres DB
 const pool = new pg.Pool({
@@ -7,22 +13,26 @@ const pool = new pg.Pool({
   password: process.env.DB_PASSWORD,
   host: process.env.DB_HOST,
   database: process.env.DB_NAME,
-  port: parseInt(process.env.DB_PORT),
+  port: parseInt(process.env.DB_PORT!),
 });
 
 // Connect to Ethereum wallet using private key
-const provider = new ethers.providers.JsonRpcProvider(process.env.WEB3_PROVIDER_URL);
-const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
+const provider = new ethers.JsonRpcProvider(process.env.PROVIDER_URL!);
+const wallet = new ethers.Wallet(process.env.PRIVATE_KEY!, provider);
 
 // Define contract ABI and address
-const contractAbi = [...];
-const contractAddress = "...";
+const contractAddress = process.env.CONTRACT_ADDRESS!;
 
 // Instantiate contract
-const contract = new ethers.Contract(contractAddress, contractAbi, wallet);
+const contract = new ethers.Contract(contractAddress, ABI, wallet);
+
+// get token persent in contract
+async function getTokenPersent(assetAddress: string): Promise<bigint> {
+  return await contract.assetPercents(assetAddress);
+}
 
 // Define function to update price for a single token
-async function updateTokenPrice(assetAddress: string, newPrice: number) {
+async function updateTokenPrice(assetAddress: string, newPrice: string) {
   // Call contract function to update price
   const tx = await contract.updatePrice(assetAddress, newPrice);
   console.log(`Transaction sent: ${tx.hash}`);
@@ -43,11 +53,25 @@ async function getTokenPrice(assetAddress: string): Promise<number> {
 
 // Define function to update prices for all tokens in the database
 async function updateAllTokenPrices() {
-  const res = await pool.query("SELECT address FROM assets");
-  for (const row of res.rows) {
-    const assetAddress = row.address;
-    const newPrice = await getTokenPrice(assetAddress);
-    await updateTokenPrice(assetAddress, newPrice);
+  const addresses = await pool.query("SELECT address FROM assets");
+  // exclude from addresses the address if its persent in contract is zero
+  for (const row of addresses.rows) {
+    try {
+      const assetAddress = row.address;
+      const persent = await getTokenPersent(assetAddress);
+      if (persent == BigInt(0)) {
+        console.log(`skipping ${row.address} because its persent is zero`);
+        continue;
+      }
+      const newPrice = await getTokenPrice(assetAddress);
+      // convert price to 18 decimal places
+      const newPrice18 = parseEther(newPrice.toString()).toString();
+      console.log(`updating price for ${row.address} to ${newPrice18}`);
+      await updateTokenPrice(assetAddress, newPrice18);
+    }
+    catch (err) {
+      console.log(`error updating price for ${row.address}`);
+    }
   }
 }
 
