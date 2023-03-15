@@ -93,6 +93,22 @@ app.get('/api/candles', async (req: Request, res: Response) => {
 
 });
 
+app.get('/api/index', async (req: Request, res: Response) => {
+  const query = `
+  SELECT
+    *
+  FROM
+    assets
+  `;
+  try { 
+    const result = await pool.query(query);
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
