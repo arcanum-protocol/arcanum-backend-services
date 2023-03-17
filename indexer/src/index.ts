@@ -2,11 +2,7 @@ import { Pool } from 'pg';
 import { BigNumber } from 'bignumber.js';
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'postgres',
-  password: 'mysecretpassword',
-  port: 5432,
+  connectionString: process.env.DATABASE_URL,
 });
 interface Asset {
   symbol: string;

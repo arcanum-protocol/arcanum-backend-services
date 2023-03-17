@@ -1,0 +1,41 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+
+  build-indexer:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build the indexer image
+      run: docker build indexer --tag badconfig/indexer
+
+    - name: Login to dockerhub
+      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+    - name: push image
+      run: docker push badconfig/indexer
+
+  build-backend-api:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build the Docker image
+      run: docker build api --tag badconfig/backend-api
+
+    - name: Login to dockerhub
+      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+    - name: push image
+      run: docker push badconfig/backend-api 

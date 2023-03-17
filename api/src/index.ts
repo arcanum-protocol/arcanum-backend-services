@@ -23,27 +23,17 @@ enum Timespan {
 }
 
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'postgres',
-  password: 'mysecretpassword',
-  port: 5432,
+  connectionString: process.env.DATABASE_URL,
 });
 
 const app = express();
 
-const allowedOrigins = ['http://localhost:9999'];
-app.use(cors({
-  origin: function(origin, callback){
-    if(!origin) return callback(null, true);
-    if(allowedOrigins.indexOf(origin) === -1){
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  }
+//app.use(cors());
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  next();
+});
 
-}));
 
 // Define API endpoint to retrieve candles
 app.get('/api/candles', async (req: Request, res: Response) => {
@@ -100,7 +90,7 @@ app.get('/api/index', async (req: Request, res: Response) => {
   FROM
     assets
   `;
-  try { 
+  try {
     const result = await pool.query(query);
     res.status(200).json(result.rows);
   } catch (err) {
@@ -109,7 +99,7 @@ app.get('/api/index', async (req: Request, res: Response) => {
   }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
