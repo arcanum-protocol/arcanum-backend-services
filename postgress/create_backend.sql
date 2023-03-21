@@ -1,65 +1,42 @@
--- Table: public.assets
-
--- DROP TABLE IF EXISTS public.assets;
-
-CREATE TABLE IF NOT EXISTS public.assets
+CREATE TABLE IF NOT EXISTS assets
 (
-    name text COLLATE pg_catalog."default" NOT NULL,
-    address text COLLATE pg_catalog."default" NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    address TEXT NOT NULL UNIQUE,
+    coingecko_id TEXT NOT NULL UNIQUE,
     price numeric NOT NULL,
-    mcap bigint NOT NULL
-)
+    mcap numeric NOT NULL
+);
 
-TABLESPACE pg_default;
-
-ALTER TABLE IF EXISTS public.assets
-    OWNER to postgres;
-
--- Trigger: update_candles
-
--- DROP TRIGGER IF EXISTS update_candles ON public.assets;
-
-CREATE TRIGGER update_candles
-    AFTER UPDATE 
-    ON public.assets
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION public.update_candles();
-
--- Table: public.candles
-
--- DROP TABLE IF EXISTS public.candles;
-
-CREATE TABLE IF NOT EXISTS public.candles
+CREATE TABLE IF NOT EXISTS prices
 (
     ts bigint NOT NULL,
-    open numeric NOT NULL,
-    close numeric NOT NULL,
-    high numeric,
-    low numeric,
-    CONSTRAINT candles_pkey PRIMARY KEY (ts)
-)
+    price numeric NOT NULL,
+    CONSTRAINT price_pkey PRIMARY KEY (ts)
+);
 
-TABLESPACE pg_default;
-
-ALTER TABLE IF EXISTS public.candles
-    OWNER to postgres;
-
+CREATE OR REPLACE FUNCTION update_price_function() RETURNS trigger AS $uc$
 DECLARE
     total_mcap BIGINT;
-    index_price DECIMAL;
+    new_price numeric;
 BEGIN
-    -- Calculate total market capitalization
+
+    NEW.price = ROUND(NEW.price, 6);
+    NEW.mcap = ROUND(NEW.mcap, 6);
+
     SELECT SUM(mcap) INTO total_mcap FROM assets;
 
-    -- Calculate index price
-    SELECT SUM(price * mcap) / total_mcap INTO index_price FROM assets;
+    SELECT SUM(price * mcap) / total_mcap INTO new_price FROM assets;
 
-    -- Insert or update candle
-    INSERT INTO candles(ts, open, close, high, low)
-    VALUES((EXTRACT(epoch FROM now()) * 60) / 60, index_price, index_price, index_price, index_price)
+
+    INSERT INTO prices(ts, price)
+    VALUES((EXTRACT(epoch FROM CURRENT_TIMESTAMP(0)::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / 3600 * 3600, new_price)
     ON CONFLICT (ts) DO UPDATE SET
-        close = excluded.close,
-        high = GREATEST(candles.high, excluded.close),
-        low = LEAST(candles.low, excluded.close);
+        price = ROUND((prices.price + new_price) / 2, 6);
 	RETURN NEW;
-END;
+END; $uc$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_price
+    AFTER UPDATE
+    ON assets
+    FOR EACH STATEMENT
+    EXECUTE FUNCTION update_price_function();

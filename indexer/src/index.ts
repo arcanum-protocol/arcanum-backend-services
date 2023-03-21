@@ -4,6 +4,7 @@ import { BigNumber } from 'bignumber.js';
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
+
 interface Asset {
   symbol: string;
   current_price: string;
@@ -21,32 +22,32 @@ async function getAssetsData(coins: Array<string>): Promise<Array<Asset>> {
       mcap: new BigNumber(data[coin].usd_market_cap).toString(10).split('.')[0],
     });
   }
+  console.log(results);
   return results;
 }
 
 async function updateIndex(): Promise<void> {
   const client = await pool.connect();
   // get all assets names
-  const result = await client.query('SELECT name FROM assets');
-  const assets = result.rows.map(row => row.name);
+  const result = await client.query('SELECT coingecko_id FROM assets');
+  const assets = result.rows.map(row => row.coingecko_id);
   // batch request to coingecko, ask price + mcap
   const assetsData = await getAssetsData(assets);
   // update assets table
   try {
-    await client.query('BEGIN');
     for (let i = 0; i < assetsData.length; i++) {
       const asset = assetsData[i];
-      await client.query('UPDATE assets SET price = $1, mcap = $2 WHERE name = $3', [asset.current_price, asset.mcap, asset.symbol]);
+      await client.query('UPDATE assets SET price = $1, mcap = $2 WHERE coingecko_id = $3',
+        [asset.current_price, asset.mcap, asset.symbol]);
     }
-    await client.query('COMMIT');
   } catch (e) {
-    await client.query('ROLLBACK');
     throw e;
   } finally {
     client.release();
   }
-  console.log('updated');
+  console.log('batch updated');
 }
 
-// run every 1 minute
-setInterval(updateIndex, 10000);
+// run every min
+updateIndex();
+setInterval(updateIndex, 60000);
