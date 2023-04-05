@@ -1,9 +1,9 @@
 import BigNumber from 'bignumber.js';
-import { PoolClient } from 'pg';
 import { AbiItem } from 'web3-utils'
 
 export type Address = string;
 export type BlockNumber = number;
+
 export interface Percents {
     address: Address,
     percent: BigNumber
