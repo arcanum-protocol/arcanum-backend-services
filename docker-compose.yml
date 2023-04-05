@@ -17,42 +17,61 @@ services:
       - postgres
     restart: unless-stopped
 
-  ohlc-builder:
+  log_engine:
     build:
       context: .
-      dockerfile: ohlc-builder.Dockerfile
+      dockerfile: log_engine.Dockerfile
     volumes:
-      - ./ohlc-builder:/app
+      - ./log_engine:/app
     environment:
       - PG_HOST=postgres
       - PG_PORT=5432
       - PG_DATABASE=mydb
       - PG_USER=myuser
       - PG_PASSWORD=mypassword
+      - RUNNER_ID=1
+      - CONTRACT_ADDRESS=0x8EFa3E7bE538B07F3a80705E0d454384d0CbccF1
+      - PROVIDER_URL=https://rpc2.sepolia.org
     depends_on:
       - postgres
     restart: unless-stopped
 
-  frontend-api:
-    build:
-      context: .
-      dockerfile: frontend-api.Dockerfile
-    volumes:
-      - ./frontend-api:/app
-    environment:
-      - OHLC_HOST=ohlc-builder
-      - OHLC_PORT=3002
-      - PG_HOST=postgres
-      - PG_PORT=5432
-      - PG_DATABASE=mydb
-      - PG_USER=myuser
-      - PG_PASSWORD=mypassword
-    ports:
-      - "3000:3000"
-    depends_on:
-      - ohlc-builder
-      - postgres
-    restart: unless-stopped
+  # ohlc-builder:
+  #   build:
+  #     context: .
+  #     dockerfile: ohlc-builder.Dockerfile
+  #   volumes:
+  #     - ./ohlc-builder:/app
+  #   environment:
+  #     - PG_HOST=postgres
+  #     - PG_PORT=5432
+  #     - PG_DATABASE=mydb
+  #     - PG_USER=myuser
+  #     - PG_PASSWORD=mypassword
+  #   depends_on:
+  #     - postgres
+  #   restart: unless-stopped
+
+  # frontend-api:
+    # build:
+    #   context: .
+    #   dockerfile: frontend-api.Dockerfile
+    # volumes:
+    #   - ./frontend-api:/app
+    # environment:
+    #   - OHLC_HOST=ohlc-builder
+    #   - OHLC_PORT=3002
+    #   - PG_HOST=postgres
+    #   - PG_PORT=5432
+    #   - PG_DATABASE=mydb
+    #   - PG_USER=myuser
+    #   - PG_PASSWORD=mypassword
+    # ports:
+    #   - "3000:3000"
+    # depends_on:
+    #   - ohlc-builder
+    #   - postgres
+    # restart: unless-stopped
 
   postgres:
     image: postgres:13
