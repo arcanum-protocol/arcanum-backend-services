@@ -1,32 +1,21 @@
-CREATE TABLE IF NOT EXISTS multipool
+CREATE TABLE IF NOT EXISTS multipool_assets
 (
     address TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    assets TEXT[],
-    curent_share numeric NOT NULL,
-    ideal_share numeric NOT NULL,
-    assets_amount numeric NOT NULL,
+    ideal_share numeric NOT NULL DEFAULT '0',
+    quantity numeric NOT NULL DEFAULT '0',
+    price numeric NOT NULL DEFAULT '0'
 );
-
-INSERT INTO multipool(
-    address, 
-    name, 
-    assets, 
-    current_share, 
-    ideal_share, 
-    assets_amount
-) VALUES (
-    '0x8EFa3E7bE538B07F3a80705E0d454384d0CbccF1',
-    'basic',
-    ARRAY ['----', '----'],
-    0,
-    0,
-    0
-);
-
 
 CREATE TABLE IF NOT EXISTS indexers_height
 (
     id numeric PRIMARY KEY,
     block_height numeric NOT NULL
 );
+
+
+CREATE TABLE IF NOT EXISTS mp_to_asset
+(
+    mp_address TEXT PRIMARY KEY,
+    asset_id TEXT NOT NULL UNIQUE
+);
+

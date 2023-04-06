@@ -9,16 +9,22 @@ export enum EventType {
 }
 
 export const assemble_log: { [key in EventType]: (db: PoolClient, data: { [key: string]: any }, address: string) => Promise<void> } = {
-    // 
     "AssetPercentsChange": async (db: PoolClient, event: { [key: string]: any }, address: string): Promise<void> => {
-        db.query("UPDATE multipool SET percent = $1 WHERE address = $2", [event.percent, address]);
+        let res = db.query("INSERT INTO multipool_assets(address, ideal_share)\
+            VALUES($2, $1)\
+            ON CONFLICT(address) DO UPDATE SET\
+        ideal_share = $1; ", [event.percent, event.asset]);
+        console.log(res);
     },
-    // 
     "AssetQuantityChange": async (db: PoolClient, event: { [key: string]: any }, address: string): Promise<void> => {
-        db.query("UPDATE multipool SET quantity = $1 WHERE address = $2", [event.quantity, address]);
+        let res = db.query("UPDATE multipool_assets SET quantity = $1 WHERE address = $2", [event.quantity, event.asset]);
+        console.log(res);
     },
-    // 
     "AssetPriceChange": async (db: PoolClient, event: { [key: string]: any }, address: string): Promise<void> => {
-        db.query("UPDATE multipool SET price = $1 WHERE address = $2", [event.price, address]);
+        let res = db.query("INSERT INTO multipool_assets(address, price)\
+            VALUES($2, $1)\
+            ON CONFLICT(address) DO UPDATE SET\
+        price = $1; ", [event.price, event.asset]);
+        console.log(res);
     },
 }

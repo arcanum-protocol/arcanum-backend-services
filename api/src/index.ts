@@ -65,6 +65,22 @@ app.get('/api/assets', async (_req: Request, res: Response) => {
   }
 });
 
+app.get('/api/multipool_assets', async (_req: Request, res: Response) => {
+  const query = `
+    select * 
+    from multipool_assets m 
+      left join mp_to_asset j on j.mp_address=m.address 
+      left join assets a on a.coingecko_id=j.asset_id
+  `;
+  try {
+    const result = await pool.query(query);
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
