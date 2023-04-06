@@ -67,7 +67,19 @@ app.get('/api/assets', async (_req: Request, res: Response) => {
 
 app.get('/api/multipool_assets', async (_req: Request, res: Response) => {
   const query = `
-    select * 
+    select 
+      m.address as address,
+      m.ideal_share as ideal_share,
+      m.quantity as quantity,
+      m.price as price,
+      a.price as asset_price,
+      a.address as asset_address,
+      a.name as name,
+      a.coingecko_id as coingecko_id,
+      a.mcap as mcap,
+      a.volume_24h as volume_24h,
+      a.logo as logo,
+      a.change_24h as change_24h
     from multipool_assets m 
       left join mp_to_asset j on j.mp_address=m.address 
       left join assets a on a.coingecko_id=j.asset_id
