@@ -22,17 +22,23 @@ interface Revenue {
 }
 
 async function getRevenueData(): Promise<Array<Revenue>> {
-    const response = await fetch(`https://tokenterminal.com/_next/data/svrWqEDxQjHKkOInOzf2_/leaderboards/earnings.json`);
-    console.log("response", response);
+    const response = await fetch(`https://api.llama.fi/overview/fees?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=true`);
     let data = await response.json();
-    let results: Array<Revenue> = [];
 
-    const cleanData = data["pageProps"]["earningsData"];
+    const protocols = data["protocols"];
+    // exclude protocols that not on arbitrum
     
-    for (let i = 0; i < cleanData.length; i++) {
+    let results: Array<Revenue> = [];
+    
+    for (let i = 0; i < protocols.length; i++) {
+        // if protocol is not on arbitrum, skip
+        if (protocols[i]["chains"].indexOf("Arbitrum") === -1) {
+            continue;
+        }
+
         results.push({
-            symbol: cleanData[i]["projectId"],
-            revenue: cleanData[i]["revenue"]["1d"],
+            symbol: protocols[i]["displayName"],
+            revenue: protocols[i]["dailyHoldersRevenue"],
         });
     }
     return results;
@@ -45,11 +51,14 @@ async function updateRevenueData(): Promise<void> {
     try {
         for (let i = 0; i < revenueData.length; i++) {
             const asset = revenueData[i];
-            await pool.query('UPDATE assets SET revenue = $1 WHERE coingecko_id = $3',
-                [asset.revenue, asset.symbol]);
+            const revenue = Math.round(parseFloat(asset.revenue));
+            if (isNaN(revenue)) {
+                continue;
+            }
+            await pool.query(`INSERT INTO arbitrum_revenue (symbol, revenue) VALUES ($1, $2) ON CONFLICT (symbol) DO UPDATE SET revenue = $2`, [asset.symbol, revenue]);
         }
     } catch (e) {
-        console.log(e);
+        // console.log(e);
     }
 }
 
