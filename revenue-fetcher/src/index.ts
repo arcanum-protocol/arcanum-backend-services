@@ -27,9 +27,9 @@ async function getRevenueData(): Promise<Array<Revenue>> {
 
     const protocols = data["protocols"];
     // exclude protocols that not on arbitrum
-    
+
     let results: Array<Revenue> = [];
-    
+
     for (let i = 0; i < protocols.length; i++) {
         // if protocol is not on arbitrum, skip
         if (protocols[i]["chains"].indexOf("Arbitrum") === -1) {
