@@ -21,44 +21,66 @@ app.use((_req, res, next) => {
     next();
 });
 
-// Define API endpoint to retrieve candles
-app.get('/api/tv/prices', async (req: Request, res: Response) => {
+
+
+app.get('/api/tv/config', async (req: Request, res: Response) => {
     let { from, countback, resolution, index_id } = req.query;
 
+    res.status(200).json({
+        supported_resolutions: ['1', '5', '15', '30', '60', '720', '1D'],
+        supports_group_request: true,
+        supports_marks: false,
+        supports_search: false,
+        supports_timescale_marks: false,
+    });
+})
+
+app.get('/api/tv/config', async (req: Request, res: Response) => {
+    let { from, countback, resolution, index_id } = req.query;
+
+    res.status(200).json({
+        supported_resolutions: ['1', '5', '15', '30', '60', '720', '1D'],
+        supports_group_request: true,
+        supports_marks: false,
+        supports_search: false,
+        supports_timescale_marks: false,
+    });
+})
+
+// Define API endpoint to retrieve candles
+app.get('/api/tv/history', async (req: Request, res: Response) => {
+    let { from, to, countback, resolution, symbol } = req.query;
+
+    let cb = Number(countback);
+    let resol = resolution == '1D' ? 1440 * 60 : Number(resolution) * 60;
+
     const query = `
-  SELECT 
+    SELECT
     open as o,
-    close as c,
-    low as l,
-    high as h,
-    ts as t
-  FROM 
+        close as c,
+        low as l,
+        high as h,
+        ts as t
+    FROM
     candles 
   ORDER BY ts DESC
-  where ts <= ${from} 
-    and resolution = ${resolution} 
-    and index_id = ${index_id}
-  limit ${countback};
-  `;
+  where ts <= ${to} 
+    and resolution = ${resol} 
+    and index_id = (select id from indexes where symbol=${symbol})
+  limit ${cb};
+    `;
 
     try {
         const result = await pool.query(query);
 
         const rows = result.rows.reverse();
-        //if (rows.length < countback) {
-        // send end of data
-        //const prices = {
-        //    "status": "ok",
-        //    "t": rows.map((row: Candle) => row.t),
-        //    "o": rows.map((row: Candle) => row.o),
-        //    "c": rows.map((row: Candle) => row.c),
-        //    "l": rows.map((row: Candle) => row.l),
-        //    "h": rows.map((row: Candle) => row.h),
-        //}
-        //res.status(200).json(prices);
-        //}
+        if (rows.length < cb) {
+            res.status(200).json({
+                "s": "no_data",
+            });
+        }
         const prices = {
-            "status": "ok",
+            "s": "ok",
             "t": rows.map((row: Candle) => row.t),
             "o": rows.map((row: Candle) => row.o),
             "c": rows.map((row: Candle) => row.c),
@@ -68,56 +90,14 @@ app.get('/api/tv/prices', async (req: Request, res: Response) => {
         res.status(200).json(prices);
     } catch (err) {
         console.error(err);
-        res.status(500).send('Internal Server Error');
+        res.status(200).json({
+            "s": "error",
+        });
     }
 
-});
-
-app.get('/api/assets', async (_req: Request, res: Response) => {
-    const query = `
-  SELECT
-    *
-  FROM
-    assets
-  `;
-    try {
-        const result = await pool.query(query);
-        res.status(200).json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Internal Server Error');
-    }
-});
-
-app.get('/api/multipool_assets', async (_req: Request, res: Response) => {
-    const query = `
-    select 
-      m.address as address,
-      m.ideal_share as ideal_share,
-      m.quantity as quantity,
-      m.price as price,
-      a.price as asset_price,
-      a.address as asset_address,
-      a.name as name,
-      a.coingecko_id as coingecko_id,
-      a.mcap as mcap,
-      a.volume_24h as volume_24h,
-      a.logo as logo,
-      a.change_24h as change_24h
-    from multipool_assets m 
-      left join mp_to_asset j on j.mp_address=m.address 
-      left join assets a on a.coingecko_id=j.asset_id
-  `;
-    try {
-        const result = await pool.query(query);
-        res.status(200).json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Internal Server Error');
-    }
 });
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
-    console.log(`Server listening on port ${PORT}`);
+    console.log(`Server listening on port ${PORT} `);
 });
