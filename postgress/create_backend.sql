@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS indexes
 (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     name TEXT NOT NULL UNIQUE,
+    symbol TEXT NOT NULL UNIQUE,
     description TEXT NULL,
     price_change_24h numeric NULL,
     mcap numeric NULL,
