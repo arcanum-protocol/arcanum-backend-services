@@ -44,8 +44,18 @@ async function getRevenueData(): Promise<Array<Revenue>> {
     return results;
 }
 
+async function getAssets(): Promise<Array<string>> {
+    const client = await pool.connect();
+    const res = await client.query(`SELECT * FROM assets`);
+    client.release();
+    console.log(res.rows);
+    return res.rows;
+}
+
 async function updateRevenueData(): Promise<void> {
-    // const client = await pool.connect();
+    // get defillama_id from assets table
+    const assets = await getAssets();
+
     let revenueData = await getRevenueData();
     // update assets table
     try {
@@ -55,6 +65,19 @@ async function updateRevenueData(): Promise<void> {
             if (isNaN(revenue)) {
                 continue;
             }
+
+            let found = false;
+            for (let j = 0; j < assets.length; j++) {
+                if (assets[j]["defillama_id"] === asset.symbol) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                continue;
+            }
+
             await pool.query(`INSERT INTO arbitrum_revenue (symbol, revenue) VALUES ($1, $2) ON CONFLICT (symbol) DO UPDATE SET revenue = $2`, [asset.symbol, revenue]);
         }
     } catch (e) {
@@ -68,4 +91,3 @@ try {
 } catch (e) {
     console.log(e.message);
 }
-
