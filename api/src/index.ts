@@ -103,56 +103,41 @@ app.get('/api/tv/history', async (req: Request, res: Response) => {
 
 });
 
-//// Define API endpoint to retrieve candles
-//app.get('/api/index/info', async (req: Request, res: Response) => {
-//    let { id } = req.query;
-//
-//    let cb = Number(countback);
-//    let resol = resolution == '1D' ? 1440 * 60 : Number(resolution) * 60;
-//
-//    console.log(`cb ${cb}, resol ${resol}, to ${to}`);
-//    const query = `
-//    SELECT
-//    open as o,
-//        close as c,
-//        low as l,
-//        high as h,
-//        ts as t
-//    FROM
-//    candles 
-//  where ts <= ${to} 
-//    and resolution = ${resol} 
-//    and index_id = (select id from indexes where symbol='${symbol}')
-//  ORDER BY ts DESC
-//  limit ${cb};
-//    `;
-//
-//    try {
-//        const result = await pool.query(query);
-//
-//        const rows = result.rows.reverse();
-//        if (rows.length == 0) {
-//            res.status(200).json({
-//                "s": "no_data",
-//            });
-//        }
-//        const prices = {
-//            "s": "ok",
-//            "t": rows.map((row: Candle) => row.t),
-//            "o": rows.map((row: Candle) => row.o),
-//            "c": rows.map((row: Candle) => row.c),
-//            "l": rows.map((row: Candle) => row.l),
-//            "h": rows.map((row: Candle) => row.h),
-//        }
-//        res.status(200).json(prices);
-//    } catch (err) {
-//        console.error(err);
-//        res.status(200).json({
-//            "s": "error",
-//        });
-//    }
-//
-//});
+app.get('/api/index/info', async (req: Request, res: Response) => {
+    let { id } = req.query;
+
+    const query = `
+    select a.* 
+    from indexes i 
+        join assets_to_indexes ati 
+            on ati.index_id = i.id 
+        join assets a 
+            on ati.asset_id = a.id
+    where i.id = $1;
+    `;
+
+    const index_query = `
+    select * 
+    from indexes i 
+    where i.id = $1;
+    `;
+
+    try {
+        const assets = (await pool.query(query, [id])).rows;
+        const index = (await pool.query(index_query, [id])).rows[0];
+
+        res.status(200).json({
+            "index": index,
+            "assets": assets,
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({
+            "err": err,
+        });
+    }
+
+});
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
