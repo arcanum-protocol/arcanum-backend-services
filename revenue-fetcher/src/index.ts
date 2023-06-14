@@ -1,93 +1,38 @@
-// https://tokenterminal.com/_next/data/svrWqEDxQjHKkOInOzf2_/leaderboards/earnings.json
+import { Pool } from 'pg';
 
-import pg from 'pg';
-import { config } from "dotenv";
-import { BigNumber } from 'bignumber.js';
-import express, { Request, Response } from 'express';
-
-// Load environment variables from .env file
-config();
-
-const pool = new pg.Pool({
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    port: parseInt(process.env.DB_PORT!),
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
 });
 
-interface Revenue {
-    symbol: string;
-    revenue: string;
-}
-
-async function getRevenueData(): Promise<Array<Revenue>> {
-    const response = await fetch(`https://api.llama.fi/overview/fees?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=true`);
-    let data = await response.json();
-
-    const protocols = data["protocols"];
-    // exclude protocols that not on arbitrum
-
-    let results: Array<Revenue> = [];
-
-    for (let i = 0; i < protocols.length; i++) {
-        // if protocol is not on arbitrum, skip
-        if (protocols[i]["chains"].indexOf("Arbitrum") === -1) {
-            continue;
-        }
-
-        results.push({
-            symbol: protocols[i]["displayName"],
-            revenue: protocols[i]["dailyHoldersRevenue"],
-        });
-    }
-    return results;
-}
-
-async function getAssets(): Promise<Array<string>> {
-    const client = await pool.connect();
-    const res = await client.query(`SELECT * FROM assets`);
-    client.release();
-    console.log(res.rows);
-    return res.rows;
-}
+const FETCH_INTERVAL: number = Number(process.env.FETCH_INTERVAL);
 
 async function updateRevenueData(): Promise<void> {
-    // get defillama_id from assets table
-    const assets = await getAssets();
+    const response = await fetch('https://api.llama.fi/overview/fees/arbitrum?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=true');
+    let data = await response.json();
+    console.log("fetched data");
+    const protocols = data["protocols"];
 
-    let revenueData = await getRevenueData();
-    // update assets table
-    try {
-        for (let i = 0; i < revenueData.length; i++) {
-            const asset = revenueData[i];
-            const revenue = Math.round(parseFloat(asset.revenue));
-            if (isNaN(revenue)) {
-                continue;
-            }
+    const client = await pool.connect();
+    const assets = (await client.query(`SELECT defilama_id FROM assets where defilama_id is not null;`)).rows.map(v => v.defilama_id);
 
-            let found = false;
-            for (let j = 0; j < assets.length; j++) {
-                if (assets[j]["defillama_id"] === asset.symbol) {
-                    found = true;
-                    break;
-                }
-            }
+    console.log("assets ", assets);
 
-            if (!found) {
-                continue;
-            }
+    for (let i = 0; i < protocols.length; i++) {
+        let id = protocols[i]["defillamaId"];
+        let revenue = protocols[i]["dailyHoldersRevenue"];
 
-            await pool.query(`INSERT INTO arbitrum_revenue (symbol, revenue) VALUES ($1, $2) ON CONFLICT (symbol) DO UPDATE SET revenue = $2`, [asset.symbol, revenue]);
+        if (assets.indexOf(id) === -1) {
+            continue;
         }
-    } catch (e) {
-        // console.log(e);
+        await pool.query(`UPDATE assets SET revenue = $2 where defilama_id = $1`, [id, revenue]);
+        console.log("inserted ", revenue, " to ", id);
+
     }
 }
 
-// run every minute
 try {
-    setInterval(updateRevenueData, 1000);
+    updateRevenueData();
+    setInterval(updateRevenueData, FETCH_INTERVAL);
 } catch (e) {
-    console.log(e.message);
+    throw e;
 }

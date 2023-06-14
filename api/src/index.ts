@@ -21,8 +21,6 @@ app.use((_req, res, next) => {
     next();
 });
 
-
-
 app.get('/api/tv/config', async (req: Request, res: Response) => {
     res.status(200).json({
         supported_resolutions: ['1', '3', '5', '15', '30', '60', '720', '1D'],
@@ -104,6 +102,57 @@ app.get('/api/tv/history', async (req: Request, res: Response) => {
     }
 
 });
+
+//// Define API endpoint to retrieve candles
+//app.get('/api/index/info', async (req: Request, res: Response) => {
+//    let { id } = req.query;
+//
+//    let cb = Number(countback);
+//    let resol = resolution == '1D' ? 1440 * 60 : Number(resolution) * 60;
+//
+//    console.log(`cb ${cb}, resol ${resol}, to ${to}`);
+//    const query = `
+//    SELECT
+//    open as o,
+//        close as c,
+//        low as l,
+//        high as h,
+//        ts as t
+//    FROM
+//    candles 
+//  where ts <= ${to} 
+//    and resolution = ${resol} 
+//    and index_id = (select id from indexes where symbol='${symbol}')
+//  ORDER BY ts DESC
+//  limit ${cb};
+//    `;
+//
+//    try {
+//        const result = await pool.query(query);
+//
+//        const rows = result.rows.reverse();
+//        if (rows.length == 0) {
+//            res.status(200).json({
+//                "s": "no_data",
+//            });
+//        }
+//        const prices = {
+//            "s": "ok",
+//            "t": rows.map((row: Candle) => row.t),
+//            "o": rows.map((row: Candle) => row.o),
+//            "c": rows.map((row: Candle) => row.c),
+//            "l": rows.map((row: Candle) => row.l),
+//            "h": rows.map((row: Candle) => row.h),
+//        }
+//        res.status(200).json(prices);
+//    } catch (err) {
+//        console.error(err);
+//        res.status(200).json({
+//            "s": "error",
+//        });
+//    }
+//
+//});
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
