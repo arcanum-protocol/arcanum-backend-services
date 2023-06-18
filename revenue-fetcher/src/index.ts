@@ -1,10 +1,11 @@
 import { Pool } from 'pg';
+import cron from 'node-cron';
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
 });
 
-const FETCH_INTERVAL: number = Number(process.env.FETCH_INTERVAL);
+const CRON_INTERVAL: string = String(process.env.CRON_INTERVAL);
 
 async function updateRevenueData(): Promise<void> {
     const response = await fetch('https://api.llama.fi/overview/fees/arbitrum?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=true');
@@ -30,9 +31,6 @@ async function updateRevenueData(): Promise<void> {
     }
 }
 
-try {
+cron.schedule(CRON_INTERVAL, function() {
     updateRevenueData();
-    setInterval(updateRevenueData, FETCH_INTERVAL);
-} catch (e) {
-    throw e;
-}
+});

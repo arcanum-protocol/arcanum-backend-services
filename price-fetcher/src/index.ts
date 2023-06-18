@@ -1,11 +1,12 @@
 import { Pool } from 'pg';
 import { BigNumber } from 'bignumber.js';
+import cron from 'node-cron';
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
 });
 
-const FETCH_INTERVAL: number = Number(process.env.FETCH_INTERVAL);
+const CRON_INTERVAL: string = String(process.env.CRON_INTERVAL);
 
 interface Asset {
     symbol: string;
@@ -54,6 +55,6 @@ async function updateIndex(): Promise<void> {
     console.log('batch updated');
 }
 
-// run every min
-updateIndex();
-setInterval(updateIndex, FETCH_INTERVAL);
+cron.schedule(CRON_INTERVAL, function() {
+    updateIndex();
+});
