@@ -1,11 +1,7 @@
-FROM node:20
-
+FROM denoland/deno:1.17.1
 WORKDIR /app
-
-RUN npm install -g pnpm
-
-COPY . .
-RUN pnpm install
-RUN pnpm build
-
-CMD ["pnpm", "run", "run"]
+USER deno
+COPY ./src/main.ts .
+RUN deno cache main.ts
+RUN mkdir -p /var/tmp/log
+CMD ["run", "--allow-all", "main.ts"]
