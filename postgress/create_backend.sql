@@ -93,7 +93,7 @@ BEGIN
     new_price = ROUND(new_price, 6);
 
     INSERT INTO prices(index_id, ts, price)
-    VALUES(arg_index_id, (EXTRACT(epoch FROM CURRENT_TIMESTAMP(0)::TIMESTAMP WITHOUT TIME ZONE))::BIGINT,new_price);
+    VALUES(arg_index_id, (EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT,new_price);
 
     -- gen candles
     --                      1m 3m  5m  15m 30m  60m   12h   24h    
@@ -102,7 +102,7 @@ BEGIN
         INSERT INTO candles(index_id, ts, resolution, open, close, low, high)
         VALUES(
             arg_index_id,
-            (EXTRACT(epoch FROM CURRENT_TIMESTAMP(0)::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / resol * resol, 
+            (EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / resol * resol, 
             resol,
             new_price,
             new_price,

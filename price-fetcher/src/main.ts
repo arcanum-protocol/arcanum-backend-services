@@ -2,8 +2,8 @@ import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import BigNumber from "npm:bignumber.js@9.0.1";
 
-const DATABASE_URL = Deno.env.get("DATABASE_URL") || "";
-const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL") || "";
+const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
+const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
 
 const pool = new Pool(DATABASE_URL, 10);
 
