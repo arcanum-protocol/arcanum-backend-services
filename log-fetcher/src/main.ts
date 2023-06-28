@@ -44,45 +44,48 @@ async function getEvents() {
     await client.queryObject("BEGIN;");
 
     console.log(logs);
-    logs.forEach(async (log: any) => {
-        const values = log.returnValues;
-        if (log.key == "AssetPercentsChange") {
-            const res = await client.queryObject(
-                "INSERT INTO etf_assets(multipool_address, asset_address, ideal_share)\
+    await logs.forEach(async (log: any) => {
+        await TRANSACTION_LOCK.lock(async () => {
+            const values = log.returnValues;
+            if (log.event == "AssetPercentsChange") {
+                const res = await client.queryObject(
+                    "INSERT INTO etf_assets(multipool_address, asset_address, ideal_share)\
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
-                ideal_share = $1; ",
-                [values.percent, values.asset, log.address],
-            );
-            console.log(res);
-        } else if (log.key == "AssetQuantityChange") {
-            const res = await client.queryObject(
-                "UPDATE etf_assets SET quantity = $1 WHERE multipool_address = $3 and asset_address = $2;",
-                [values.quantity, values.asset, log.address],
-            );
-            console.log(res);
-        } else if (log.key == "AssetPriceChange") {
-            const res = await client.queryObject(
-                "INSERT INTO etf_assetsmultipool_address, asset_address, price)\
+                ideal_share = $1;",
+                    [values.percent, values.asset, log.address],
+                );
+                console.log(res);
+            } else if (log.event == "AssetQuantityChange") {
+                const res = await client.queryObject(
+                    "UPDATE etf_assets SET quantity = $1 WHERE multipool_address = $3 and asset_address = $2;",
+                    [values.quantity, values.asset, log.address],
+                );
+                console.log(res);
+            } else if (log.event == "AssetPriceChange") {
+                const res = await client.queryObject(
+                    "INSERT INTO etf_assets(multipool_address, asset_address, chain_price)\
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
-                price = $1; ",
-                [values.price, values.asset, log.address],
-            );
-            console.log(res);
-        }
+                chain_price = $1;",
+                    [values.price, values.asset, log.address],
+                );
+                console.log(res);
+            }
+        });
     });
 
     await client.queryObject(
         "UPDATE indexers_height SET block_height = $1 WHERE id = $2",
         [current_block, RUNNER_ID],
     );
-    await client.queryObject("COMMIT");
+    await client.queryObject("COMMIT;");
     client.release();
     console.log("finised iteration");
 }
 
 const LOCK = new Lock({});
+const TRANSACTION_LOCK = new Lock({});
 cron(CRON_INTERVAL, async () => {
     await LOCK.lock(async () => {
         await getEvents();
