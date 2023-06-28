@@ -6,7 +6,7 @@ import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
-const CONTRACT_ADDRESS = Deno.env.get("CONTRACT_ADDRESS")!;
+const CONTRACT_ADDRESS = Deno.env.get("CONTRACT_ADDRESS")!.toLowerCase();
 const RUNNER_ID = Deno.env.get("RUNNER_ID")!;
 const PROVIDER_URL = Deno.env.get("PROVIDER_URL")!;
 const MAXIMUM_BLOCKS_PER_REQUEST: bigint = BigInt(
@@ -53,13 +53,13 @@ async function getEvents() {
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
                 ideal_share = $1;",
-                    [values.percent, values.asset, log.address],
+                    [values.percent, values.asset, log.address.toLowerCase()],
                 );
                 console.log(res);
             } else if (log.event == "AssetQuantityChange") {
                 const res = await client.queryObject(
                     "UPDATE etf_assets SET quantity = $1 WHERE multipool_address = $3 and asset_address = $2;",
-                    [values.quantity, values.asset, log.address],
+                    [values.quantity, values.asset, log.address.toLowerCase()],
                 );
                 console.log(res);
             } else if (log.event == "AssetPriceChange") {
@@ -68,7 +68,7 @@ async function getEvents() {
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
                 chain_price = $1;",
-                    [values.price, values.asset, log.address],
+                    [values.price, values.asset, log.address.toLowerCase()],
                 );
                 console.log(res);
             }

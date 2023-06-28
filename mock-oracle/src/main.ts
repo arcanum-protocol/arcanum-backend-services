@@ -6,7 +6,7 @@ import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
-const CONTRACT_ADDRESS = Deno.env.get("CONTRACT_ADDRESS")!;
+const CONTRACT_ADDRESS = Deno.env.get("CONTRACT_ADDRESS")!.toLowerCase();
 const PROVIDER_URL = Deno.env.get("PROVIDER_URL")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 
