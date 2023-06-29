@@ -1,17 +1,6 @@
 export const ABI = [
     {
-        "inputs": [
-            {
-                "internalType": "string",
-                "name": "_name",
-                "type": "string",
-            },
-            {
-                "internalType": "string",
-                "name": "_symbol",
-                "type": "string",
-            },
-        ],
+        "inputs": [],
         "stateMutability": "nonpayable",
         "type": "constructor",
     },
@@ -58,278 +47,92 @@ export const ABI = [
         "type": "error",
     },
     {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "owner",
-                "type": "address",
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "spender",
-                "type": "address",
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256",
-            },
-        ],
-        "name": "Approval",
-        "type": "event",
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "asset",
-                "type": "address",
-            },
-            {
-                "indexed": false,
-                "internalType": "UD60x18",
-                "name": "percent",
-                "type": "uint256",
-            },
-        ],
-        "name": "AssetPercentsChange",
-        "type": "event",
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "asset",
-                "type": "address",
-            },
-            {
-                "indexed": false,
-                "internalType": "UD60x18",
-                "name": "price",
-                "type": "uint256",
-            },
-        ],
-        "name": "AssetPriceChange",
-        "type": "event",
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "asset",
-                "type": "address",
-            },
-            {
-                "indexed": false,
-                "internalType": "UD60x18",
-                "name": "quantity",
-                "type": "uint256",
-            },
-        ],
-        "name": "AssetQuantityChange",
-        "type": "event",
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "previousOwner",
-                "type": "address",
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "newOwner",
-                "type": "address",
-            },
-        ],
-        "name": "OwnershipTransferred",
-        "type": "event",
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "from",
-                "type": "address",
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "to",
-                "type": "address",
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256",
-            },
-        ],
-        "name": "Transfer",
-        "type": "event",
+        "inputs": [],
+        "name": "PRBMath_SD59x18_Div_InputTooSmall",
+        "type": "error",
     },
     {
         "inputs": [
             {
-                "internalType": "address",
-                "name": "owner",
-                "type": "address",
+                "internalType": "SD59x18",
+                "name": "x",
+                "type": "int256",
             },
             {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address",
+                "internalType": "SD59x18",
+                "name": "y",
+                "type": "int256",
             },
         ],
-        "name": "allowance",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address",
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256",
-            },
-        ],
-        "name": "approve",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool",
-            },
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address",
-            },
-        ],
-        "name": "assets",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "quantity",
-                "type": "uint256",
-            },
-            {
-                "internalType": "UD60x18",
-                "name": "price",
-                "type": "uint256",
-            },
-            {
-                "internalType": "UD60x18",
-                "name": "collectedFees",
-                "type": "uint256",
-            },
-            {
-                "internalType": "UD60x18",
-                "name": "collectedCashbacks",
-                "type": "uint256",
-            },
-            {
-                "internalType": "UD60x18",
-                "name": "percent",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address",
-            },
-        ],
-        "name": "balanceOf",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
+        "name": "PRBMath_SD59x18_Div_Overflow",
+        "type": "error",
     },
     {
         "inputs": [],
-        "name": "baseBurnFee",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "baseMintFee",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "baseTradeFee",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
+        "name": "PRBMath_SD59x18_Mul_InputTooSmall",
+        "type": "error",
     },
     {
         "inputs": [
+            {
+                "internalType": "SD59x18",
+                "name": "x",
+                "type": "int256",
+            },
+            {
+                "internalType": "SD59x18",
+                "name": "y",
+                "type": "int256",
+            },
+        ],
+        "name": "PRBMath_SD59x18_Mul_Overflow",
+        "type": "error",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "SD59x18",
+                "name": "x",
+                "type": "int256",
+            },
+            {
+                "internalType": "uint256",
+                "name": "y",
+                "type": "uint256",
+            },
+        ],
+        "name": "PRBMath_SD59x18_Powu_Overflow",
+        "type": "error",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "SD59x18",
+                "name": "x",
+                "type": "int256",
+            },
+        ],
+        "name": "PRBMath_SD59x18_Sqrt_NegativeInput",
+        "type": "error",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "SD59x18",
+                "name": "x",
+                "type": "int256",
+            },
+        ],
+        "name": "PRBMath_SD59x18_Sqrt_Overflow",
+        "type": "error",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
             {
                 "internalType": "address",
                 "name": "_asset",
@@ -337,7 +140,12 @@ export const ABI = [
             },
             {
                 "internalType": "UD60x18",
-                "name": "_share",
+                "name": "_amountOut",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_sharesInMax",
                 "type": "uint256",
             },
             {
@@ -345,8 +153,74 @@ export const ABI = [
                 "name": "_to",
                 "type": "address",
             },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256",
+            },
         ],
-        "name": "burn",
+        "name": "burnWithAmountOut",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_asset",
+                "type": "address",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_sharesIn",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountOutMin",
+                "type": "uint256",
+            },
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address",
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256",
+            },
+        ],
+        "name": "burnWithSharesIn",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_asset",
+                "type": "address",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_sharesIn",
+                "type": "uint256",
+            },
+        ],
+        "name": "estimateBurnAmountOut",
         "outputs": [
             {
                 "internalType": "UD60x18",
@@ -354,32 +228,6 @@ export const ABI = [
                 "type": "uint256",
             },
         ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "curveCoef",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "decimals",
-        "outputs": [
-            {
-                "internalType": "uint8",
-                "name": "",
-                "type": "uint8",
-            },
-        ],
         "stateMutability": "view",
         "type": "function",
     },
@@ -387,374 +235,9 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "spender",
+                "name": "_pool",
                 "type": "address",
             },
-            {
-                "internalType": "uint256",
-                "name": "subtractedValue",
-                "type": "uint256",
-            },
-        ],
-        "name": "decreaseAllowance",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool",
-            },
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "denominator",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "deviationPercentLimit",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "feeReceiver",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_asset",
-                "type": "address",
-            },
-        ],
-        "name": "getAssets",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "quantity",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "price",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "collectedFees",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "collectedCashbacks",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "percent",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "getBurnContext",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalAssetPercents",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "curveCoef",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "operationBaseFee",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "userCashbackBalance",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "baseFee",
-                "type": "uint256",
-            },
-        ],
-        "name": "getContext",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalAssetPercents",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "curveCoef",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "operationBaseFee",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "userCashbackBalance",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "getMintContext",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalAssetPercents",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "curveCoef",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "operationBaseFee",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "userCashbackBalance",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "getTradeContext",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalAssetPercents",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "curveCoef",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "operationBaseFee",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "userCashbackBalance",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "quantity",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "price",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "collectedFees",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "collectedCashbacks",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "percent",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpAsset",
-                "name": "assetIn",
-                "type": "tuple",
-            },
-            {
-                "internalType": "address",
-                "name": "_assetIn",
-                "type": "address",
-            },
-        ],
-        "name": "getTransferredAmount",
-        "outputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "amount",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address",
-            },
-            {
-                "internalType": "uint256",
-                "name": "addedValue",
-                "type": "uint256",
-            },
-        ],
-        "name": "increaseAllowance",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool",
-            },
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
             {
                 "internalType": "address",
                 "name": "_asset",
@@ -762,16 +245,40 @@ export const ABI = [
             },
             {
                 "internalType": "UD60x18",
-                "name": "_share",
+                "name": "_amountOut",
                 "type": "uint256",
+            },
+        ],
+        "name": "estimateBurnSharesIn",
+        "outputs": [
+            {
+                "internalType": "UD60x18",
+                "name": "_sharesIn",
+                "type": "uint256",
+            },
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
             },
             {
                 "internalType": "address",
-                "name": "_to",
+                "name": "_asset",
                 "type": "address",
             },
+            {
+                "internalType": "UD60x18",
+                "name": "_sharesOut",
+                "type": "uint256",
+            },
         ],
-        "name": "mint",
+        "name": "estimateMintAmountIn",
         "outputs": [
             {
                 "internalType": "UD60x18",
@@ -779,189 +286,32 @@ export const ABI = [
                 "type": "uint256",
             },
         ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "name",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string",
-            },
-        ],
         "stateMutability": "view",
         "type": "function",
     },
     {
-        "inputs": [],
-        "name": "owner",
-        "outputs": [
+        "inputs": [
             {
                 "internalType": "address",
-                "name": "",
+                "name": "_pool",
                 "type": "address",
             },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "renounceOwnership",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_asset",
+                "type": "address",
+            },
             {
                 "internalType": "UD60x18",
-                "name": "_baseBurnFee",
+                "name": "_amountIn",
                 "type": "uint256",
             },
         ],
-        "name": "setBaseBurnFee",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "_baseMintFee",
-                "type": "uint256",
-            },
-        ],
-        "name": "setBaseMintFee",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "_baseTradeFee",
-                "type": "uint256",
-            },
-        ],
-        "name": "setBaseTradeFee",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "_curveCoef",
-                "type": "uint256",
-            },
-        ],
-        "name": "setCurveCoef",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "_deviationPercentLimit",
-                "type": "uint256",
-            },
-        ],
-        "name": "setDeviationPercentLimit",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "UD60x18",
-                "name": "_share",
-                "type": "uint256",
-            },
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "totalAssetPercents",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "curveCoef",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "operationBaseFee",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "userCashbackBalance",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple",
-            },
-            {
-                "components": [
-                    {
-                        "internalType": "UD60x18",
-                        "name": "quantity",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "price",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "collectedFees",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "collectedCashbacks",
-                        "type": "uint256",
-                    },
-                    {
-                        "internalType": "UD60x18",
-                        "name": "percent",
-                        "type": "uint256",
-                    },
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple",
-            },
-        ],
-        "name": "shareToAmount",
+        "name": "estimateMintSharesOut",
         "outputs": [
             {
                 "internalType": "UD60x18",
-                "name": "_amount",
+                "name": "sharesOut",
                 "type": "uint256",
             },
         ],
@@ -970,6 +320,11 @@ export const ABI = [
     },
     {
         "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
             {
                 "internalType": "address",
                 "name": "_assetIn",
@@ -982,21 +337,42 @@ export const ABI = [
             },
             {
                 "internalType": "UD60x18",
-                "name": "_share",
+                "name": "_amountIn",
                 "type": "uint256",
             },
-            {
-                "internalType": "address",
-                "name": "_to",
-                "type": "address",
-            },
         ],
-        "name": "swap",
+        "name": "estimateSwapSharesByAmountIn",
         "outputs": [
             {
                 "internalType": "UD60x18",
-                "name": "_amountIn",
+                "name": "shares",
                 "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "amountOut",
+                "type": "uint256",
+            },
+        ],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetIn",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetOut",
+                "type": "address",
             },
             {
                 "internalType": "UD60x18",
@@ -1004,55 +380,16 @@ export const ABI = [
                 "type": "uint256",
             },
         ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "totalAssetPercents",
+        "name": "estimateSwapSharesByAmountOut",
         "outputs": [
             {
                 "internalType": "UD60x18",
-                "name": "",
+                "name": "shares",
                 "type": "uint256",
             },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "totalCurrentUsdAmount",
-        "outputs": [
             {
                 "internalType": "UD60x18",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [],
-        "name": "totalSupply",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
+                "name": "amountIn",
                 "type": "uint256",
             },
         ],
@@ -1063,83 +400,36 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "to",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_asset",
+                "type": "address",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountIn",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_sharesOutMin",
+                "type": "uint256",
+            },
+            {
+                "internalType": "address",
+                "name": "_to",
                 "type": "address",
             },
             {
                 "internalType": "uint256",
-                "name": "amount",
+                "name": "deadline",
                 "type": "uint256",
             },
         ],
-        "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool",
-            },
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address",
-            },
-        ],
-        "name": "transferFees",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256",
-            },
-        ],
-        "stateMutability": "view",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "from",
-                "type": "address",
-            },
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address",
-            },
-            {
-                "internalType": "uint256",
-                "name": "amount",
-                "type": "uint256",
-            },
-        ],
-        "name": "transferFrom",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool",
-            },
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function",
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "newOwner",
-                "type": "address",
-            },
-        ],
-        "name": "transferOwnership",
+        "name": "mintWithAmountIn",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
@@ -1148,16 +438,36 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
                 "name": "_asset",
                 "type": "address",
             },
             {
                 "internalType": "UD60x18",
-                "name": "_percent",
+                "name": "_sharesOut",
+                "type": "uint256",
+            },
+            {
+                "internalType": "uint256",
+                "name": "_amountInMax",
+                "type": "uint256",
+            },
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address",
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
                 "type": "uint256",
             },
         ],
-        "name": "updateAssetPercents",
+        "name": "mintWithSharesOut",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
@@ -1166,16 +476,132 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_asset",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetIn",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetOut",
                 "type": "address",
             },
             {
                 "internalType": "UD60x18",
-                "name": "_price",
+                "name": "_amountInMax",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountOutMin",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_shares",
+                "type": "uint256",
+            },
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address",
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
                 "type": "uint256",
             },
         ],
-        "name": "updatePrice",
+        "name": "swap",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetIn",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetOut",
+                "type": "address",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountIn",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountOutMin",
+                "type": "uint256",
+            },
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address",
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256",
+            },
+        ],
+        "name": "swapWithAmountIn",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_pool",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetIn",
+                "type": "address",
+            },
+            {
+                "internalType": "address",
+                "name": "_assetOut",
+                "type": "address",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountOut",
+                "type": "uint256",
+            },
+            {
+                "internalType": "UD60x18",
+                "name": "_amountInMax",
+                "type": "uint256",
+            },
+            {
+                "internalType": "address",
+                "name": "_to",
+                "type": "address",
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256",
+            },
+        ],
+        "name": "swapWithAmountOut",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",

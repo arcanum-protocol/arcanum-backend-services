@@ -56,6 +56,22 @@ jobs:
     - name: push image
       run: docker push badconfig/backend-api 
 
+  build-0x-api:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build the Docker image
+      run: docker build api --tag badconfig/0x-api
+
+    - name: Login to dockerhub
+      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+    - name: push image
+      run: docker push badconfig/0x-api 
+
   build-revenue-fetcher:
 
     runs-on: ubuntu-latest
