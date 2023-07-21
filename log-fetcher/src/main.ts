@@ -71,6 +71,20 @@ async function getEvents() {
                     [values.price, values.asset, log.address.toLowerCase()],
                 );
                 console.log(res);
+            } else if (log.event == "Transfer") {
+                if (values.to = "0x0000000000000000000000000000000000000000") {
+                    const res = await client.queryObject(
+                        "UPDATE multipool_assets SET total_supply-=$1 WHERE address=$2;"
+                        [values.value, log.address.toLowerCase()],
+                    );
+                    console.log(res);
+                } else if (values.from = "0x0000000000000000000000000000000000000000") {
+                    const res = await client.queryObject(
+                        "UPDATE multipool_assets SET total_supply+=$1 WHERE address=$2;"
+                        [values.value, log.address.toLowerCase()],
+                    );
+                    console.log(res);
+                }
             }
         });
     });
