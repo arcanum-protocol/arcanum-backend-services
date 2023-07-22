@@ -79,11 +79,6 @@ async function updateAllTokenPrices(
             const newPrice18 = ethers.utils.parseEther(newPrice).toString();
             console.log(`updating price for ${assetAddress} to ${newPrice18} `);
             await updateTokenPrice(assetAddress, newPrice18);
-
-            const newPercents18 = ethers.utils.parseEther(newPercents)
-                .toString();
-            console.log(`updating percents for ${assetAddress} to ${newPercents18} `);
-            await updateTokenPercents(assetAddress, newPercents18);
         });
     }
     client.release();
@@ -91,5 +86,5 @@ async function updateAllTokenPrices(
 
 const LOCK = new Lock({});
 cron(CRON_INTERVAL, async () => {
-    await updateAllTokenPrices();
+    await process();
 });
