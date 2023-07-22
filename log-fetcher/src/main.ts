@@ -93,7 +93,7 @@ async function getEvents(rpc_url: string, multipool_address: string) {
                     console.log(res);
                 } else if (values.from == "0x0000000000000000000000000000000000000000") {
                     const res = await client.queryObject(
-                        "UPDATE multipools SET total_supply=total_supplu+$1 WHERE address=$2;",
+                        "UPDATE multipools SET total_supply=total_supply+$1 WHERE address=$2;",
                         [values.value, log.address.toLowerCase()],
                     );
                     console.log(res);
