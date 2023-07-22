@@ -10,17 +10,6 @@ const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 
 const pool = new Pool(DATABASE_URL, 10);
 
-// Define function to update price for a single token
-async function updateTokenPrice(assetAddress: string, newPrice: string) {
-    // Call contract function to update price
-    const tx = await contract.updatePrice(assetAddress, newPrice);
-    console.log(`Transaction sent: ${tx.hash}`);
-
-    // Wait for transaction to be confirmed
-    const receipt = await tx.wait();
-    console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-}
-
 // Define function to get current price for a single token from Postgres
 async function getTokenPriceAndMarketCap(
     client: PoolClient,
@@ -64,7 +53,7 @@ async function updateAllTokenPrices(
     const contract = new ethers.Contract(multipoolAddress, ABI, wallet);
 
     const addresses: any = await client.queryObject(
-        "SELECT asset_address FROM etf_assets where multipool_address = $1",
+        "SELECT asset_address FROM multipool_assets where multipool_address = $1",
         [multipoolAddress],
     );
     // exclude from addresses the address if its persent in contract is zero
@@ -77,8 +66,13 @@ async function updateAllTokenPrices(
             );
             // convert price to 18 decimal places
             const newPrice18 = ethers.utils.parseEther(newPrice).toString();
+
             console.log(`updating price for ${assetAddress} to ${newPrice18} `);
-            await updateTokenPrice(assetAddress, newPrice18);
+            const tx = await contract.updatePrice(assetAddress, newPrice18);
+            console.log(`Transaction sent: ${tx.hash}`);
+            // Wait for transaction to be confirmed
+            const receipt = await tx.wait();
+            console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
         });
     }
     client.release();
