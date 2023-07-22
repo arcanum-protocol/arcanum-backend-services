@@ -116,7 +116,7 @@ app.get("/api/multipool/info", async (req: Request, res: Response) => {
     select * 
     from multipool_assets ma
         join assets a 
-            on a.symbol = ma.assset_symbol 
+            on a.symbol = ma.asset_symbol 
     where ma.multipool_address = $1;
     `;
 

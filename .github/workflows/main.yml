@@ -104,6 +104,22 @@ jobs:
     - name: push image
       run: docker push badconfig/mock-oracle 
 
+  build-multipool-assets-symbol-fetcher:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build the Docker image
+      run: docker build multipool-assets-symbol-fetcher --tag badconfig/multipool-assets-symbol-fetcher
+
+    - name: Login to dockerhub
+      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+    - name: push image
+      run: docker push badconfig/multipool-assets-symbol-fetcher 
+
   build-log-fetcher:
 
     runs-on: ubuntu-latest

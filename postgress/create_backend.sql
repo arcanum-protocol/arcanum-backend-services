@@ -36,10 +36,9 @@ CREATE TABLE IF NOT EXISTS multipools
 
 CREATE TABLE IF NOT EXISTS multipool_assets
 (
-    asset_symbol TEXT NOT NULL,
+    asset_symbol TEXT NULL, -- should be set manually
     asset_address TEXT NOT NULL,
     multipool_address TEXT NOT NULL,
-    asset_id BIGINT REFERENCES assets(id),
     ideal_share numeric NOT NULL DEFAULT '0',
     quantity numeric NOT NULL DEFAULT '0',
     chain_price numeric NOT NULL DEFAULT '0',
