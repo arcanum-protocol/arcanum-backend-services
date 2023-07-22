@@ -80,33 +80,35 @@ BEGIN
         SELECT total_supply INTO var_total_supply
         FROM multipools m
         WHERE m.address = var_multipool_address;
-        SELECT 
-            SUM(ma.quantity * a.price) / var_total_suppy 
-            INTO new_price 
-        FROM multipool_assets ma
-        JOIN assets a 
-            ON ma.asset_symbol = a.symbol
-        WHERE ma.multipool_address = var_multipool_addresses;
-        new_price = ROUND(new_price, 6);
+        IF var_total_supply != '0' THEN
+            SELECT 
+                SUM(ma.quantity * a.price) / var_total_supply 
+                INTO new_price 
+            FROM multipool_assets ma
+            JOIN assets a 
+                ON ma.asset_symbol = a.symbol
+            WHERE ma.multipool_address = var_multipool_address;
+            new_price = ROUND(new_price, 6);
 
-        -- gen candles
-        FOREACH var_resol in array var_resolutions
-        LOOP 
-            INSERT INTO candles(multipool_address, ts, resolution, open, close, low, high)
-            VALUES(
-                arg_index_id,
-                (EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / var_resol * var_resol, 
-                var_resol,
-                new_price,
-                new_price,
-                new_price,
-                new_price
-                )
-            ON CONFLICT (var_multipool_address, ts, resolution) DO UPDATE SET
-                close = new_price,
-                low = least(candles.low, new_price),
-                high = greatest(candles.high, new_price);
-        END LOOP;
+            -- gen candles
+            FOREACH var_resol in array var_resolutions
+            LOOP 
+                INSERT INTO candles(multipool_address, ts, resolution, open, close, low, high)
+                VALUES(
+                    arg_index_id,
+                    (EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / var_resol * var_resol, 
+                    var_resol,
+                    new_price,
+                    new_price,
+                    new_price,
+                    new_price
+                    )
+                ON CONFLICT (var_multipool_address, ts, resolution) DO UPDATE SET
+                    close = new_price,
+                    low = least(candles.low, new_price),
+                    high = greatest(candles.high, new_price);
+            END LOOP;
+        END IF;
     END LOOP;
 END 
 $$;

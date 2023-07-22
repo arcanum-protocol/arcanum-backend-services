@@ -76,7 +76,7 @@ app.get("/api/tv/history", async (req: Request, res: Response) => {
     candles 
   where ts <= ${to} 
     and resolution = ${resol} 
-    and index_id = (select id from indexes where symbol='${symbol}')
+    and multipool_address = (select address from multipools where symbol='${symbol}')
   ORDER BY ts DESC
   limit ${cb};
     `;
