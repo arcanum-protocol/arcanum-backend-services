@@ -6,24 +6,35 @@ import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
-const CONTRACT_ADDRESS = Deno.env.get("CONTRACT_ADDRESS")!.toLowerCase();
-const RUNNER_ID = Deno.env.get("RUNNER_ID")!;
-const PROVIDER_URL = Deno.env.get("PROVIDER_URL")!;
 const MAXIMUM_BLOCKS_PER_REQUEST: bigint = BigInt(
     Deno.env.get("MAXIMUM_BLOCKS_PER_REQUEST") || 1000,
 );
 
 const pool = new Pool(DATABASE_URL, 10);
 
-const web3 = new Web3(PROVIDER_URL);
-const contract = new web3.eth.Contract(ABI, CONTRACT_ADDRESS);
+async function process() {
+    const client = await pool.connect();
+    let multipools = await client.queryObject(
+        "SELECT rpc_url, address FROM multipools;"
+    );
 
-async function getEvents() {
+    for (let i = 0; i < multipools.length; i++) {
+        const multipool = multipools[i];
+        await getEvents(multipool.rpc_url, multipool.address);
+    }
+
+    client.release();
+}
+
+async function getEvents(rpc_url: string, multipool_address: string) {
     const client = await pool.connect();
 
+    const web3 = new Web3(rpc_url);
+    const contract = new web3.eth.Contract(ABI, multipool_address);
+
     let last_block: bigint = await client.queryObject(
-        "SELECT block_height FROM indexers_height WHERE id = $1",
-        [RUNNER_ID],
+        "SELECT block_height FROM multipools WHERE address=$1",
+        [multipool_address],
     ).then((v: any) => BigInt(v.rows[0].block_height))!;
 
     let current_block = await web3
@@ -49,7 +60,7 @@ async function getEvents() {
             const values = log.returnValues;
             if (log.event == "AssetPercentsChange") {
                 const res = await client.queryObject(
-                    "INSERT INTO etf_assets(multipool_address, asset_address, ideal_share)\
+                    "INSERT INTO multipoool_assets(multipool_address, asset_address, ideal_share)\
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
                 ideal_share = $1;",
@@ -58,13 +69,13 @@ async function getEvents() {
                 console.log(res);
             } else if (log.event == "AssetQuantityChange") {
                 const res = await client.queryObject(
-                    "UPDATE etf_assets SET quantity = $1 WHERE multipool_address = $3 and asset_address = $2;",
+                    "UPDATE multipool_assets SET quantity = $1 WHERE multipool_address = $3 and asset_address = $2;",
                     [values.quantity, values.asset, log.address.toLowerCase()],
                 );
                 console.log(res);
             } else if (log.event == "AssetPriceChange") {
                 const res = await client.queryObject(
-                    "INSERT INTO etf_assets(multipool_address, asset_address, chain_price)\
+                    "INSERT INTO multipool_assets(multipool_address, asset_address, chain_price)\
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
                 chain_price = $1;",
@@ -74,13 +85,13 @@ async function getEvents() {
             } else if (log.event == "Transfer") {
                 if (values.to = "0x0000000000000000000000000000000000000000") {
                     const res = await client.queryObject(
-                        "UPDATE multipool_assets SET total_supply-=$1 WHERE address=$2;"
+                        "UPDATE multipools SET total_supply-=$1 WHERE address=$2;"
                         [values.value, log.address.toLowerCase()],
                     );
                     console.log(res);
                 } else if (values.from = "0x0000000000000000000000000000000000000000") {
                     const res = await client.queryObject(
-                        "UPDATE multipool_assets SET total_supply+=$1 WHERE address=$2;"
+                        "UPDATE multipools SET total_supply+=$1 WHERE address=$2;"
                         [values.value, log.address.toLowerCase()],
                     );
                     console.log(res);
@@ -90,8 +101,8 @@ async function getEvents() {
     });
 
     await client.queryObject(
-        "UPDATE indexers_height SET block_height = $1 WHERE id = $2",
-        [current_block, RUNNER_ID],
+        "UPDATE multipools SET block_height = $1 WHERE address = $2",
+        [current_block, multipool_address],
     );
     await client.queryObject("COMMIT;");
     client.release();
@@ -102,6 +113,6 @@ const LOCK = new Lock({});
 const TRANSACTION_LOCK = new Lock({});
 cron(CRON_INTERVAL, async () => {
     await LOCK.lock(async () => {
-        await getEvents();
+        await process();
     });
 });

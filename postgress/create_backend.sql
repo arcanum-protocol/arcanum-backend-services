@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS multipools
 (
     id BIGSERIAL PRIMARY KEY NOT NULL,
 
-    block_height numeric NOT NULL
+    block_height numeric NOT NULL,
 
     name TEXT NOT NULL UNIQUE,
     symbol TEXT NOT NULL UNIQUE,
@@ -48,17 +48,17 @@ CREATE TABLE IF NOT EXISTS multipool_assets
 
 CREATE TABLE IF NOT EXISTS candles
 (
-    index_id BIGINT NOT NULL REFERENCES indexes(id),
+    multipool_address VARCHAR NOT NULL REFERENCES multipools(address),
     ts bigint NOT NULL,
     resolution int NOT NULL,
     open numeric NOT NULL,
     close numeric NOT NULL,
     low numeric NOT NULL,
     high numeric NOT NULL,
-    CONSTRAINT candles_price_pkey PRIMARY KEY (index_id, ts, resolution)
+    CONSTRAINT candles_price_pkey PRIMARY KEY (multipool_address, ts, resolution)
 );
 
-CREATE OR REPLACE PROCEDURE assemble_price(arg_index_id bigint) 
+CREATE OR REPLACE PROCEDURE assemble_price() 
 LANGUAGE plpgsql 
 AS $$
 DECLARE
@@ -73,7 +73,7 @@ DECLARE
 BEGIN 
 
     SELECT 
-        ARRAY_AGG(address) INTO var_multipools
+        ARRAY_AGG(address) INTO var_multipool_addresses
     FROM multipools;
 
     FOREACH var_multipool_address in array var_multipool_addresses
@@ -93,7 +93,7 @@ BEGIN
         -- gen candles
         FOREACH var_resol in array var_resolutions
         LOOP 
-            INSERT INTO candles(index_id, ts, resolution, open, close, low, high)
+            INSERT INTO candles(multipool_address, ts, resolution, open, close, low, high)
             VALUES(
                 arg_index_id,
                 (EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / var_resol * var_resol, 
@@ -103,7 +103,7 @@ BEGIN
                 new_price,
                 new_price
                 )
-            ON CONFLICT (index_id, ts, resolution) DO UPDATE SET
+            ON CONFLICT (var_multipool_address, ts, resolution) DO UPDATE SET
                 close = new_price,
                 low = least(candles.low, new_price),
                 high = greatest(candles.high, new_price);

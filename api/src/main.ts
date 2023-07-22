@@ -120,13 +120,23 @@ app.get("/api/multipool/info", async (req: Request, res: Response) => {
     where ma.multipool_address = $1;
     `;
 
+    const query_multipool = `
+    select * 
+    from multipools
+    where address = $1;
+    `;
+
     const client = await pool.connect();
     try {
         const assets: any =
             (await client.queryObject(query, [address.toLowerCase()])).rows;
 
+        const multipool: any =
+            (await client.queryObject(query_multipool, [address.toLowerCase()])).rows;
+
         res.status(200).json({
             "assets": assets,
+            "multipool": multipool,
         });
     } catch (err) {
         console.error(err);
