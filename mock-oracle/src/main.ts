@@ -6,32 +6,14 @@ import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
-const CONTRACT_ADDRESS = Deno.env.get("CONTRACT_ADDRESS")!.toLowerCase();
-const PROVIDER_URL = Deno.env.get("PROVIDER_URL")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 
 const pool = new Pool(DATABASE_URL, 10);
-// Connect to Ethereum wallet using private key
-const provider = new ethers.providers.JsonRpcProvider(PROVIDER_URL);
-const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-// Instantiate contract
-const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
 
 // Define function to update price for a single token
 async function updateTokenPrice(assetAddress: string, newPrice: string) {
     // Call contract function to update price
     const tx = await contract.updatePrice(assetAddress, newPrice);
-    console.log(`Transaction sent: ${tx.hash}`);
-
-    // Wait for transaction to be confirmed
-    const receipt = await tx.wait();
-    console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-}
-
-// Define function to update price for a single token
-async function updateTokenPercents(assetAddress: string, newPercents: string) {
-    // Call contract function to update price
-    const tx = await contract.updateAssetPercents(assetAddress, newPercents);
     console.log(`Transaction sent: ${tx.hash}`);
 
     // Wait for transaction to be confirmed
@@ -46,19 +28,44 @@ async function getTokenPriceAndMarketCap(
 ): Promise<[string, string]> {
     const res = await client.queryObject(
         "SELECT price, mcap FROM assets \
-        WHERE id = (select asset_id from etf_assets where asset_address = $1); ",
+        WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1); ",
         [assetAddress],
     );
     const row: any = res.rows[0];
     return [row.price, row.mcap];
 }
 
+async function process() {
+    console.log("starting processing");
+    const client = await pool.connect();
+    let multipools = await client.queryObject(
+        "SELECT rpc_url, address FROM multipools;"
+    );
+    console.log(multipools.rows);
+
+    for (let i = 0; i < multipools.rows.length; i++) {
+        const multipool = multipools.rows[i];
+        await updateAllTokenPrices(multipool.rpc_url, multipool.address);
+    }
+
+    client.release();
+}
+
 // Define function to update prices for all tokens in the database
-async function updateAllTokenPrices() {
+async function updateAllTokenPrices(
+    rpcUrl: string,
+    multipoolAddress: string,
+) {
     let client = await pool.connect();
+
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+    // Instantiate contract
+    const contract = new ethers.Contract(multipoolAddress, ABI, wallet);
+
     const addresses: any = await client.queryObject(
         "SELECT asset_address FROM etf_assets where multipool_address = $1",
-        [CONTRACT_ADDRESS],
+        [multipoolAddress],
     );
     // exclude from addresses the address if its persent in contract is zero
     for (let i = 0; i < addresses.rows.length; i++) {

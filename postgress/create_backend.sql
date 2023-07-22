@@ -95,7 +95,7 @@ BEGIN
             LOOP 
                 INSERT INTO candles(multipool_address, ts, resolution, open, close, low, high)
                 VALUES(
-                    arg_index_id,
+                    var_multipool_address,
                     (EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT / var_resol * var_resol, 
                     var_resol,
                     new_price,
@@ -103,7 +103,7 @@ BEGIN
                     new_price,
                     new_price
                     )
-                ON CONFLICT (var_multipool_address, ts, resolution) DO UPDATE SET
+                ON CONFLICT (multipool_address, ts, resolution) DO UPDATE SET
                     close = new_price,
                     low = least(candles.low, new_price),
                     high = greatest(candles.high, new_price);
