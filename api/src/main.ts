@@ -136,7 +136,7 @@ app.get("/api/multipool/info", async (req: Request, res: Response) => {
 
         res.status(200).json({
             "assets": assets,
-            "multipool": multipool,
+            "multipool": multipool[0],
         });
     } catch (err) {
         console.error(err);
