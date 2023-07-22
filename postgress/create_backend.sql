@@ -65,6 +65,10 @@ DECLARE
     var_multipool_address VARCHAR;
     var_total_supply numeric;
     new_price numeric;
+    highest numeric;
+    min_ts bigint;
+    lowest numeric;
+    earliest numeric;
 
     --                     1m 3m  5m  15m 30m  60m   12h   24h    
     var_resolutions INT[] := '{60,180,300,900,1800,3600,43200,86400}';
@@ -108,6 +112,37 @@ BEGIN
                     low = least(candles.low, new_price),
                     high = greatest(candles.high, new_price);
             END LOOP;
+            
+            SELECT 
+                MAX(high),
+                MIN(low)
+            INTO highest, lowest
+            FROM 
+                candles
+            WHERE 
+                multipool_address=var_multipool_address and 
+                resolution=60 and
+                ts > ((EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT - 86400) / 60 * 60;
+
+            SELECT open 
+            INTO earliest 
+            FROM candles  
+            WHERE 
+                multipool_address=var_multipool_address and 
+                resolution=60 and
+                ts > ((EXTRACT(epoch FROM CURRENT_TIMESTAMP::TIMESTAMP WITHOUT TIME ZONE))::BIGINT - 86400) / 60 * 60
+            ORDER BY ts ASC
+            LIMIT 1;
+
+            UPDATE multipools 
+            SET
+                change_24h=ROUND((new_price-earliest) * '100'::numeric /earliest,6),
+                low_24h=lowest,
+                high_24h=highest,
+                current_price=new_price
+            WHERE
+                address=var_multipool_address;
+
         END IF;
     END LOOP;
 END 
