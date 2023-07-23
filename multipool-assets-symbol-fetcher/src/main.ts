@@ -17,7 +17,7 @@ async function process() {
             m.rpc_url \
         FROM multipool_assets ma \
             JOIN multipools m on m.address = ma.multipool_address\
-        WHERE ma.asset_symbol IS NULL; "
+        WHERE ma.asset_symbol IS NULL OR ma.decimals IS NULL; "
     );
     console.log(res.rows);
     let unknownTokens = res.rows;
