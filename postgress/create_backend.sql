@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS multipools
 
     name TEXT NOT NULL UNIQUE,
     symbol TEXT NOT NULL UNIQUE,
+    decimals INT NULL,
     description TEXT NULL,
 
     rpc_url TEXT NOT NULL,

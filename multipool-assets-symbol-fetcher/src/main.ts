@@ -27,10 +27,11 @@ async function process() {
             const web3 = new Web3(token.rpc_url);
             const contract = new web3.eth.Contract(ABI, token.asset_address);
             const symbol = await contract.methods.symbol().call();
+            const decimals = await contract.methods.decimals().call();
             console.log(`Fetched symbol: ${symbol} for ${token.asset_address}`);
             await client.queryObject(
-                "UPDATE multipool_assets SET asset_symbol=$1 where asset_address=$2",
-                [symbol, token.asset_address],
+                "UPDATE multipool_assets SET asset_symbol=$1, decimals=$2 where asset_address=$3",
+                [symbol, decimals, token.asset_address],
             );
         });
     }
