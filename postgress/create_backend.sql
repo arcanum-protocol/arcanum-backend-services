@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS multipool_assets
     multipool_address TEXT NOT NULL,
     ideal_share numeric NOT NULL DEFAULT '0',
     quantity numeric NOT NULL DEFAULT '0',
+    decimals INT NULL,
     chain_price numeric NOT NULL DEFAULT '0',
     CONSTRAINT asset_address_multipool_address_pkey PRIMARY KEY (multipool_address, asset_address)
 );
@@ -82,12 +83,12 @@ BEGIN
 
     FOREACH var_multipool_address in array var_multipool_addresses
     LOOP 
-        SELECT total_supply INTO var_total_supply
+        SELECT total_supply / (10::numeric ^ decimals::numeric) INTO var_total_supply
         FROM multipools m
         WHERE m.address = var_multipool_address;
         IF var_total_supply != '0' THEN
             SELECT 
-                SUM(ma.quantity * a.price) / var_total_supply 
+                SUM(ma.quantity * a.price / (10::numeric ^ ma.decimals::numeric)) / var_total_supply 
                 INTO new_price 
             FROM multipool_assets ma
             JOIN assets a 
