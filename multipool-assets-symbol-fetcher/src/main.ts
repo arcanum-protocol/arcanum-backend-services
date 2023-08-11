@@ -14,6 +14,7 @@ async function process() {
     const res = await client.queryObject(
         "SELECT \
             ma.asset_address, \
+            ma.multipool_address, \
             m.rpc_url \
         FROM multipool_assets ma \
             JOIN multipools m on m.address = ma.multipool_address\
@@ -30,8 +31,8 @@ async function process() {
             const decimals = await contract.methods.decimals().call();
             console.log(`Fetched symbol: ${symbol} for ${token.asset_address}`);
             await client.queryObject(
-                "UPDATE multipool_assets SET asset_symbol=$1, decimals=$2 where asset_address=$3",
-                [symbol, decimals, token.asset_address],
+                "UPDATE multipool_assets SET asset_symbol=$1, decimals=$2 where asset_address=$3 and multipool_address=$4",
+                [symbol, decimals, token.asset_address, token.multipool_address],
             );
         });
     }

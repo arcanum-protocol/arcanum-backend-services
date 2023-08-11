@@ -14,11 +14,12 @@ const pool = new Pool(DATABASE_URL, 10);
 async function getTokenPriceAndMarketCap(
     client: PoolClient,
     assetAddress: string,
+    multipoolAddress: string,
 ): Promise<[string, string]> {
     const res = await client.queryObject(
         "SELECT price, mcap FROM assets \
-        WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1); ",
-        [assetAddress],
+        WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1 and multipool_address=$2); ",
+        [assetAddress, multipoolAddress],
     );
     const row: any = res.rows[0];
     return [row.price, row.mcap];
@@ -63,6 +64,7 @@ async function updateAllTokenPrices(
             const [newPrice, newPercents] = await getTokenPriceAndMarketCap(
                 client,
                 assetAddress,
+                multipoolAddress,
             );
             // convert price to 18 decimal places
             const newPrice18 = ethers.utils.parseEther(newPrice).toString();
