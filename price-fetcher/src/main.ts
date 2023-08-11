@@ -18,7 +18,7 @@ interface Asset {
 async function getAssetsData(coins: Array<string>): Promise<Array<Asset>> {
     const response = await fetch(
         `https://api.coingecko.com/api/v3/simple/price?ids=${coins.join(",")
-        }&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&precision=6`,
+        }&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true`,
     );
     const data = await response.json();
     let results: Array<Asset> = [];
