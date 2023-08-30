@@ -138,7 +138,7 @@ BEGIN
 
             UPDATE multipools 
             SET
-                change_24h=ROUND((new_price-earliest) * '100'::numeric /earliest,6),
+                change_24h=CASE WHEN earliest <> 0 THEN ROUND((new_price-earliest) * '100'::numeric /earliest,6) ELSE '0'::numeric END,
                 low_24h=lowest,
                 high_24h=highest,
                 current_price=new_price

@@ -70,7 +70,7 @@ async function updateAllTokenPrices(
             const newPrice18 = ethers.utils.parseEther(newPrice).toString();
 
             console.log(`updating price for ${assetAddress} to ${newPrice18} `);
-            const tx = await contract.updatePrice(assetAddress, newPrice18);
+            const tx = await contract.updatePrices([assetAddress], [newPrice18]);
             console.log(`Transaction sent: ${tx.hash}`);
             // Wait for transaction to be confirmed
             const receipt = await tx.wait();

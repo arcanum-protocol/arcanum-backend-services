@@ -60,13 +60,13 @@ async function getEvents(rpc_url: string, multipool_address: string) {
     await logs.forEach(async (log: any) => {
         await TRANSACTION_LOCK.lock(async () => {
             const values = log.returnValues;
-            if (log.event == "AssetPercentsChange") {
+            if (log.event == "AssetTargetShareChange") {
                 const res = await client.queryObject(
                     "INSERT INTO multipool_assets(multipool_address, asset_address, ideal_share)\
                 VALUES($3, $2, $1)\
                 ON CONFLICT(multipool_address, asset_address) DO UPDATE SET\
                 ideal_share = $1;",
-                    [values.percent, values.asset.toLowerCase(), log.address.toLowerCase()],
+                    [values.share, values.asset.toLowerCase(), log.address.toLowerCase()],
                 );
                 console.log(res);
             } else if (log.event == "AssetQuantityChange") {

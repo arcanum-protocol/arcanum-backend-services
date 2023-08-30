@@ -3,12 +3,12 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "string",
-                "name": "_name",
+                "name": "mpName",
                 "type": "string"
             },
             {
                 "internalType": "string",
-                "name": "_symbol",
+                "name": "mpSymbol",
                 "type": "string"
             }
         ],
@@ -52,25 +52,6 @@ export const ABI = [
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "percent",
-                "type": "uint256"
-            }
-        ],
-        "name": "AssetPercentsChange",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "asset",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
                 "name": "price",
                 "type": "uint256"
             }
@@ -95,6 +76,25 @@ export const ABI = [
             }
         ],
         "name": "AssetQuantityChange",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "asset",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "share",
+                "type": "uint256"
+            }
+        ],
+        "name": "AssetTargetShareChange",
         "type": "event"
     },
     {
@@ -146,7 +146,7 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "DeviationPercentLimitChange",
+        "name": "DepegBaseFeeChange",
         "type": "event"
     },
     {
@@ -159,7 +159,20 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "HalfDeviationFeeRatioChange",
+        "name": "DeviationLimitChange",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+            }
+        ],
+        "name": "HalfDeviationFeeChange",
         "type": "event"
     },
     {
@@ -187,11 +200,11 @@ export const ABI = [
             {
                 "indexed": false,
                 "internalType": "address",
-                "name": "percentsSource",
+                "name": "authority",
                 "type": "address"
             }
         ],
-        "name": "PercentsSourceChange",
+        "name": "PriceAuthorityChange",
         "type": "event"
     },
     {
@@ -200,11 +213,11 @@ export const ABI = [
             {
                 "indexed": false,
                 "internalType": "address",
-                "name": "priceSource",
+                "name": "authority",
                 "type": "address"
             }
         ],
-        "name": "PriceSourceChange",
+        "name": "TargetShareAuthorityChange",
         "type": "event"
     },
     {
@@ -236,6 +249,19 @@ export const ABI = [
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "address",
+                "name": "authority",
+                "type": "address"
+            }
+        ],
+        "name": "WithdrawAuthorityChange",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "asset",
@@ -248,7 +274,7 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "WithdrawCollectedFees",
+        "name": "WithdrawFees",
         "type": "event"
     },
     {
@@ -344,7 +370,7 @@ export const ABI = [
             },
             {
                 "internalType": "uint256",
-                "name": "percent",
+                "name": "share",
                 "type": "uint256"
             }
         ],
@@ -413,17 +439,17 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_asset",
+                "name": "assetAddress",
                 "type": "address"
             },
             {
                 "internalType": "uint256",
-                "name": "_share",
+                "name": "share",
                 "type": "uint256"
             },
             {
                 "internalType": "address",
-                "name": "_to",
+                "name": "to",
                 "type": "address"
             }
         ],
@@ -431,7 +457,7 @@ export const ABI = [
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "_amountOut",
+                "name": "amountOut",
                 "type": "uint256"
             },
             {
@@ -482,7 +508,7 @@ export const ABI = [
     },
     {
         "inputs": [],
-        "name": "deviationPercentLimit",
+        "name": "depegBaseFee",
         "outputs": [
             {
                 "internalType": "uint256",
@@ -495,12 +521,12 @@ export const ABI = [
     },
     {
         "inputs": [],
-        "name": "feeReceiver",
+        "name": "deviationLimit",
         "outputs": [
             {
-                "internalType": "address",
+                "internalType": "uint256",
                 "name": "",
-                "type": "address"
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -510,7 +536,7 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_asset",
+                "name": "assetAddress",
                 "type": "address"
             }
         ],
@@ -540,7 +566,7 @@ export const ABI = [
                     },
                     {
                         "internalType": "uint256",
-                        "name": "percent",
+                        "name": "share",
                         "type": "uint256"
                     }
                 ],
@@ -553,29 +579,35 @@ export const ABI = [
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "getBurnContext",
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "assetAddress",
+                "type": "address"
+            }
+        ],
+        "name": "getBurnData",
         "outputs": [
             {
                 "components": [
                     {
                         "internalType": "uint256",
-                        "name": "totalCurrentUsdAmount",
+                        "name": "usdCap",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "totalAssetPercents",
+                        "name": "totalTargetShares",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "halfDeviationFeeRatio",
+                        "name": "halfDeviationFee",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "deviationPercentLimit",
+                        "name": "deviationLimit",
                         "type": "uint256"
                     },
                     {
@@ -586,6 +618,104 @@ export const ABI = [
                     {
                         "internalType": "uint256",
                         "name": "userCashbackBalance",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "depegBaseFee",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "quantity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "price",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedFees",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedCashbacks",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "share",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple"
+            },
+            {
+                "internalType": "uint256",
+                "name": "ts",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "action",
+                "type": "uint256"
+            }
+        ],
+        "name": "getContext",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "usdCap",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "totalTargetShares",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "halfDeviationFee",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "deviationLimit",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "operationBaseFee",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "userCashbackBalance",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "depegBaseFee",
                         "type": "uint256"
                     }
                 ],
@@ -600,123 +730,131 @@ export const ABI = [
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "assetAddress",
+                "type": "address"
+            }
+        ],
+        "name": "getMintData",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "usdCap",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "totalTargetShares",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "halfDeviationFee",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "deviationLimit",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "operationBaseFee",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "userCashbackBalance",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "depegBaseFee",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "quantity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "price",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedFees",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedCashbacks",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "share",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple"
+            },
+            {
                 "internalType": "uint256",
-                "name": "baseFee",
+                "name": "ts",
                 "type": "uint256"
             }
         ],
-        "name": "getContext",
-        "outputs": [
-            {
-                "components": [
-                    {
-                        "internalType": "uint256",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "totalAssetPercents",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "halfDeviationFeeRatio",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "operationBaseFee",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "userCashbackBalance",
-                        "type": "uint256"
-                    }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
-            }
-        ],
         "stateMutability": "view",
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "getMintContext",
-        "outputs": [
+        "inputs": [
             {
-                "components": [
-                    {
-                        "internalType": "uint256",
-                        "name": "totalCurrentUsdAmount",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "totalAssetPercents",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "halfDeviationFeeRatio",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "deviationPercentLimit",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "operationBaseFee",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "userCashbackBalance",
-                        "type": "uint256"
-                    }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
+                "internalType": "address",
+                "name": "assetInAddress",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "assetOutAddress",
+                "type": "address"
             }
         ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "getTradeContext",
+        "name": "getTradeData",
         "outputs": [
             {
                 "components": [
                     {
                         "internalType": "uint256",
-                        "name": "totalCurrentUsdAmount",
+                        "name": "usdCap",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "totalAssetPercents",
+                        "name": "totalTargetShares",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "halfDeviationFeeRatio",
+                        "name": "halfDeviationFee",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "deviationPercentLimit",
+                        "name": "deviationLimit",
                         "type": "uint256"
                     },
                     {
@@ -728,11 +866,85 @@ export const ABI = [
                         "internalType": "uint256",
                         "name": "userCashbackBalance",
                         "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "depegBaseFee",
+                        "type": "uint256"
                     }
                 ],
                 "internalType": "struct MpContext",
                 "name": "context",
                 "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "quantity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "price",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedFees",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedCashbacks",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "share",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MpAsset",
+                "name": "assetIn",
+                "type": "tuple"
+            },
+            {
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "quantity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "price",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedFees",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedCashbacks",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "share",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct MpAsset",
+                "name": "assetOut",
+                "type": "tuple"
+            },
+            {
+                "internalType": "uint256",
+                "name": "ts",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -764,17 +976,17 @@ export const ABI = [
                     },
                     {
                         "internalType": "uint256",
-                        "name": "percent",
+                        "name": "share",
                         "type": "uint256"
                     }
                 ],
                 "internalType": "struct MpAsset",
-                "name": "assetIn",
+                "name": "asset",
                 "type": "tuple"
             },
             {
                 "internalType": "address",
-                "name": "_assetIn",
+                "name": "assetAddress",
                 "type": "address"
             }
         ],
@@ -791,7 +1003,7 @@ export const ABI = [
     },
     {
         "inputs": [],
-        "name": "halfDeviationFeeRatio",
+        "name": "halfDeviationFee",
         "outputs": [
             {
                 "internalType": "uint256",
@@ -830,17 +1042,36 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_asset",
+                "name": "assetAddress",
+                "type": "address"
+            }
+        ],
+        "name": "increaseCashback",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "amount",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "assetAddress",
                 "type": "address"
             },
             {
                 "internalType": "uint256",
-                "name": "_share",
+                "name": "share",
                 "type": "uint256"
             },
             {
                 "internalType": "address",
-                "name": "_to",
+                "name": "to",
                 "type": "address"
             }
         ],
@@ -848,7 +1079,7 @@ export const ABI = [
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "_amountIn",
+                "name": "amountIn",
                 "type": "uint256"
             },
             {
@@ -888,20 +1119,7 @@ export const ABI = [
     },
     {
         "inputs": [],
-        "name": "percentsSource",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "priceSource",
+        "name": "priceAuthority",
         "outputs": [
             {
                 "internalType": "address",
@@ -923,7 +1141,7 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "_baseBurnFee",
+                "name": "newBaseBurnFee",
                 "type": "uint256"
             }
         ],
@@ -936,7 +1154,7 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "_baseMintFee",
+                "name": "newBaseMintFee",
                 "type": "uint256"
             }
         ],
@@ -949,7 +1167,7 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "_baseTradeFee",
+                "name": "newBaseTradeFee",
                 "type": "uint256"
             }
         ],
@@ -962,11 +1180,11 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "_deviationPercentLimit",
+                "name": "newDepegBaseFee",
                 "type": "uint256"
             }
         ],
-        "name": "setDeviationPercentLimit",
+        "name": "setDepegBaseFee",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -975,37 +1193,11 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "_halfDeviationFeeRatio",
+                "name": "newDeviationLimit",
                 "type": "uint256"
             }
         ],
-        "name": "setHalfDeviationFeeRatio",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_percentsSource",
-                "type": "address"
-            }
-        ],
-        "name": "setPercentsSource",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_priceSource",
-                "type": "address"
-            }
-        ],
-        "name": "setPriceSource",
+        "name": "setDeviationLimit",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -1014,29 +1206,81 @@ export const ABI = [
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "_share",
+                "name": "newHalfDeviationFee",
+                "type": "uint256"
+            }
+        ],
+        "name": "setHalfDeviationFee",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newPriceAuthority",
+                "type": "address"
+            }
+        ],
+        "name": "setPriceAuthority",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newTargetShareAuthority",
+                "type": "address"
+            }
+        ],
+        "name": "setTargetShareAuthority",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newWithdrawAuthority",
+                "type": "address"
+            }
+        ],
+        "name": "setWithdrawAuthority",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "share",
                 "type": "uint256"
             },
             {
                 "components": [
                     {
                         "internalType": "uint256",
-                        "name": "totalCurrentUsdAmount",
+                        "name": "usdCap",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "totalAssetPercents",
+                        "name": "totalTargetShares",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "halfDeviationFeeRatio",
+                        "name": "halfDeviationFee",
                         "type": "uint256"
                     },
                     {
                         "internalType": "uint256",
-                        "name": "deviationPercentLimit",
+                        "name": "deviationLimit",
                         "type": "uint256"
                     },
                     {
@@ -1047,6 +1291,11 @@ export const ABI = [
                     {
                         "internalType": "uint256",
                         "name": "userCashbackBalance",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "depegBaseFee",
                         "type": "uint256"
                     }
                 ],
@@ -1078,7 +1327,7 @@ export const ABI = [
                     },
                     {
                         "internalType": "uint256",
-                        "name": "percent",
+                        "name": "share",
                         "type": "uint256"
                     }
                 ],
@@ -1088,7 +1337,7 @@ export const ABI = [
             },
             {
                 "internalType": "uint256",
-                "name": "virtualShare",
+                "name": "mpTotalSupply",
                 "type": "uint256"
             }
         ],
@@ -1096,33 +1345,33 @@ export const ABI = [
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "_amount",
+                "name": "amount",
                 "type": "uint256"
             }
         ],
-        "stateMutability": "view",
+        "stateMutability": "pure",
         "type": "function"
     },
     {
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_assetIn",
+                "name": "assetInAddress",
                 "type": "address"
             },
             {
                 "internalType": "address",
-                "name": "_assetOut",
+                "name": "assetOutAddress",
                 "type": "address"
             },
             {
                 "internalType": "uint256",
-                "name": "_share",
+                "name": "share",
                 "type": "uint256"
             },
             {
                 "internalType": "address",
-                "name": "_to",
+                "name": "to",
                 "type": "address"
             }
         ],
@@ -1130,12 +1379,12 @@ export const ABI = [
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "_amountIn",
+                "name": "amountIn",
                 "type": "uint256"
             },
             {
                 "internalType": "uint256",
-                "name": "_amountOut",
+                "name": "amountOut",
                 "type": "uint256"
             },
             {
@@ -1167,25 +1416,12 @@ export const ABI = [
     },
     {
         "inputs": [],
-        "name": "totalAssetPercents",
+        "name": "targetShareAuthority",
         "outputs": [
             {
-                "internalType": "uint256",
+                "internalType": "address",
                 "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "totalCurrentUsdAmount",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
+                "type": "address"
             }
         ],
         "stateMutability": "view",
@@ -1194,6 +1430,19 @@ export const ABI = [
     {
         "inputs": [],
         "name": "totalSupply",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "totalTargetShares",
         "outputs": [
             {
                 "internalType": "uint256",
@@ -1273,17 +1522,17 @@ export const ABI = [
     {
         "inputs": [
             {
-                "internalType": "address",
-                "name": "_asset",
-                "type": "address"
+                "internalType": "address[]",
+                "name": "assetAddresses",
+                "type": "address[]"
             },
             {
-                "internalType": "uint256",
-                "name": "_percent",
-                "type": "uint256"
+                "internalType": "uint256[]",
+                "name": "prices",
+                "type": "uint256[]"
             }
         ],
-        "name": "updateAssetPercents",
+        "name": "updatePrices",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
@@ -1291,38 +1540,69 @@ export const ABI = [
     {
         "inputs": [
             {
-                "internalType": "address",
-                "name": "_asset",
-                "type": "address"
+                "internalType": "address[]",
+                "name": "assetAddresses",
+                "type": "address[]"
             },
             {
+                "internalType": "uint256[]",
+                "name": "shares",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "updateTargetShares",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "usdCap",
+        "outputs": [
+            {
                 "internalType": "uint256",
-                "name": "_price",
+                "name": "",
                 "type": "uint256"
             }
         ],
-        "name": "updatePrice",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "withdrawAuthority",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [
             {
                 "internalType": "address",
-                "name": "_assetAddress",
+                "name": "assetAddress",
                 "type": "address"
             },
             {
                 "internalType": "address",
-                "name": "_to",
+                "name": "to",
                 "type": "address"
             }
         ],
-        "name": "withdrawCollectedFees",
-        "outputs": [],
+        "name": "withdrawFees",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "fees",
+                "type": "uint256"
+            }
+        ],
         "stateMutability": "nonpayable",
         "type": "function"
     }
 ];
-
