@@ -1,4 +1,4 @@
-export const ABI = [
+export default ABI = [
     {
         "inputs": [
             {
@@ -16,269 +16,271 @@ export const ABI = [
         "type": "constructor"
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "owner",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "spender",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "Approval",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "asset",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "price",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "AssetPriceChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "asset",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "quantity",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "AssetQuantityChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "asset",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "share",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "AssetTargetShareChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "BaseBurnFeeChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "BaseMintFeeChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "BaseTradeFeeChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "DepegBaseFeeChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "DeviationLimitChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "HalfDeviationFeeChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "previousOwner",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "newOwner",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             }
         ],
+        "type": "event",
         "name": "OwnershipTransferred",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "address",
                 "name": "authority",
-                "type": "address"
+                "type": "address",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "PriceAuthorityChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "address",
                 "name": "authority",
-                "type": "address"
+                "type": "address",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "TargetShareAuthorityChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "from",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "to",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "Transfer",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
                 "internalType": "address",
                 "name": "authority",
-                "type": "address"
+                "type": "address",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "WithdrawAuthorityChange",
-        "type": "event"
+        "anonymous": false
     },
     {
-        "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
                 "internalType": "address",
                 "name": "asset",
-                "type": "address"
+                "type": "address",
+                "indexed": true
             },
             {
-                "indexed": false,
                 "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "indexed": false
             }
         ],
+        "type": "event",
         "name": "WithdrawFees",
-        "type": "event"
+        "anonymous": false
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "DENOMINATOR",
         "outputs": [
             {
@@ -286,9 +288,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -303,6 +303,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "allowance",
         "outputs": [
             {
@@ -310,9 +312,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -327,6 +327,8 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "approve",
         "outputs": [
             {
@@ -334,9 +336,7 @@ export const ABI = [
                 "name": "",
                 "type": "bool"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -346,6 +346,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "assets",
         "outputs": [
             {
@@ -373,9 +375,7 @@ export const ABI = [
                 "name": "share",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -385,6 +385,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "balanceOf",
         "outputs": [
             {
@@ -392,12 +394,12 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "baseBurnFee",
         "outputs": [
             {
@@ -405,12 +407,12 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "baseMintFee",
         "outputs": [
             {
@@ -418,12 +420,12 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "baseTradeFee",
         "outputs": [
             {
@@ -431,9 +433,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -453,6 +453,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "burn",
         "outputs": [
             {
@@ -465,12 +467,12 @@ export const ABI = [
                 "name": "refund",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "decimals",
         "outputs": [
             {
@@ -478,9 +480,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint8"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -495,6 +495,8 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "decreaseAllowance",
         "outputs": [
             {
@@ -502,12 +504,12 @@ export const ABI = [
                 "name": "",
                 "type": "bool"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "depegBaseFee",
         "outputs": [
             {
@@ -515,12 +517,12 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "deviationLimit",
         "outputs": [
             {
@@ -528,9 +530,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -540,9 +540,14 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "getAssets",
         "outputs": [
             {
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -569,14 +574,9 @@ export const ABI = [
                         "name": "share",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple"
+                ]
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -586,9 +586,14 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "getBurnData",
         "outputs": [
             {
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -625,12 +630,12 @@ export const ABI = [
                         "name": "depegBaseFee",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
+                ]
             },
             {
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -657,19 +662,14 @@ export const ABI = [
                         "name": "share",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple"
+                ]
             },
             {
                 "internalType": "uint256",
                 "name": "ts",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -679,9 +679,14 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "getContext",
         "outputs": [
             {
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -718,14 +723,9 @@ export const ABI = [
                         "name": "depegBaseFee",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
+                ]
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -735,9 +735,14 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "getMintData",
         "outputs": [
             {
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -774,12 +779,12 @@ export const ABI = [
                         "name": "depegBaseFee",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
+                ]
             },
             {
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -806,19 +811,14 @@ export const ABI = [
                         "name": "share",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple"
+                ]
             },
             {
                 "internalType": "uint256",
                 "name": "ts",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -833,9 +833,14 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "getTradeData",
         "outputs": [
             {
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -872,44 +877,12 @@ export const ABI = [
                         "name": "depegBaseFee",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
+                ]
             },
             {
-                "components": [
-                    {
-                        "internalType": "uint256",
-                        "name": "quantity",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "price",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "collectedFees",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "collectedCashbacks",
-                        "type": "uint256"
-                    },
-                    {
-                        "internalType": "uint256",
-                        "name": "share",
-                        "type": "uint256"
-                    }
-                ],
                 "internalType": "struct MpAsset",
                 "name": "assetIn",
-                "type": "tuple"
-            },
-            {
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -936,23 +909,53 @@ export const ABI = [
                         "name": "share",
                         "type": "uint256"
                     }
-                ],
+                ]
+            },
+            {
                 "internalType": "struct MpAsset",
                 "name": "assetOut",
-                "type": "tuple"
+                "type": "tuple",
+                "components": [
+                    {
+                        "internalType": "uint256",
+                        "name": "quantity",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "price",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedFees",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "collectedCashbacks",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "share",
+                        "type": "uint256"
+                    }
+                ]
             },
             {
                 "internalType": "uint256",
                 "name": "ts",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
             {
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -979,10 +982,7 @@ export const ABI = [
                         "name": "share",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple"
+                ]
             },
             {
                 "internalType": "address",
@@ -990,6 +990,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "view",
+        "type": "function",
         "name": "getTransferredAmount",
         "outputs": [
             {
@@ -997,12 +999,12 @@ export const ABI = [
                 "name": "amount",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "halfDeviationFee",
         "outputs": [
             {
@@ -1010,9 +1012,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1027,6 +1027,8 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "increaseAllowance",
         "outputs": [
             {
@@ -1034,9 +1036,7 @@ export const ABI = [
                 "name": "",
                 "type": "bool"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1046,6 +1046,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "increaseCashback",
         "outputs": [
             {
@@ -1053,9 +1055,7 @@ export const ABI = [
                 "name": "amount",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1075,6 +1075,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "mint",
         "outputs": [
             {
@@ -1087,12 +1089,12 @@ export const ABI = [
                 "name": "refund",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "name",
         "outputs": [
             {
@@ -1100,12 +1102,12 @@ export const ABI = [
                 "name": "",
                 "type": "string"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "owner",
         "outputs": [
             {
@@ -1113,12 +1115,12 @@ export const ABI = [
                 "name": "",
                 "type": "address"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "priceAuthority",
         "outputs": [
             {
@@ -1126,16 +1128,13 @@ export const ABI = [
                 "name": "",
                 "type": "address"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
-        "name": "renounceOwnership",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "renounceOwnership"
     },
     {
         "inputs": [
@@ -1145,10 +1144,9 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "setBaseBurnFee",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setBaseBurnFee"
     },
     {
         "inputs": [
@@ -1158,10 +1156,9 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "setBaseMintFee",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setBaseMintFee"
     },
     {
         "inputs": [
@@ -1171,10 +1168,9 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "setBaseTradeFee",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setBaseTradeFee"
     },
     {
         "inputs": [
@@ -1184,10 +1180,9 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "setDepegBaseFee",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setDepegBaseFee"
     },
     {
         "inputs": [
@@ -1197,10 +1192,9 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "setDeviationLimit",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setDeviationLimit"
     },
     {
         "inputs": [
@@ -1210,10 +1204,9 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "setHalfDeviationFee",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setHalfDeviationFee"
     },
     {
         "inputs": [
@@ -1223,10 +1216,9 @@ export const ABI = [
                 "type": "address"
             }
         ],
-        "name": "setPriceAuthority",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setPriceAuthority"
     },
     {
         "inputs": [
@@ -1236,10 +1228,9 @@ export const ABI = [
                 "type": "address"
             }
         ],
-        "name": "setTargetShareAuthority",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setTargetShareAuthority"
     },
     {
         "inputs": [
@@ -1249,10 +1240,9 @@ export const ABI = [
                 "type": "address"
             }
         ],
-        "name": "setWithdrawAuthority",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "setWithdrawAuthority"
     },
     {
         "inputs": [
@@ -1262,6 +1252,9 @@ export const ABI = [
                 "type": "uint256"
             },
             {
+                "internalType": "struct MpContext",
+                "name": "context",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -1298,12 +1291,12 @@ export const ABI = [
                         "name": "depegBaseFee",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpContext",
-                "name": "context",
-                "type": "tuple"
+                ]
             },
             {
+                "internalType": "struct MpAsset",
+                "name": "asset",
+                "type": "tuple",
                 "components": [
                     {
                         "internalType": "uint256",
@@ -1330,10 +1323,7 @@ export const ABI = [
                         "name": "share",
                         "type": "uint256"
                     }
-                ],
-                "internalType": "struct MpAsset",
-                "name": "asset",
-                "type": "tuple"
+                ]
             },
             {
                 "internalType": "uint256",
@@ -1341,6 +1331,8 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "pure",
+        "type": "function",
         "name": "shareToAmount",
         "outputs": [
             {
@@ -1348,9 +1340,7 @@ export const ABI = [
                 "name": "amount",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "pure",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1375,6 +1365,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "swap",
         "outputs": [
             {
@@ -1397,12 +1389,12 @@ export const ABI = [
                 "name": "refundOut",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "symbol",
         "outputs": [
             {
@@ -1410,12 +1402,12 @@ export const ABI = [
                 "name": "",
                 "type": "string"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "targetShareAuthority",
         "outputs": [
             {
@@ -1423,12 +1415,12 @@ export const ABI = [
                 "name": "",
                 "type": "address"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "totalSupply",
         "outputs": [
             {
@@ -1436,12 +1428,12 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "totalTargetShares",
         "outputs": [
             {
@@ -1449,9 +1441,7 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1466,6 +1456,8 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "transfer",
         "outputs": [
             {
@@ -1473,9 +1465,7 @@ export const ABI = [
                 "name": "",
                 "type": "bool"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1495,6 +1485,8 @@ export const ABI = [
                 "type": "uint256"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "transferFrom",
         "outputs": [
             {
@@ -1502,9 +1494,7 @@ export const ABI = [
                 "name": "",
                 "type": "bool"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1514,10 +1504,9 @@ export const ABI = [
                 "type": "address"
             }
         ],
-        "name": "transferOwnership",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "transferOwnership"
     },
     {
         "inputs": [
@@ -1532,10 +1521,9 @@ export const ABI = [
                 "type": "uint256[]"
             }
         ],
-        "name": "updatePrices",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "updatePrices"
     },
     {
         "inputs": [
@@ -1550,13 +1538,14 @@ export const ABI = [
                 "type": "uint256[]"
             }
         ],
-        "name": "updateTargetShares",
-        "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function"
+        "type": "function",
+        "name": "updateTargetShares"
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "usdCap",
         "outputs": [
             {
@@ -1564,12 +1553,12 @@ export const ABI = [
                 "name": "",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [],
+        "stateMutability": "view",
+        "type": "function",
         "name": "withdrawAuthority",
         "outputs": [
             {
@@ -1577,9 +1566,7 @@ export const ABI = [
                 "name": "",
                 "type": "address"
             }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        ]
     },
     {
         "inputs": [
@@ -1594,6 +1581,8 @@ export const ABI = [
                 "type": "address"
             }
         ],
+        "stateMutability": "nonpayable",
+        "type": "function",
         "name": "withdrawFees",
         "outputs": [
             {
@@ -1601,8 +1590,6 @@ export const ABI = [
                 "name": "fees",
                 "type": "uint256"
             }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
+        ]
     }
 ];
