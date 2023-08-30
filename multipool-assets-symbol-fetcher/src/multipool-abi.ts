@@ -1,4 +1,4 @@
-export default ABI = [
+export const ABI = [
     {
         "inputs": [
             {
