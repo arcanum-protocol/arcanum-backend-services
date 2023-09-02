@@ -58,8 +58,10 @@ async function updateAllTokenPrices(
         [multipoolAddress],
     );
     // exclude from addresses the address if its persent in contract is zero
-    for (let i = 0; i < addresses.rows.length; i++) {
-        await LOCK.lock(async () => {
+    await LOCK.lock(async () => {
+        let assets: string[] = [];
+        let prices: string[] = [];
+        for (let i = 0; i < addresses.rows.length; i++) {
             const assetAddress = addresses.rows[i].asset_address;
             const [newPrice, newPercents] = await getTokenPriceAndMarketCap(
                 client,
@@ -67,16 +69,24 @@ async function updateAllTokenPrices(
                 multipoolAddress,
             );
             // convert price to 18 decimal places
+            assets.push(assetAddress);
             const newPrice18 = ethers.utils.parseEther(newPrice).toString();
+            prices.push(newPrice18);
 
-            console.log(`updating price for ${assetAddress} to ${newPrice18} `);
-            const tx = await contract.updatePrices([assetAddress], [newPrice18]);
-            console.log(`Transaction sent: ${tx.hash}`);
-            // Wait for transaction to be confirmed
-            const receipt = await tx.wait();
-            console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-        });
-    }
+            // console.log(`updating price for ${assetAddress} to ${newPrice18} `);
+            // const tx = await contract.updatePrices([assetAddress], [newPrice18]);
+            // console.log(`Transaction sent: ${tx.hash}`);
+            // // Wait for transaction to be confirmed
+            // const receipt = await tx.wait();
+            // console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+        }
+        console.log(`updating price for ${assets} to ${prices} `);
+        const tx = await contract.updatePrices(assets, prices);
+        console.log(`Transaction sent: ${tx.hash}`);
+        // Wait for transaction to be confirmed
+        const receipt = await tx.wait();
+        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+    });
     client.release();
 }
 
