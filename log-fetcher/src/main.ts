@@ -50,7 +50,7 @@ async function getEvents(rpc_url: string, multipool_address: string) {
     }
 
     const logs = await contract.getPastEvents("allEvents", {
-        fromBlock: last_block,
+        fromBlock: last_block + BigInt(1),
         toBlock: current_block,
     });
 
