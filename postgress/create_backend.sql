@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS multipools
     rpc_url TEXT NOT NULL,
     chain TEXT NOT NULL,
     address TEXT NOT NULL UNIQUE,
+    price_oracle_id INT NULL,
+    target_share_oracle_id INT NULL,
 
     total_supply numeric NOT NULL DEFAULT '0',
     change_24h numeric NULL,

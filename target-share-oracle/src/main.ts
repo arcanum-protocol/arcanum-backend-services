@@ -5,7 +5,6 @@ import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
-const PRICE_ORACLE_ID = Deno.env.get("PRICE_ORACLE_ID")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 
@@ -19,7 +18,7 @@ async function getTokenPriceAndMarketCap(
 ): Promise<[string, string]> {
     const res = await client.queryObject(
         "SELECT price, mcap FROM assets \
-        WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1 and multipool_address=$2); ",
+        WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1 and multipool_address=$2);",
         [assetAddress, multipoolAddress],
     );
     const row: any = res.rows[0];
@@ -30,8 +29,7 @@ async function process() {
     console.log("starting processing");
     const client = await pool.connect();
     let multipools = await client.queryObject(
-        "SELECT rpc_url, address FROM multipools where price_oracle_id = $1;",
-        [PRICE_ORACLE_ID]
+        "SELECT rpc_url, address FROM multipools where testnet = true;"
     );
     console.log(multipools.rows);
 
