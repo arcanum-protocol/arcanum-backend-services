@@ -93,6 +93,7 @@ async function updateAllTokenPrices(
 }
 
 const LOCK = new Lock({});
+await process();
 cron(CRON_INTERVAL, async () => {
     await process();
 });

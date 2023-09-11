@@ -22,6 +22,7 @@ async function getTokenRevenue(
         WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1 and multipool_address=$2);",
         [assetAddress, multipoolAddress],
     );
+    console.log(assetAddress, res);
     const row: any = res.rows[0];
     return row.revenue;
 }
@@ -30,7 +31,7 @@ async function process() {
     console.log("starting processing");
     const client = await pool.connect();
     let multipools = await client.queryObject(
-        "SELECT rpc_url, address FROM multipools where price_oracle_id = $1;",
+        "SELECT rpc_url, address FROM multipools where target_share_oracle_id = $1;",
         [TARGET_SHARE_ORACLE_ID]
     );
     console.log(multipools.rows);
@@ -86,6 +87,7 @@ async function updateTargetShares(
 }
 
 const LOCK = new Lock({});
+await process();
 cron(CRON_INTERVAL, async () => {
     await process();
 });
