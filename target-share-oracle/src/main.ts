@@ -7,6 +7,7 @@ import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
 const TARGET_SHARE_ORACLE_ID = Deno.env.get("TARGET_SHARE_ORACLE_ID")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
+const MAX_SHARE = Deno.env.get("MAX_SHARE")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 
 const pool = new Pool(DATABASE_URL, 10);
@@ -62,8 +63,7 @@ async function updateTargetShares(
     );
     // exclude from addresses the address if its persent in contract is zero
     await LOCK.lock(async () => {
-        let assets: string[] = [];
-        let revenues: string[] = [];
+        let oracle_data: { address: string, revenue: bigint }[] = [];
         for (let i = 0; i < addresses.rows.length; i++) {
             const assetAddress = addresses.rows[i].asset_address;
             const revenue = await getTokenRevenue(
@@ -72,10 +72,34 @@ async function updateTargetShares(
                 multipoolAddress,
             );
             // convert price to 18 decimal places
-            assets.push(assetAddress);
-            const newRevenue18 = ethers.utils.parseEther(revenue).toString();
-            revenues.push(newRevenue18);
+            const newRevenue18 = BigInt(ethers.utils.parseEther(revenue).toString());
+            oracle_data.push({ address: assetAddress, revenue: newRevenue18 });
         }
+        console.log("oracle data", oracle_data);
+        const avg = oracle_data.reduce((
+            acc: BigInt,
+            v: { address: string, revenue: bigint },
+            _i: number,
+            a: any
+        ) => (BigInt(acc.toString()) + BigInt(v.revenue) / BigInt(a.length)), BigInt(0))
+
+        const maxShare = BigInt(ethers.utils.parseEther(MAX_SHARE).toString());
+        const ONE = BigInt(ethers.utils.parseEther('1').toString());
+        oracle_data = oracle_data.map((val: { address: string, revenue: bigint }) => {
+            if (val.revenue > avg * (ONE + maxShare) / ONE) {
+                return { address: val.address, revenue: avg * (ONE + maxShare) / ONE }
+            } else if (val.revenue < avg * (ONE - maxShare) / ONE) {
+                return { address: val.address, revenue: avg * (ONE - maxShare) / ONE }
+            } else {
+                return val
+            }
+        });
+
+        const assets = oracle_data.map((v) => v.address);
+        const revenues = oracle_data.map((v) => v.revenue);
+
+        // const sum = revenues.reduce((agg: number, v: BigInt) => agg + Number(v), 0);
+        // console.log(`shares ${revenues.map((v: any) => Number(v) * 100 / sum)}`);
         console.log(`updating price for ${assets} to ${revenues} `);
         const tx = await contract.updateTargetShares(assets, revenues);
         console.log(`Transaction sent: ${tx.hash}`);
