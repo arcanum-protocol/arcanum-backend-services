@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS assets
     mcap numeric NULL,
     volume_24h numeric NULL,
     logo text NULL,
-    price_change_24h numeric NULL
+    price_change_24h numeric NULL,
+    revenue_origin TEXT NULL,
+    price_origin TEXT NULL
 );
 
 CREATE TABLE IF NOT EXISTS multipools

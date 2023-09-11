@@ -1,6 +1,7 @@
 import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import BigNumber from "npm:bignumber.js@9.0.1";
+import redstone from "npm:redstone-api@0.4.11";
 
 const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
@@ -15,7 +16,7 @@ interface Asset {
     change_24h: string;
 }
 
-async function getAssetsData(coins: Array<string>): Promise<Array<Asset>> {
+async function getAssetsDataCoingecko(coins: Array<string>): Promise<Array<Asset>> {
     const response = await fetch(
         `https://api.coingecko.com/api/v3/simple/price?ids=${coins.join(",")
         }&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true`,
@@ -41,7 +42,7 @@ async function updateIndex(): Promise<void> {
     const result = await client.queryObject("SELECT coingecko_id FROM assets");
     const assets = result.rows.map((row: any) => row.coingecko_id);
     // batch request to coingecko, ask price + mcap
-    const assetsData = await getAssetsData(assets);
+    const assetsData = await getAssetsDataCoingecko(assets);
     // update assets table
     for (let i = 0; i < assetsData.length; i++) {
         const asset = assetsData[i];
