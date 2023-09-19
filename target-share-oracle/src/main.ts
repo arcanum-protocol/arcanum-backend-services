@@ -4,7 +4,7 @@ import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 import Yaml from "npm:js-yaml@4.1.0";
 
-const TARGET_SHARE_ORACLE_ID = Deno.env.get("PRICE_ORACLE_ID")!;
+const TARGET_SHARE_ORACLE_ID = Deno.env.get("TARGET_SHARE_ORACLE_ID")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 const SCHEME_PATH = Deno.env.get("SCHEME")!;
