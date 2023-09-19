@@ -1,113 +1,89 @@
 import { ABI } from "./multipool-abi.ts";
 import { ethers } from "npm:ethers@5.7.0";
-import { Pool, PoolClient } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
+import Yaml from "npm:js-yaml@4.1.0";
 
-const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
-const TARGET_SHARE_ORACLE_ID = Deno.env.get("TARGET_SHARE_ORACLE_ID")!;
+const TARGET_SHARE_ORACLE_ID = Deno.env.get("PRICE_ORACLE_ID")!;
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
-const MAX_SHARE = Deno.env.get("MAX_SHARE")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
+const SCHEME_PATH = Deno.env.get("SCHEME")!;
 
-const pool = new Pool(DATABASE_URL, 10);
+const MAX_SHARE = Deno.env.get("MAX_SHARE")!;
 
-// Define function to get current price for a single token from Postgres
-async function getTokenRevenue(
-    client: PoolClient,
-    assetAddress: string,
-    multipoolAddress: string,
-): Promise<string> {
-    const res = await client.queryObject(
-        "SELECT revenue FROM assets \
-        WHERE symbol = (select asset_symbol from multipool_assets where asset_address = $1 and multipool_address=$2);",
-        [assetAddress, multipoolAddress],
-    );
-    console.log(assetAddress, res);
-    const row: any = res.rows[0];
-    return row.revenue;
+const decoder = new TextDecoder("utf-8");
+console.log(SCHEME_PATH);
+const SCHEME = Yaml.load(decoder.decode(Deno.readFileSync(SCHEME_PATH)));
+
+async function fetchDefillama(assets: any) {
+    return await Promise.all(assets.map(async asset => {
+        const response = await fetch(
+            `https://api.llama.fi/summary/fees/${asset.defillama_id}?dataType=dailyRevenue`,
+        );
+        const data = await response.json();
+        console.log("fetched data ", data);
+        asset.revenue = data
+            .totalDataChart
+            .sort((a: any, b: any) => b[0] - a[0])
+            .slice(0, 30)
+            .reduce((acc: number, v: any, _i: number, a: any) => (acc + v[1] / a.length), 0);
+        asset.revenue = BigInt(ethers.utils.parseEther(asset.revenue.toString()).toString());
+        return asset;
+    }));
 }
 
 async function process() {
-    console.log("starting processing");
-    const client = await pool.connect();
-    let multipools = await client.queryObject(
-        "SELECT rpc_url, address FROM multipools where target_share_oracle_id = $1;",
-        [TARGET_SHARE_ORACLE_ID]
-    );
-    console.log(multipools.rows);
+    console.log("start processing");
+    Object
+        .entries(SCHEME)
+        .filter(([_multipoool_id, multipool]: [string, any]) => multipool.target_share_oracle_id == TARGET_SHARE_ORACLE_ID)
+        .forEach(async ([multipool_id, multipool]: [string, any]) => {
+            const provider = new ethers.providers.JsonRpcProvider(multipool.rpc_url);
+            const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+            const contract = new ethers.Contract(multipool.address, ABI, wallet);
 
-    for (let i = 0; i < multipools.rows.length; i++) {
-        const multipool = multipools.rows[i];
-        await updateTargetShares(multipool.rpc_url, multipool.address);
-    }
+            await LOCK.lock(async () => {
+                const origins = multipool
+                    .assets
+                    .map((asset: any) => {
+                        return {
+                            address: asset.address,
+                            defillama_id: asset.defillama_id,
+                        };
+                    });
+                let revenue_feeds = await fetchDefillama(origins);
+                console.log(revenue_feeds);
 
-    client.release();
-}
+                const avg = revenue_feeds.reduce((
+                    acc: BigInt,
+                    v: { address: string, revenue: bigint },
+                    _i: number,
+                    a: any
+                ) => (BigInt(acc.toString()) + BigInt(v.revenue) / BigInt(a.length)), BigInt(0))
 
-// Define function to update prices for all tokens in the database
-async function updateTargetShares(
-    rpcUrl: string,
-    multipoolAddress: string,
-) {
-    let client = await pool.connect();
+                const maxShare = BigInt(ethers.utils.parseEther(MAX_SHARE).toString());
+                const ONE = BigInt(ethers.utils.parseEther('1').toString());
+                revenue_feeds = revenue_feeds.map((val: { address: string, revenue: bigint }) => {
+                    if (val.revenue > avg * (ONE + maxShare) / ONE) {
+                        return { address: val.address, revenue: avg * (ONE + maxShare) / ONE }
+                    } else if (val.revenue < avg * (ONE - maxShare) / ONE) {
+                        return { address: val.address, revenue: avg * (ONE - maxShare) / ONE }
+                    } else {
+                        return val
+                    }
+                });
 
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
-    const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-    // Instantiate contract
-    const contract = new ethers.Contract(multipoolAddress, ABI, wallet);
+                const assets = revenue_feeds.map((v) => v.address);
+                const revenues = revenue_feeds.map((v) => v.revenue);
 
-    const addresses: any = await client.queryObject(
-        "SELECT asset_address FROM multipool_assets where multipool_address = $1",
-        [multipoolAddress],
-    );
-    // exclude from addresses the address if its persent in contract is zero
-    await LOCK.lock(async () => {
-        let oracle_data: { address: string, revenue: bigint }[] = [];
-        for (let i = 0; i < addresses.rows.length; i++) {
-            const assetAddress = addresses.rows[i].asset_address;
-            const revenue = await getTokenRevenue(
-                client,
-                assetAddress,
-                multipoolAddress,
-            );
-            // convert price to 18 decimal places
-            const newRevenue18 = BigInt(ethers.utils.parseEther(revenue).toString());
-            oracle_data.push({ address: assetAddress, revenue: newRevenue18 });
-        }
-        console.log("oracle data", oracle_data);
-        const avg = oracle_data.reduce((
-            acc: BigInt,
-            v: { address: string, revenue: bigint },
-            _i: number,
-            a: any
-        ) => (BigInt(acc.toString()) + BigInt(v.revenue) / BigInt(a.length)), BigInt(0))
 
-        const maxShare = BigInt(ethers.utils.parseEther(MAX_SHARE).toString());
-        const ONE = BigInt(ethers.utils.parseEther('1').toString());
-        oracle_data = oracle_data.map((val: { address: string, revenue: bigint }) => {
-            if (val.revenue > avg * (ONE + maxShare) / ONE) {
-                return { address: val.address, revenue: avg * (ONE + maxShare) / ONE }
-            } else if (val.revenue < avg * (ONE - maxShare) / ONE) {
-                return { address: val.address, revenue: avg * (ONE - maxShare) / ONE }
-            } else {
-                return val
-            }
+                console.log(`updating ${multipool_id} price for ${assets} to ${revenues} `);
+                const tx = await contract.updateTargetShares(assets, revenues);
+                console.log(`Transaction sent: ${tx.hash}`);
+                const receipt = await tx.wait();
+                console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+            });
         });
-
-        const assets = oracle_data.map((v) => v.address);
-        const revenues = oracle_data.map((v) => v.revenue);
-
-        // const sum = revenues.reduce((agg: number, v: BigInt) => agg + Number(v), 0);
-        // console.log(`shares ${revenues.map((v: any) => Number(v) * 100 / sum)}`);
-        console.log(`updating price for ${assets} to ${revenues} `);
-        const tx = await contract.updateTargetShares(assets, revenues);
-        console.log(`Transaction sent: ${tx.hash}`);
-        // Wait for transaction to be confirmed
-        const receipt = await tx.wait();
-        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-    });
-    client.release();
 }
 
 const LOCK = new Lock({});
