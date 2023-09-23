@@ -5,10 +5,12 @@ import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 import Redstone from "npm:redstone-api@0.4.11";
 import Yaml from "npm:js-yaml@4.1.0";
 
-const PRICE_ORACLE_ID = Deno.env.get("PRICE_ORACLE_ID")!;
+const MULTIPOOL_IDS: string[] = Deno.env.get("MULTIPOOL_IDS")!.split(",");
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 const SCHEME_PATH = Deno.env.get("SCHEME")!;
+const DATABASE_URL = Deno.env.get("DATABASE_URL")!;
+const pool = new Pool(DATABASE_URL, 10);
 
 const decoder = new TextDecoder("utf-8");
 console.log(SCHEME_PATH);
@@ -38,9 +40,10 @@ async function fetchRedstone(assets: any) {
 
 async function process() {
     console.log("start processing");
+    console.log(MULTIPOOL_IDS);
     Object
         .entries(SCHEME)
-        .filter(([_multipoool_id, multipool]: [string, any]) => multipool.price_oracle_id == PRICE_ORACLE_ID)
+        .filter(([multipool_id, _multipool]: [string, any]) => MULTIPOOL_IDS.indexOf(multipool_id) != -1)
         .forEach(async ([multipool_id, multipool]: [string, any]) => {
             const provider = new ethers.providers.JsonRpcProvider(multipool.rpc_url);
             const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
@@ -52,11 +55,11 @@ async function process() {
 
                 const gecko_origins = multipool
                     .assets
-                    .filter((asset: any) => asset.price_origin.name == "gecko")
+                    .filter((asset: any) => asset.price_origin == "gecko")
                     .map((asset: any) => {
                         return {
                             address: asset.address,
-                            coingecko_id: asset.price_origin.coingecko_id,
+                            coingecko_id: asset.coingecko_id,
                         };
                     });
                 const gecko_feeds = await fetchCoingecko(gecko_origins);
@@ -65,28 +68,39 @@ async function process() {
 
                 const redstone_origins = multipool
                     .assets
-                    .filter((asset: any) => asset.price_origin.name == "redstone")
+                    .filter((asset: any) => asset.price_origin == "redstone")
                     .map((asset: any) => {
                         return {
                             address: asset.address,
-                            symbol: asset.price_origin.symbol,
+                            symbol: asset.symbol,
                         };
                     });
                 const redstone_feeds = await fetchRedstone(redstone_origins);
                 assets = assets.concat(redstone_feeds.map(v => v.address));
                 prices = prices.concat(redstone_feeds.map(v => v.price));
 
-                console.log(`updating ${multipool_id} price for ${assets} to ${prices} `);
-                const tx = await contract.updatePrices(assets, prices);
-                console.log(`Transaction sent: ${tx.hash}`);
-                const receipt = await tx.wait();
-                console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+                let price = 0;
+                for (let i = 0; i < assets.length; i++) {
+                    const chainData = await contract.getAsset(assets[i]);
+                    price +=
+                        Number(chainData.quantity) *
+                        Number(prices[i]) /
+                        Number(Math.pow(10, 18)) /
+                        Number(Math.pow(10, 18))
+                        ;
+                    console.log(price);
+                }
+                const totalSupply = await contract.totalSupply();
+                price = price * Math.pow(10, 18) / Number(totalSupply);
+
+                const client = await pool.connect();
+                const result = await client.queryObject(`call assemble_stats(${multipool_id}, ${price})`);
+                client.release();
             });
         });
 }
 
 const LOCK = new Lock({});
-await process();
 cron(CRON_INTERVAL, async () => {
     await process();
 });

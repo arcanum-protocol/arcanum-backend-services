@@ -2,14 +2,6 @@
 import express, { Request, Response } from "npm:express@4.18.2";
 import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
-interface Candle {
-    o: number;
-    c: number;
-    l: number;
-    h: number;
-    t: number;
-}
-
 (BigInt.prototype as any).toJSON = function() {
     return this.toString();
 };
@@ -76,7 +68,7 @@ app.get("/api/tv/history", async (req: Request, res: Response) => {
     candles 
   where ts <= ${to} 
     and resolution = ${resol} 
-    and multipool_address = (select address from multipools where symbol='${symbol}')
+    and multipool_id = '${symbol}'
   ORDER BY ts DESC
   limit ${cb};
     `;
@@ -109,35 +101,20 @@ app.get("/api/tv/history", async (req: Request, res: Response) => {
     }
 });
 
-app.get("/api/multipool/info", async (req: Request, res: Response) => {
-    const { address } = req.query;
+app.get("/api/stats", async (req: Request, res: Response) => {
+    const { multipool_id } = req.query;
 
     const query = `
     select * 
-    from multipool_assets ma
-        join assets a 
-            on a.symbol = ma.asset_symbol 
-    where ma.multipool_address = $1;
-    `;
-
-    const query_multipool = `
-    select * 
     from multipools
-    where address = $1;
+    where multipool_id = $1;
     `;
 
     const client = await pool.connect();
     try {
-        const assets: any =
-            (await client.queryObject(query, [address.toLowerCase()])).rows;
-
         const multipool: any =
-            (await client.queryObject(query_multipool, [address.toLowerCase()])).rows;
-
-        res.status(200).json({
-            "assets": assets,
-            "multipool": multipool[0],
-        });
+            (await client.queryObject(query, [multipool_id.toLowerCase()])).rows;
+        res.status(200).json(multipool[0]);
     } catch (err) {
         console.error(err);
         res.status(500).json({

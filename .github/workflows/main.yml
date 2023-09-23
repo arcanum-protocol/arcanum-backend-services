@@ -8,7 +8,7 @@ on:
 
 jobs:
 
-  build-price-fetcher:
+  build-tv-bot:
 
     runs-on: ubuntu-latest
 
@@ -16,29 +16,13 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Build the indexer image
-      run: docker build price-fetcher --tag badconfig/price-fetcher
+      run: docker build tv-bot --tag badconfig/tv-bot
 
     - name: Login to dockerhub
       run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
     - name: push image
-      run: docker push badconfig/price-fetcher
-
-  build-planner:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the indexer image
-      run: docker build planner --tag badconfig/planner
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/planner
+      run: docker push badconfig/tv-bot
 
   build-backend-api:
 
@@ -56,7 +40,7 @@ jobs:
     - name: push image
       run: docker push badconfig/backend-api 
 
-  build-0x-api:
+  build-price-oracle:
 
     runs-on: ubuntu-latest
 
@@ -64,45 +48,13 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Build the Docker image
-      run: docker build 0x-api --tag badconfig/0x-api
+      run: docker build price-oracle --tag badconfig/price-oracle
 
     - name: Login to dockerhub
       run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
     - name: push image
-      run: docker push badconfig/0x-api 
-
-  build-revenue-fetcher:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the Docker image
-      run: docker build revenue-fetcher --tag badconfig/revenue-fetcher
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/revenue-fetcher 
-
-  build-mock-oracle:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the Docker image
-      run: docker build mock-oracle --tag badconfig/mock-oracle
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/mock-oracle 
+      run: docker push badconfig/price-oracle 
 
   build-target-share-oracle:
 
@@ -119,35 +71,3 @@ jobs:
 
     - name: push image
       run: docker push badconfig/target-share-oracle 
-
-  build-multipool-assets-symbol-fetcher:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the Docker image
-      run: docker build multipool-assets-symbol-fetcher --tag badconfig/multipool-assets-symbol-fetcher
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/multipool-assets-symbol-fetcher 
-
-  build-log-fetcher:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the Docker image
-      run: docker build log-fetcher --tag badconfig/log-fetcher
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/log-fetcher 

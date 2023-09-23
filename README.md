@@ -50,7 +50,6 @@ ____________________
 
 | Area | Description |
 | --- | --- |
-| 0xAPI | 0x api /swap/v1/quote implementation |
 | API | arcanum api implementation|
     
 </details>

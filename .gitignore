@@ -1,5 +1,2 @@
 node_modules
-api/src/index.js
-price-fetcher/src/index.js
-planner/src/index.js
-revenue-fetcher/src/index.js
+*index.js

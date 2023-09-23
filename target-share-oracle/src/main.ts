@@ -4,10 +4,11 @@ import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 import Yaml from "npm:js-yaml@4.1.0";
 
-const TARGET_SHARE_ORACLE_ID = Deno.env.get("TARGET_SHARE_ORACLE_ID")!;
+const MULTIPOOL_IDS: string[] = Deno.env.get("MULTIPOOL_IDS")!.split(",");
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
 const PRIVATE_KEY = Deno.env.get("PRIVATE_KEY")!;
 const SCHEME_PATH = Deno.env.get("SCHEME")!;
+const ON_START: string | undefined = Deno.env.get("ON_START");
 
 const MAX_SHARE = Deno.env.get("MAX_SHARE")!;
 
@@ -36,7 +37,7 @@ async function process() {
     console.log("start processing");
     Object
         .entries(SCHEME)
-        .filter(([_multipoool_id, multipool]: [string, any]) => multipool.target_share_oracle_id == TARGET_SHARE_ORACLE_ID)
+        .filter(([multipool_id, _multipool]: [string, any]) => MULTIPOOL_IDS.indexOf(multipool_id) != -1)
         .forEach(async ([multipool_id, multipool]: [string, any]) => {
             const provider = new ethers.providers.JsonRpcProvider(multipool.rpc_url);
             const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
@@ -87,7 +88,8 @@ async function process() {
 }
 
 const LOCK = new Lock({});
-await process();
+if (ON_START == 'exec')
+    await process();
 cron(CRON_INTERVAL, async () => {
     await process();
 });
