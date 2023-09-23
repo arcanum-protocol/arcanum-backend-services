@@ -47,8 +47,7 @@ async function process() {
         .filter(([multipool_id, _multipool]: [string, any]) => MULTIPOOL_IDS.indexOf(multipool_id) != -1)
         .forEach(async ([multipool_id, multipool]: [string, any]) => {
             const provider = new ethers.providers.JsonRpcProvider(multipool.rpc_url);
-            const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-            const contract = new ethers.Contract(multipool.address, ABI, wallet);
+            const contract = new ethers.Contract(multipool.address, ABI, provider);
 
             await LOCK.lock(async () => {
                 let assets: string[] = [];
@@ -95,7 +94,7 @@ async function process() {
                 price = price * Math.pow(10, 18) / Number(totalSupply);
 
                 const client = await pool.connect();
-                const result = await client.queryObject(`call assemble_stats(${multipool_id}, ${price})`);
+                const result = await client.queryObject('call assemble_stats($1, $2)', [multipool_id, price]);
                 client.release();
             });
         });
