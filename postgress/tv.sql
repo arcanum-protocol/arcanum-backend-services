@@ -1,11 +1,10 @@
 CREATE TABLE IF NOT EXISTS multipools
 (
     multipool_id TEXT PRIMARY KEY NOT NULL,
-    total_supply numeric NOT NULL DEFAULT '0',
-    change_24h numeric NULL,
-    low_24h numeric NULL,
-    high_24h numeric NULL,
-    current_price numeric NULL
+    change_24h numeric NOT NULL DEFAULT '0',
+    low_24h numeric NOT NULL DEFAULT '0',
+    high_24h numeric NOT NULL DEFAULT '0',
+    current_price numeric NOT NULL DEFAULT '0'
 );
 
 CREATE TABLE IF NOT EXISTS candles
@@ -17,7 +16,7 @@ CREATE TABLE IF NOT EXISTS candles
     close numeric NOT NULL,
     low numeric NOT NULL,
     high numeric NOT NULL,
-    CONSTRAINT candles_price_pkey PRIMARY KEY (multipool_id, ts, resolution)
+    CONSTRAINT candles_pkey PRIMARY KEY (multipool_id, ts, resolution)
 );
 
 CREATE OR REPLACE PROCEDURE assemble_stats(arg_multipool_id VARCHAR, new_price numeric) 
@@ -35,6 +34,10 @@ DECLARE
 BEGIN 
 
         new_price = ROUND(new_price, 6);
+
+        IF (select multipool_id from multipools where multipool_id=arg_multipool_id limit 1) IS NULL THEN
+            insert into multipools(multipool_id) values (arg_multipool_id);
+        END IF;
 
         -- gen candles
         FOREACH var_resol in array var_resolutions
@@ -84,7 +87,5 @@ BEGIN
             current_price=new_price
         WHERE
             multipool_id=arg_multipool_id;
-
-    END IF;
 END 
 $$;

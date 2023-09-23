@@ -4,6 +4,7 @@ import { cron } from "https://deno.land/x/deno_cron/cron.ts";
 import { Lock } from "https://deno.land/x/async@v2.0.2/lock.ts";
 import Redstone from "npm:redstone-api@0.4.11";
 import Yaml from "npm:js-yaml@4.1.0";
+import { Pool } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
 
 const MULTIPOOL_IDS: string[] = Deno.env.get("MULTIPOOL_IDS")!.split(",");
 const CRON_INTERVAL = Deno.env.get("CRON_INTERVAL")!;
