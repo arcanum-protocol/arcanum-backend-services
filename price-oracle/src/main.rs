@@ -1,6 +1,7 @@
 use std::{env, str::FromStr};
 
-use actix_web::{dev::Response, get, web, App, HttpResponse, HttpServer, Responder};
+use actix_cors::Cors;
+use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 #[get("/api/v1/health")]
 async fn health() -> impl Responder {
@@ -17,7 +18,7 @@ struct PriceRequest {
     contract_address: String,
 }
 
-#[get("/api/v1/signed_price")]
+#[get("/oracle/v1/signed_price")]
 async fn get_signed_price(
     params: web::Query<PriceRequest>,
     key: web::Data<String>,
@@ -35,8 +36,10 @@ async fn main() -> std::io::Result<()> {
     let key: String = env::var("KEY").expect("KEY must be set");
     println!("starting server at {}", bind_address);
     HttpServer::new(move || {
+        let cors = Cors::permissive();
         let key = key.clone();
         App::new()
+            .wrap(cors)
             .app_data(web::Data::new(key))
             .service(health)
             .service(get_signed_price)
