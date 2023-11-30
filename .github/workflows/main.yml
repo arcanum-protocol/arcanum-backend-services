@@ -1,8 +1,6 @@
 name: Docker Image CI
 
 on:
-  push:
-    branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
 
@@ -24,6 +22,22 @@ jobs:
     - name: push image
       run: docker push badconfig/tv-bot
 
+  build-price-oracle:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build the indexer image
+      run: docker build price-oracle --tag badconfig/arcanum-price-oracle
+
+    - name: Login to dockerhub
+      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+    - name: push image
+      run: docker push badconfig/arcanum-price-oracle
+
   build-backend-api:
 
     runs-on: ubuntu-latest
@@ -39,22 +53,6 @@ jobs:
 
     - name: push image
       run: docker push badconfig/backend-api 
-
-  build-price-oracle:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the Docker image
-      run: docker build price-oracle --tag badconfig/price-oracle
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/price-oracle 
 
   build-target-share-oracle:
 
