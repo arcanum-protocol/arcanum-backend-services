@@ -1,6 +1,8 @@
 use ethers::abi::{Bytes, Token};
+use ethers::prelude::k256::ecdsa::SigningKey;
+use ethers::prelude::k256::Secp256k1;
 use ethers::prelude::*;
-use ethers::utils::hex::encode_prefixed;
+use ethers::utils::hex::{encode, encode_prefixed};
 use futures::future::{join, join_all};
 use futures::FutureExt;
 use primitive_types::{U128, U256};
@@ -90,10 +92,10 @@ impl MultipoolState {
         }
     }
 
-    pub async fn sign<S: ethers::signers::Signer + 'static>(
+    pub async fn sign(
         &self,
         price: Price,
-        signer: &S,
+        signer: &ethers::signers::Wallet<SigningKey>,
     ) -> SignedSharePrice {
         let current_ts: U128 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -102,25 +104,22 @@ impl MultipoolState {
             .into();
         let msg = abi::encode_packed(&[
             Token::Address(self.contract_address),
-            Token::Uint(U256([
-                current_ts.0[0],
-                current_ts.0[1],
-                price.0[0],
-                price.0[1],
-            ])),
+            Token::FixedArray(vec![
+                Token::Uint(U256::from(current_ts)),
+                Token::Uint(U256::from(price)),
+            ]),
         ])
         .unwrap();
-        let msg = ethers::core::utils::hash_message(msg);
+
+        let msg = ethers::core::utils::hash_message(ethers::utils::keccak256(msg));
         signer
-            .sign_message(msg)
+            .sign_hash(msg)
             .map(move |signature| SignedSharePrice {
                 address: self.contract_address,
                 timestamp: current_ts.as_u128().to_string(),
                 value: price.as_u128().to_string(),
-                signature: encode_prefixed(
-                    signature.expect("Signing should be successful").to_vec(),
-                ),
+                signature: encode_prefixed(signature.to_vec()),
             })
-            .await
+            .unwrap()
     }
 }
