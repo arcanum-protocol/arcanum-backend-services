@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::multipool_storage::Price;
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(rename = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub struct SignedSharePrice {
     this_address: Address,
     timestamp: String,
