@@ -1,0 +1,15 @@
+multipools:
+  arbi:
+    fetch_params:
+      block_limit: 10
+      quantity_fetch_interval: 1000
+      price_fetch_interval: 1000
+      price_fetch_chunk: 2
+    contract_address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+    assets:
+      - "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
+      - "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e"
+      - "0x0B306BF915C4d645ff596e518fAf3F9669b97016"
+      - "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c"
+      - "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44"
+    provider_url: "http://81.163.22.190:8545/"
