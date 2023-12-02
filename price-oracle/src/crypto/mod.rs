@@ -9,8 +9,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::multipool_storage::Price;
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(rename = "camelCase")]
 pub struct SignedSharePrice {
-    address: Address,
+    this_address: Address,
     timestamp: String,
     value: String,
     signature: String,
@@ -39,7 +40,7 @@ pub fn sign(
     signer
         .sign_hash(msg)
         .map(move |signature| SignedSharePrice {
-            address: contract_address,
+            this_address: contract_address,
             timestamp: current_ts.as_u128().to_string(),
             value: price.as_u128().to_string(),
             signature: hex::encode_prefixed(signature.to_vec()),
