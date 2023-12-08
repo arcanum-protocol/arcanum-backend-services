@@ -11,9 +11,9 @@ use crate::multipool_storage::Price;
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SignedSharePrice {
-    contractAddress: Address,
+    contract_address: Address,
     timestamp: String,
-    sharePrice: String,
+    share_price: String,
     signature: String,
 }
 
@@ -40,9 +40,9 @@ pub fn sign(
     signer
         .sign_hash(msg)
         .map(move |signature| SignedSharePrice {
-            this_address: contract_address,
+            contract_address,
             timestamp: current_ts.as_u128().to_string(),
-            value: price.as_u128().to_string(),
+            share_price: price.as_u128().to_string(),
             signature: hex::encode_prefixed(signature.to_vec()),
         })
         .unwrap()
