@@ -11,6 +11,7 @@ pub struct MultipoolConfig {
     pub contract_address: Address,
     pub assets: Vec<Address>,
     pub provider_url: String,
+    pub chain_id: u128,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

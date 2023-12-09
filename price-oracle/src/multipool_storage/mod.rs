@@ -55,6 +55,7 @@ struct Multipool {
     total_supply: Quantity,
     provider: Arc<Provider<Http>>,
     last_observed_block: BlockNumber,
+    chain_id: u128,
 }
 
 impl Multipool {
@@ -82,6 +83,7 @@ impl Multipool {
                     .expect("Provider url should be valid"),
             ),
             last_observed_block: U64::zero(),
+            chain_id: config.chain_id,
         }
     }
 }
@@ -97,6 +99,24 @@ pub struct MultipoolFetchParams {
 impl Multipool {
     fn contract(&self) -> MultipoolContractInterface {
         MultipoolContractInterface::new(self.contract_address, self.provider.clone())
+    }
+
+    fn get_price(&self) -> Option<Price> {
+        let q = U256::from(96);
+        let cap = self
+            .assets
+            .iter()
+            .map(|(_, a)| a.quantity.mul(a.price).shr(q))
+            .reduce(|sum, el| sum + el);
+        if !self.total_supply.is_zero() {
+            if let Some(price) = cap.map(|cap| cap.shl(q).div(self.total_supply)) {
+                Some(price)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -118,21 +138,15 @@ impl MultipoolStorage {
             .get(id)
             .expect("Multipool should present")
             .clone();
-        let q = U256::from(96);
-        let cap = mp
-            .assets
-            .into_iter()
-            .map(|(_, a)| a.quantity.mul(a.price).shr(q))
-            .reduce(|sum, el| sum + el);
-        if !mp.total_supply.is_zero() {
-            if let Some(price) = cap.map(|cap| cap.shl(q).div(mp.total_supply)) {
-                Some(sign(mp.contract_address, price, signer))
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        mp.get_price()
+            .map(|price| sign(mp.contract_address, price, mp.chain_id, signer))
+    }
+
+    pub fn get_prices(&self) -> Vec<(MultipoolId, Option<Price>)> {
+        self.state
+            .iter()
+            .map(|e| (e.key().to_owned(), e.value().clone().get_price()))
+            .collect()
     }
 
     fn fetch_price(&self, id: MultipoolId) -> impl Future<Output = ()> {

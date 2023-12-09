@@ -28,7 +28,7 @@ DECLARE
     lowest numeric;
     earliest numeric;
 
-    --                     1m 3m  5m  15m 30m  60m   12h   24h    
+    --                         1m 3m  5m  15m 30m  60m   12h   24h    
     var_resolutions INT[] := '{60,180,300,900,1800,3600,43200,86400}';
     var_resol INT;
 BEGIN 

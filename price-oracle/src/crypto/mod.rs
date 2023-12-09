@@ -20,6 +20,7 @@ pub struct SignedSharePrice {
 pub fn sign(
     contract_address: Address,
     price: Price,
+    chain_id: u128,
     signer: &ethers::signers::Wallet<SigningKey>,
 ) -> SignedSharePrice {
     let current_ts: U128 = SystemTime::now()
@@ -32,6 +33,7 @@ pub fn sign(
         Token::FixedArray(vec![
             Token::Uint(U256::from(current_ts)),
             Token::Uint(U256::from(price)),
+            Token::Uint(U256::from(chain_id)),
         ]),
     ])
     .unwrap();
@@ -46,4 +48,27 @@ pub fn sign(
             signature: hex::encode_prefixed(signature.to_vec()),
         })
         .unwrap()
+}
+
+#[cfg(test)]
+pub mod test {
+
+    use super::*;
+
+    #[test]
+    fn sign_data() {
+        println!(
+            "{:#?}",
+            sign(
+                "0x2e234DAe75C793f67A35089C9d99245E1C58470b"
+                    .parse()
+                    .unwrap(),
+                U256::from(7922816251426433759354395033u128),
+                31337,
+                &"0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+        )
+    }
 }
