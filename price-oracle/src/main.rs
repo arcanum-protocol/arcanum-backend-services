@@ -4,8 +4,9 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 use futures::future::join_all;
+use serde_json::Value;
 use tokio::time::sleep;
-use tokio_postgres::{Error, NoTls};
+use tokio_postgres::NoTls;
 
 #[get("/api/v1/health")]
 async fn health() -> impl Responder {
@@ -13,8 +14,7 @@ async fn health() -> impl Responder {
 }
 
 use ethers::signers::Wallet;
-use price_oracle::{config::BotConfig, crypto::sign, multipool_storage::MultipoolStorage};
-use primitive_types::U128;
+use price_oracle::{config::BotConfig, multipool_storage::MultipoolStorage};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -62,6 +62,20 @@ async fn main() -> std::io::Result<()> {
         let client = Arc::new(client);
         tokio::spawn(async move {
             loop {
+                let eth_price = reqwest::get(
+                    "https://token-rates-aggregator.1inch.io/v1.0/native-token-rate?vs=USD",
+                )
+                .await
+                .unwrap()
+                .json::<Value>()
+                .await
+                .unwrap()
+                .get("1")
+                .expect("KEY \"1\" should present")
+                .get("USD")
+                .expect("KEY \"USD\" should present")
+                .as_f64()
+                .expect("Value should be a valid float");
                 join_all(
                     storage
                         .get_prices()
@@ -70,8 +84,8 @@ async fn main() -> std::io::Result<()> {
                         .filter_map(|((id, price), client)| {
                             price.map(move |price| async move {
                                     client.execute(
-                                    "call assemble_stats($1::TEXT, ($2::TEXT::NUMERIC/power(2::NUMERIC,96)))",
-                                    &[&id, &price.to_string()],
+                                    "call assemble_stats($1::TEXT, ($2::TEXT::NUMERIC*$3::TEXT::NUMERIC/power(2::NUMERIC,96)))",
+                                    &[&id, &price.to_string(), &eth_price.to_string()],
                                 ).await.unwrap()
                             })
                         }),
