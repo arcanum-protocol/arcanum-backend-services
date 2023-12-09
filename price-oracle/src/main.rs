@@ -70,7 +70,7 @@ async fn main() -> std::io::Result<()> {
                         .filter_map(|((id, price), client)| {
                             price.map(move |price| async move {
                                     client.execute(
-                                    "call assemble_stats($1::TEXT, ($2::NUMERIC/power(2::NUMERIC,96)))",
+                                    "call assemble_stats($1::TEXT, ($2::TEXT::NUMERIC/power(2::NUMERIC,96)))",
                                     &[&id, &price.to_string()],
                                 ).await.unwrap()
                             })
