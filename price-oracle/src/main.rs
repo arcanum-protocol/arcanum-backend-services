@@ -72,7 +72,7 @@ async fn main() -> std::io::Result<()> {
                                     client.execute(
                                     "call assemble_stats($1::TEXT, ($2::NUMBER/power(2::NUMBER,96)))",
                                     &[&id, &price.to_string()],
-                                ).await
+                                ).await.unwrap()
                             })
                         }),
                 )
