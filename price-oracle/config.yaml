@@ -1,16 +1,17 @@
 multipools:
   arbi:
     fetch_params:
-      block_limit: 10
-      quantity_fetch_interval: 1000
-      price_fetch_interval: 1000
-      price_fetch_chunk: 2
-    contract_address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      block_limit: 1000
+      quantity_fetch_interval: 2000
+      price_fetch_interval: 2000
+      price_fetch_chunk: 3
+    contract_address: "0x4810E5A7741ea5fdbb658eDA632ddfAc3b19e3c6"
     assets:
-      - "0x0165878A594ca255338adfa4d48449f69242Eb8F"
-      - "0x610178dA211FEF7D417bC0e6FeD39F05609AD788"
-      - "0x9A676e781A523b5d0C0e43731313A708CB607508"
-      - "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
-      - "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
-    provider_url: "http://81.163.22.190:8545/"
-    chain_id: 31337
+      - "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a"
+      - "0x3082cc23568ea640225c2467653db90e9250aaa0"
+      - "0x0341c0c0ec423328621788d4854119b97f44e391"
+      - "0x95146881b86b3ee99e63705ec87afe29fcc044d9"
+      - "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8"
+      - "0x51fc0f6660482ea73330e414efd7808811a57fa2"
+    provider_url: ""
+    chain_id: 42161

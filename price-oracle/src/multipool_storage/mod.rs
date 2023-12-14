@@ -108,7 +108,7 @@ impl Multipool {
             .iter()
             .map(|(_, a)| a.quantity.mul(a.price).shr(q))
             .reduce(|sum, el| sum + el);
-        if !self.total_supply.is_zero() {
+        if !self.total_supply.is_zero() && cap != Some(U256::zero()) {
             if let Some(price) = cap.map(|cap| cap.shl(q).div(self.total_supply)) {
                 Some(price)
             } else {
@@ -171,11 +171,12 @@ impl MultipoolStorage {
                 {
                     let mut mp = state.get_mut(&id).expect("Multipool should present");
                     let assets = &mut mp.assets;
-                    for (asset, price) in chunk.into_iter().zip(
-                        prices
-                            .into_iter()
-                            .map(|val| val.expect("Price fetch should be successful")),
-                    ) {
+                    for (asset, price) in chunk.into_iter().zip(prices.into_iter().map(|val| {
+                        val.unwrap_or_else(|error| {
+                            println!("Price fetch should be successful: {:#?}", error);
+                            std::process::exit(0x0200);
+                        })
+                    })) {
                         assets.entry(asset.address).and_modify(|e| e.price = price);
                     }
                 }
@@ -194,19 +195,19 @@ impl MultipoolStorage {
         drop(mp);
         async move {
             {
-                let current_block = provider
-                    .get_block_number()
-                    .await
-                    .expect("Should correctly fetch block number");
+                let current_block = provider.get_block_number().await.unwrap_or_else(|error| {
+                    println!("Should correctly fetch block number: {:#?}", error);
+                    std::process::exit(0x0300);
+                });
                 let mut mp = state.get_mut(&id).expect("Multipool should present");
                 mp.last_observed_block = current_block;
                 drop(mp);
             }
             {
-                let total_supply = contract
-                    .get_total_supply()
-                    .await
-                    .expect("Should correctly fetch total suppply");
+                let total_supply = contract.get_total_supply().await.unwrap_or_else(|error| {
+                    println!("Should correctly fetch total suppply: {:#?}", error);
+                    std::process::exit(0x0400);
+                });
                 let mut mp = state.get_mut(&id).expect("Multipool should present");
                 mp.total_supply = total_supply;
                 drop(mp);
@@ -226,11 +227,14 @@ impl MultipoolStorage {
                 {
                     let mut mp = state.get_mut(&id).expect("Multipool should present");
                     let assets = &mut mp.assets;
-                    for (asset, quantity) in chunk.into_iter().zip(
-                        quantities
-                            .into_iter()
-                            .map(|val| val.expect("Quantity fetch should be successful")),
-                    ) {
+                    for (asset, quantity) in
+                        chunk.into_iter().zip(quantities.into_iter().map(|val| {
+                            val.unwrap_or_else(|error| {
+                                println!("Quantity fetch should be successful: {:#?}", error);
+                                std::process::exit(0x0100);
+                            })
+                        }))
+                    {
                         assets
                             .entry(asset.address)
                             .and_modify(|e| e.quantity = quantity);
@@ -249,7 +253,10 @@ impl MultipoolStorage {
                     provider.clone(),
                 )
                 .await
-                .expect("Should successfully fetch events");
+                .unwrap_or_else(|error| {
+                    println!("Should successfully fetch events: {:#?}", error);
+                    std::process::exit(0x0500);
+                });
                 let mut mp = state.get_mut(&id).expect("Multipool should present");
                 for update in updates.into_iter() {
                     if update.address == mp.contract_address {

@@ -4,6 +4,7 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 use futures::future::join_all;
+use primitive_types::U256;
 use serde_json::Value;
 use tokio::time::sleep;
 use tokio_postgres::NoTls;
@@ -49,6 +50,7 @@ async fn main() -> std::io::Result<()> {
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {}", e);
+            std::process::exit(0x0700);
         }
     });
 
@@ -61,6 +63,7 @@ async fn main() -> std::io::Result<()> {
         let storage = storage.clone();
         let client = Arc::new(client);
         tokio::spawn(async move {
+            sleep(Duration::from_millis(5000)).await;
             loop {
                 let eth_price = reqwest::get(
                     "https://token-rates-aggregator.1inch.io/v1.0/native-token-rate?vs=USD",
