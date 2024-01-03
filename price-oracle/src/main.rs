@@ -4,7 +4,6 @@ use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
 use futures::future::join_all;
-use primitive_types::U256;
 use serde_json::Value;
 use tokio::time::sleep;
 use tokio_postgres::NoTls;
@@ -27,10 +26,11 @@ struct PriceRequest {
 async fn get_signed_price(
     params: web::Query<PriceRequest>,
     key: web::Data<String>,
+    config: web::Data<BotConfig>,
     storage: web::Data<MultipoolStorage>,
 ) -> impl Responder {
     let signer = Wallet::from_str(&key).unwrap();
-    let price = storage.get_signed_price(&params.multipool_id, &signer);
+    let price = storage.get_signed_price(&params.multipool_id, &signer, config.poison_time);
     HttpResponse::Ok().json(price)
 }
 
@@ -55,7 +55,7 @@ async fn main() -> std::io::Result<()> {
     });
 
     let config = BotConfig::from_file(&config_path);
-    let storage = MultipoolStorage::from_config(config);
+    let storage = MultipoolStorage::from_config(config.clone());
 
     let jh = tokio::spawn(storage.gen_fetching_future());
 
@@ -81,7 +81,7 @@ async fn main() -> std::io::Result<()> {
                 .expect("Value should be a valid float");
                 join_all(
                     storage
-                        .get_prices()
+                        .get_prices(config.poison_time)
                         .into_iter()
                         .zip(repeat(client.clone()))
                         .filter_map(|((id, price), client)| {
@@ -101,18 +101,20 @@ async fn main() -> std::io::Result<()> {
 
     println!("starting server at {}", bind_address);
     let server = HttpServer::new(move || {
+        let config = config.clone();
         let cors = Cors::permissive();
         let key = key.clone();
         let storage = storage.clone();
         App::new()
             .wrap(cors)
             .app_data(web::Data::new(key))
+            .app_data(web::Data::new(config))
             .app_data(web::Data::new(storage))
             .service(health)
             .service(get_signed_price)
     })
     .bind(bind_address)?
     .run();
-    futures::future::join(jh, server).await;
+    let _ = futures::future::join(jh, server).await;
     Ok(())
 }

@@ -1,8 +1,10 @@
 pub mod chain;
+//pub mod chain_adapter;
+
 use std::collections::BTreeMap;
-use std::ops::{Div, Mul, Shl, Shr};
+use std::ops::{Shl, Shr};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use dashmap::DashMap;
 use ethers::prelude::k256::ecdsa::SigningKey;
@@ -47,12 +49,49 @@ impl MultipoolStorage {
     }
 }
 
+#[derive(Clone, Default, Debug)]
+pub struct MayBeExpired<V> {
+    inner: Option<(V, u64)>,
+}
+
+impl<V> MayBeExpired<V> {
+    pub fn not_older_than(self, interval: u64) -> Option<V> {
+        self.inner
+            .map(|(v, timestamp)| {
+                let current_timestamp = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Shold be always after epoch start")
+                    .as_secs();
+                if current_timestamp <= timestamp + interval {
+                    Some(v)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+    }
+}
+
+impl<V> From<V> for MayBeExpired<V> {
+    fn from(value: V) -> Self {
+        Self {
+            inner: Some((
+                value,
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Shold be always after epoch start")
+                    .as_secs(),
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Multipool {
     fetch_params: MultipoolFetchParams,
     contract_address: Address,
     assets: BTreeMap<Address, MultipoolAsset>,
-    total_supply: Quantity,
+    total_supply: MayBeExpired<Quantity>,
     provider: Arc<Provider<Http>>,
     last_observed_block: BlockNumber,
     chain_id: u128,
@@ -71,13 +110,13 @@ impl Multipool {
                         a,
                         MultipoolAsset {
                             address: a,
-                            price: Price::zero(),
-                            quantity: Quantity::zero(),
+                            price: Default::default(),
+                            quantity: Default::default(),
                         },
                     )
                 })
                 .collect(),
-            total_supply: Quantity::zero(),
+            total_supply: Default::default(),
             provider: Arc::new(
                 Provider::<Http>::try_from(config.provider_url)
                     .expect("Provider url should be valid"),
@@ -101,30 +140,29 @@ impl Multipool {
         MultipoolContractInterface::new(self.contract_address, self.provider.clone())
     }
 
-    fn get_price(&self) -> Option<Price> {
+    fn get_price(&self, poison_time: u64) -> Option<Price> {
         let q = U256::from(96);
         let cap = self
             .assets
             .iter()
-            .map(|(_, a)| a.quantity.mul(a.price).shr(q))
-            .reduce(|sum, el| sum + el);
-        if !self.total_supply.is_zero() && cap != Some(U256::zero()) {
-            if let Some(price) = cap.map(|cap| cap.shl(q).div(self.total_supply)) {
-                Some(price)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+            .map(|(_, a)| -> Option<U256> {
+                let quantity = a.quantity.to_owned().not_older_than(poison_time)?;
+                let price = a.price.to_owned().not_older_than(poison_time)?;
+                quantity.checked_mul(price).map(|mul| mul.shr(q))
+            })
+            .collect::<Option<Vec<U256>>>()?
+            .into_iter()
+            .reduce(|sum, el| sum + el)?;
+        let total_supply = self.total_supply.to_owned().not_older_than(poison_time)?;
+        cap.shl(q).checked_div(total_supply)
     }
 }
 
 #[derive(Debug, Clone)]
 struct MultipoolAsset {
     address: Address,
-    quantity: Quantity,
-    price: Price,
+    quantity: MayBeExpired<Quantity>,
+    price: MayBeExpired<Price>,
 }
 
 impl MultipoolStorage {
@@ -132,20 +170,21 @@ impl MultipoolStorage {
         &self,
         id: &MultipoolId,
         signer: &Wallet<SigningKey>,
+        poison_time: u64,
     ) -> Option<SignedSharePrice> {
         let mp = self
             .state
             .get(id)
             .expect("Multipool should present")
             .clone();
-        mp.get_price()
+        mp.get_price(poison_time)
             .map(|price| sign(mp.contract_address, price, mp.chain_id, signer))
     }
 
-    pub fn get_prices(&self) -> Vec<(MultipoolId, Option<Price>)> {
+    pub fn get_prices(&self, poison_time: u64) -> Vec<(MultipoolId, Option<Price>)> {
         self.state
             .iter()
-            .map(|e| (e.key().to_owned(), e.value().clone().get_price()))
+            .map(|e| (e.key().to_owned(), e.value().clone().get_price(poison_time)))
             .collect()
     }
 
@@ -177,7 +216,9 @@ impl MultipoolStorage {
                             std::process::exit(0x0200);
                         })
                     })) {
-                        assets.entry(asset.address).and_modify(|e| e.price = price);
+                        assets
+                            .entry(asset.address)
+                            .and_modify(|e| e.price = price.into());
                     }
                 }
             }
@@ -209,7 +250,7 @@ impl MultipoolStorage {
                     std::process::exit(0x0400);
                 });
                 let mut mp = state.get_mut(&id).expect("Multipool should present");
-                mp.total_supply = total_supply;
+                mp.total_supply = total_supply.into();
                 drop(mp);
             }
             for chunk in assets
@@ -237,7 +278,7 @@ impl MultipoolStorage {
                     {
                         assets
                             .entry(asset.address)
-                            .and_modify(|e| e.quantity = quantity);
+                            .and_modify(|e| e.quantity = quantity.into());
                     }
                     drop(mp);
                 }
@@ -260,17 +301,17 @@ impl MultipoolStorage {
                 let mut mp = state.get_mut(&id).expect("Multipool should present");
                 for update in updates.into_iter() {
                     if update.address == mp.contract_address {
-                        mp.total_supply = update.quantity;
+                        mp.total_supply = update.quantity.into();
                     } else if update.quantity.is_zero() {
                         mp.assets.remove(&update.address);
                     } else {
                         mp.assets
                             .entry(update.address)
-                            .and_modify(|val| val.quantity = update.quantity)
+                            .and_modify(|val| val.quantity = update.quantity.into())
                             .or_insert(MultipoolAsset {
                                 address: update.address,
-                                quantity: update.quantity,
-                                price: Price::zero(),
+                                quantity: update.quantity.into(),
+                                price: Default::default(),
                             });
                     }
                 }
@@ -286,6 +327,7 @@ impl MultipoolStorage {
             for entries in this.state.iter() {
                 let this = this.clone();
                 let key = entries.key().clone();
+                println!("ID: {}", key);
                 let params = entries.value().fetch_params.clone();
                 {
                     let this = this.clone();

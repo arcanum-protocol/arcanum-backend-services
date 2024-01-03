@@ -17,6 +17,7 @@ pub struct MultipoolConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BotConfig {
     pub multipools: HashMap<MultipoolId, MultipoolConfig>,
+    pub poison_time: u64,
 }
 
 impl BotConfig {
