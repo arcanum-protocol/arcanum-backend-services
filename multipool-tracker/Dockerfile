@@ -23,7 +23,7 @@ RUN touch src/main.rs
 RUN cargo build --release
 
 # STAGE2: create a slim image with the compiled binary
-FROM debian:latest as app
+FROM debian:latest as price-oracle
 
 RUN apt-get update && \
     apt-get --assume-yes install \
@@ -37,5 +37,22 @@ RUN apt-get update && apt-get -y install ca-certificates libssl-dev && rm -rf /v
 # Copy the binary from the builder stage
 WORKDIR /app
 COPY --from=builder /app/target/release/price-oracle app
+
+CMD ["./app"]
+
+FROM debian:latest as trader
+
+RUN apt-get update && \
+    apt-get --assume-yes install \
+        make \
+        libpq5 \
+        libpq-dev \
+        -qqy \
+        --no-install-recommends
+RUN apt-get update && apt-get -y install ca-certificates libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary from the builder stage
+WORKDIR /app
+COPY --from=builder /app/target/release/trader app
 
 CMD ["./app"]

@@ -2071,6 +2071,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "multipool-tracker"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "dashmap",
+ "ethers",
+ "futures",
+ "primitive-types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_qs",
+ "serde_yaml",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "native-tls"
 version = "0.2.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2529,25 +2548,6 @@ checksum = "ae005bd773ab59b4725093fd7df83fd7892f7d8eafb48dbd7de6e024e4215f9d"
 dependencies = [
  "proc-macro2",
  "syn 2.0.39",
-]
-
-[[package]]
-name = "price-oracle"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-web",
- "dashmap",
- "ethers",
- "futures",
- "primitive-types",
- "reqwest",
- "serde",
- "serde_json",
- "serde_qs",
- "serde_yaml",
- "tokio",
- "tokio-postgres",
 ]
 
 [[package]]

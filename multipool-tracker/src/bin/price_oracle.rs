@@ -14,7 +14,7 @@ async fn health() -> impl Responder {
 }
 
 use ethers::signers::Wallet;
-use price_oracle::{config::BotConfig, multipool_storage::MultipoolStorage};
+use multipool_tracker::{config::BotConfig, multipool_storage::MultipoolStorage};
 use serde::Deserialize;
 
 #[derive(Deserialize)]

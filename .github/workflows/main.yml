@@ -7,38 +7,27 @@ on:
     branches: [ "master" ]
 
 jobs:
-
-  build-tv-bot:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the indexer image
-      run: docker build tv-bot --tag badconfig/tv-bot
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/tv-bot
-
-  build-price-oracle:
+  build-multipool-tracker:
 
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
 
-    - name: Build the indexer image
-      run: docker build price-oracle --tag badconfig/arcanum-price-oracle
+    - name: Build price-oracle image
+      run: docker build multipool-tracker --target price-oracle --tag badconfig/arcanum-price-oracle
+
+    - name: Build trader image
+      run: docker build multipool-tracker --target trader --tag badconfig/arcanum-trader
 
     - name: Login to dockerhub
       run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
-    - name: push image
+    - name: push price-oracle image
       run: docker push badconfig/arcanum-price-oracle
+
+    - name: push trader image
+      run: docker push badconfig/arcanum-trader
 
   build-backend-api:
 
@@ -55,19 +44,3 @@ jobs:
 
     - name: push image
       run: docker push badconfig/backend-api 
-
-  build-target-share-oracle:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Build the Docker image
-      run: docker build target-share-oracle --tag badconfig/target-share-oracle
-
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-
-    - name: push image
-      run: docker push badconfig/target-share-oracle 
