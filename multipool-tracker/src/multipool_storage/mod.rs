@@ -11,8 +11,8 @@ use ethers::prelude::k256::ecdsa::SigningKey;
 use ethers::providers::Provider;
 use ethers::providers::{Http, Middleware};
 use ethers::signers::Wallet;
-use ethers::types::Address;
 use ethers::types::U64;
+use ethers::types::{Address, I256};
 use futures::future::join_all;
 use futures::Future;
 use primitive_types::U256;
@@ -119,8 +119,9 @@ pub struct MultipoolAsset {
 #[derive(Debug, Clone)]
 pub struct BalancingData {
     pub deviation: f64,
-    pub quantity_to_balance: U256,
-    pub is_missing: bool,
+    pub quantity_to_balance: I256,
+    pub quantity_to_upper_bound: I256,
+    pub quantity_to_lower_bound: I256,
 }
 
 impl Multipool {
@@ -185,16 +186,32 @@ impl Multipool {
 
                     let pegged_quantity = share * usd_cap / price / total_shares;
 
-                    let pegged_quantity_modified: U256 = pegged_quantity.abs_diff(quantity); // * U256::from(1999) / U256::from(1000);
+                    let deviation_limit = U256::from(644245094) / 2;
+
+                    let share_bound = (deviation_limit * total_shares) >> 32;
+                    let upper = I256::from_raw(
+                        (share + share_bound).min(total_shares) * usd_cap / price / total_shares,
+                    ) - I256::from_raw(quantity);
+                    let lower = I256::from_raw(
+                        (share.checked_div(share_bound).unwrap_or(U256::zero())) * usd_cap
+                            / price
+                            / total_shares,
+                    ) - I256::from_raw(quantity);
+
+                    let pegged_quantity_modified =
+                        I256::from_raw(pegged_quantity) - I256::from_raw(quantity);
 
                     Some((
                         asset_address,
                         BalancingData {
-                            deviation: current_share.abs_diff(target_share).as_u128() as f64
+                            deviation: (I256::from_raw(current_share)
+                                - I256::from_raw(target_share))
+                            .as_i128() as f64
                                 / 2f64.powf(96.0)
                                 * 100f64,
                             quantity_to_balance: pegged_quantity_modified,
-                            is_missing: quantity < pegged_quantity,
+                            quantity_to_lower_bound: lower,
+                            quantity_to_upper_bound: upper,
                         },
                     ))
                 },

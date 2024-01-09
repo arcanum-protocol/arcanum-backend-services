@@ -32,21 +32,24 @@ pub async fn run(storage: MultipoolStorage) {
                 .get_quantities_to_balance(U256::from_dec_str(&sp.share_price).unwrap(), 180)
                 .unwrap();
 
-            let missing = deviations
-                .clone()
-                .into_iter()
-                .filter(|(_, data)| data.is_missing)
-                .collect::<Vec<_>>();
+            let missing = deviations.clone();
+            let not_missing = deviations.clone();
+           // let missing = deviations
+           //     .clone()
+           //     .into_iter()
+           //     .filter(|(_, data)| data.quantity_to_balance.is_positive())
+           //     .collect::<Vec<_>>();
 
-            let not_missing = deviations
-                .clone()
-                .into_iter()
-                .filter(|(_, data)| !data.is_missing)
-                .collect::<Vec<_>>();
+           // let not_missing = deviations
+           //     .clone()
+           //     .into_iter()
+           //     .filter(|(_, data)| !data.quantity_to_balance.is_positive())
+           //     .collect::<Vec<_>>();
 
             for (missing_address, missing_deviation) in missing.iter() {
                 let missing_asset = multipool.assets.get(missing_address).unwrap();
                 for (not_missing_address, not_missing_deviation) in not_missing.iter() {
+                    if missing_address == not_missing_address { continue; }
                     let not_missing_asset = multipool.assets.get(not_missing_address).unwrap();
 
                     let weth: Address = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
@@ -60,7 +63,7 @@ pub async fn run(storage: MultipoolStorage) {
                         signatures: vec![sp.signature.parse().unwrap()],
                     };
 
-                    let (amount_of_in, amount_of_out) = analyzer::analyze(
+                    let (amount_of_in, amount_of_out, (fee_in, fee_out)) = match analyzer::analyze(
                         multipool.provider.clone(),
                         AssetInfo {
                             address: missing_address.to_owned(),
@@ -75,7 +78,13 @@ pub async fn run(storage: MultipoolStorage) {
                         force_push,
                         weth,
                     )
-                    .await;
+                    .await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            println!("{}", e);
+                            continue;
+                        }
+                    };
 
                     let multipool_fee: U256 = 1000000000000000u128.into();
                     let args = Args {
@@ -91,11 +100,11 @@ pub async fn run(storage: MultipoolStorage) {
 
                         out_amount: amount_of_out.into(),
 
-                        fee_in: get_pool_fee(missing_address),
-                        fee_out: get_pool_fee(not_missing_address),
+                        fee_in,
+                        fee_out,
 
-                        approve_in: true,
-                        approve_out: true,
+                        approve_in: false,
+                        approve_out: false,
 
                         multipool: multipool.contract_address,
                         fp: ForcePushArgs {
@@ -145,6 +154,11 @@ pub async fn check_and_send<M: Middleware>(args: Args, contract: TraderContract<
         .value(20000000000000000u128);
     match arbitrage_call.call().await {
         Ok((profit, gas_used)) => {
+            let gas_used = {
+                let val = arbitrage_call.estimate_gas().await;
+                println!("gas: {val:?}");
+                val.unwrap_or(gas_used)
+            };
             println!("Simlulation SUCCESS, profit: {}, gas: {}", profit, gas_used);
             // * 0.1 / 10^9
             let eth_for_gas = gas_used * U256::from(1_000_000_000_000_000_000u128)

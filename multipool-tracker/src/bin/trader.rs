@@ -32,7 +32,7 @@ async fn main() -> std::io::Result<()> {
     let storage = MultipoolStorage::from_config(config.clone());
 
     let jh = tokio::spawn(storage.gen_fetching_future());
-    sleep(Duration::from_secs(5)).await;
+    sleep(Duration::from_secs(10)).await;
     //let jh = tokio::spawn(async {});
 
     let trader = tokio::spawn(async move { multipool_tracker::trader::run(storage).await });
