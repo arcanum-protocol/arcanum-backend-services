@@ -103,8 +103,8 @@ pub async fn run(storage: MultipoolStorage) {
                         fee_in,
                         fee_out,
 
-                        approve_in: false,
-                        approve_out: false,
+                        approve_in: true,
+                        approve_out: true,
 
                         multipool: multipool.contract_address,
                         fp: ForcePushArgs {
