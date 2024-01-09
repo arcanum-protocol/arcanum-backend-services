@@ -1,28 +1,20 @@
-# STAGE1: Build the binary
-FROM rust as builder
+FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
 
-# Install build dependencies
+WORKDIR /app
 RUN apt-get update && apt-get --assume-yes install musl-dev libssl-dev
 
-# Create a new empty shell project
-WORKDIR /app
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Copy over the Cargo.toml files to the shell project
-COPY Cargo.toml Cargo.lock ./
-
-# Build and cache the dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo fetch
-RUN cargo build --release
-RUN rm src/main.rs
-
-# Copy the actual code files and build the application
-COPY src ./src/
-# Update the file date
-RUN touch src/main.rs
+FROM chef AS builder 
+COPY --from=planner /app/recipe.json recipe.json
+# Build dependencies - this is the caching Docker layer!
+RUN cargo chef cook --release --recipe-path recipe.json
+# Build application
+COPY . .
 RUN cargo build --release
 
-# STAGE2: create a slim image with the compiled binary
 FROM debian:latest as price-oracle
 
 RUN apt-get update && \
