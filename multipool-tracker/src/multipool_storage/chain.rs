@@ -6,6 +6,7 @@ use futures::FutureExt;
 use primitive_types::U256;
 use std::sync::Arc;
 
+use super::Share;
 use super::{Price, Quantity};
 
 abigen!(
@@ -13,6 +14,7 @@ abigen!(
     r#"[
         function getPrice(address asset) external view returns (uint price)
         function totalSupply() external view returns (uint totalSupply)
+        function totalTargetShares() external view returns (uint targetShares)
         function getAsset(address asset) external view returns (uint quantity, uint128 share, uint128 collectedCashbacks)
     ]"#,
 );
@@ -25,6 +27,12 @@ pub struct QuantityUpdate {
 
 pub struct MultipoolContractInterface {
     multipool: MultipoolContract<Provider<Http>>,
+}
+
+pub struct Asset {
+    pub share: Share,
+    pub quantity: Quantity,
+    pub cashback: Quantity,
 }
 
 impl MultipoolContractInterface {
@@ -48,16 +56,22 @@ impl MultipoolContractInterface {
         }
     }
 
-    pub fn get_asset_quantity(
+    pub fn get_asset(
         &self,
         asset_address: Address,
-    ) -> impl Future<Output = Result<Quantity, ContractError<Provider<Http>>>> {
+    ) -> impl Future<Output = Result<Asset, ContractError<Provider<Http>>>> {
         let multipool = self.multipool.clone();
         async move {
             multipool
                 .get_asset(asset_address)
                 .call()
-                .map(|v| v.map(|v| v.0))
+                .map(|v| {
+                    v.map(|v| Asset {
+                        quantity: v.0,
+                        share: v.1.into(),
+                        cashback: v.2.into(),
+                    })
+                })
                 .await
         }
     }
@@ -67,6 +81,13 @@ impl MultipoolContractInterface {
     ) -> impl Future<Output = Result<Quantity, ContractError<Provider<Http>>>> {
         let multipool = self.multipool.clone();
         async move { multipool.total_supply().call().await }
+    }
+
+    pub fn get_total_shares(
+        &self,
+    ) -> impl Future<Output = Result<Share, ContractError<Provider<Http>>>> {
+        let multipool = self.multipool.clone();
+        async move { multipool.total_target_shares().call().await }
     }
 }
 

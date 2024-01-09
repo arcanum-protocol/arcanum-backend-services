@@ -1,5 +1,10 @@
 [
   {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "function",
     "name": "DOMAIN_SEPARATOR",
     "inputs": [],
@@ -84,12 +89,12 @@
     "name": "checkSwap",
     "inputs": [
       {
-        "name": "fpSharePrice",
+        "name": "forcePushArgs",
         "type": "tuple",
-        "internalType": "struct Multipool.FPSharePriceArg",
+        "internalType": "struct ForcePushArgs",
         "components": [
           {
-            "name": "thisAddress",
+            "name": "contractAddress",
             "type": "address",
             "internalType": "address"
           },
@@ -99,24 +104,24 @@
             "internalType": "uint128"
           },
           {
-            "name": "value",
+            "name": "sharePrice",
             "type": "uint128",
             "internalType": "uint128"
           },
           {
-            "name": "signature",
-            "type": "bytes",
-            "internalType": "bytes"
+            "name": "signatures",
+            "type": "bytes[]",
+            "internalType": "bytes[]"
           }
         ]
       },
       {
-        "name": "selectedAssets",
+        "name": "assetsToSwap",
         "type": "tuple[]",
-        "internalType": "struct Multipool.AssetArg[]",
+        "internalType": "struct AssetArgs[]",
         "components": [
           {
-            "name": "addr",
+            "name": "assetAddress",
             "type": "address",
             "internalType": "address"
           },
@@ -143,6 +148,19 @@
         "name": "amounts",
         "type": "int256[]",
         "internalType": "int256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "collectedDeveloperFees",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -262,7 +280,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "share",
+            "name": "targetShare",
             "type": "uint128",
             "internalType": "uint128"
           },
@@ -278,7 +296,7 @@
   },
   {
     "type": "function",
-    "name": "getFees",
+    "name": "getFeeParams",
     "inputs": [],
     "outputs": [
       {
@@ -300,6 +318,16 @@
         "name": "_baseFee",
         "type": "uint64",
         "internalType": "uint64"
+      },
+      {
+        "name": "_developerBaseFee",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "_developerAddress",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -335,7 +363,7 @@
     ],
     "outputs": [
       {
-        "name": "f",
+        "name": "priceFeed",
         "type": "tuple",
         "internalType": "struct FeedInfo",
         "components": [
@@ -350,6 +378,29 @@
             "internalType": "bytes"
           }
         ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getSharePriceParams",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "_sharePriceValidityDuration",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "_initialSharePrice",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "_signatureThershold",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -399,35 +450,22 @@
   },
   {
     "type": "function",
-    "name": "initialSharePrice",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "initialize",
     "inputs": [
       {
-        "name": "mpName",
+        "name": "name",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "mpSymbol",
+        "name": "symbol",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "sharePrice",
-        "type": "uint256",
-        "internalType": "uint256"
+        "name": "startSharePrice",
+        "type": "uint128",
+        "internalType": "uint128"
       }
     ],
     "outputs": [],
@@ -594,7 +632,30 @@
   },
   {
     "type": "function",
-    "name": "setCurveParams",
+    "name": "setAuthorityRights",
+    "inputs": [
+      {
+        "name": "authority",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "forcePushSettlement",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "targetShareSettlement",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setFeeParams",
     "inputs": [
       {
         "name": "newDeviationLimit",
@@ -615,6 +676,16 @@
         "name": "newBaseFee",
         "type": "uint64",
         "internalType": "uint64"
+      },
+      {
+        "name": "newDeveloperBaseFee",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "newDeveloperAddress",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -622,41 +693,33 @@
   },
   {
     "type": "function",
-    "name": "setSharePriceTTL",
+    "name": "setSharePriceParams",
     "inputs": [
       {
-        "name": "newSharePriceTTL",
+        "name": "newValidityDuration",
+        "type": "uint128",
+        "internalType": "uint128"
+      },
+      {
+        "name": "newSignatureThershold",
         "type": "uint256",
         "internalType": "uint256"
       }
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "sharePriceTTL",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
     "name": "swap",
     "inputs": [
       {
-        "name": "fpSharePrice",
+        "name": "forcePushArgs",
         "type": "tuple",
-        "internalType": "struct Multipool.FPSharePriceArg",
+        "internalType": "struct ForcePushArgs",
         "components": [
           {
-            "name": "thisAddress",
+            "name": "contractAddress",
             "type": "address",
             "internalType": "address"
           },
@@ -666,24 +729,24 @@
             "internalType": "uint128"
           },
           {
-            "name": "value",
+            "name": "sharePrice",
             "type": "uint128",
             "internalType": "uint128"
           },
           {
-            "name": "signature",
-            "type": "bytes",
-            "internalType": "bytes"
+            "name": "signatures",
+            "type": "bytes[]",
+            "internalType": "bytes[]"
           }
         ]
       },
       {
-        "name": "selectedAssets",
+        "name": "assetsToSwap",
         "type": "tuple[]",
-        "internalType": "struct Multipool.AssetArg[]",
+        "internalType": "struct AssetArgs[]",
         "components": [
           {
-            "name": "addr",
+            "name": "assetAddress",
             "type": "address",
             "internalType": "address"
           },
@@ -700,12 +763,17 @@
         "internalType": "bool"
       },
       {
-        "name": "to",
+        "name": "receiverAddress",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "refundTo",
+        "name": "refundEthToReceiver",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "refundAddress",
         "type": "address",
         "internalType": "address"
       }
@@ -728,34 +796,8 @@
   },
   {
     "type": "function",
-    "name": "toggleForcePushAuthority",
-    "inputs": [
-      {
-        "name": "authority",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "togglePause",
     "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "toggleTargetShareAuthority",
-    "inputs": [
-      {
-        "name": "authority",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -866,22 +908,22 @@
   },
   {
     "type": "function",
-    "name": "updatePrice",
+    "name": "updatePrices",
     "inputs": [
       {
-        "name": "assetAddress",
-        "type": "address",
-        "internalType": "address"
+        "name": "assetAddresses",
+        "type": "address[]",
+        "internalType": "address[]"
       },
       {
-        "name": "kind",
-        "type": "uint8",
-        "internalType": "enum FeedType"
+        "name": "kinds",
+        "type": "uint8[]",
+        "internalType": "enum FeedType[]"
       },
       {
         "name": "feedData",
-        "type": "bytes",
-        "internalType": "bytes"
+        "type": "bytes[]",
+        "internalType": "bytes[]"
       }
     ],
     "outputs": [],
@@ -897,7 +939,7 @@
         "internalType": "address[]"
       },
       {
-        "name": "shares",
+        "name": "targetShares",
         "type": "uint256[]",
         "internalType": "uint256[]"
       }
@@ -935,6 +977,19 @@
     ],
     "outputs": [],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "withdrawDeveloperFees",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "fees",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1004,7 +1059,7 @@
     "name": "AssetChange",
     "inputs": [
       {
-        "name": "token",
+        "name": "asset",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1020,6 +1075,31 @@
         "type": "uint128",
         "indexed": false,
         "internalType": "uint128"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "AuthorityRightsChange",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "isForcePushAuthority",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      },
+      {
+        "name": "isTargetShareAuthority",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -1042,7 +1122,13 @@
     "name": "CollectedFeesChange",
     "inputs": [
       {
-        "name": "fees",
+        "name": "totalCollectedBalance",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalCollectedCashbacks",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1058,39 +1144,14 @@
   },
   {
     "type": "event",
-    "name": "FeedChange",
+    "name": "FeesChange",
     "inputs": [
       {
-        "name": "token",
+        "name": "developerAddress",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
-      {
-        "name": "feed",
-        "type": "tuple",
-        "indexed": false,
-        "internalType": "struct FeedInfo",
-        "components": [
-          {
-            "name": "kind",
-            "type": "uint8",
-            "internalType": "enum FeedType"
-          },
-          {
-            "name": "data",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "FeesChange",
-    "inputs": [
       {
         "name": "deviationParam",
         "type": "uint64",
@@ -1111,6 +1172,12 @@
       },
       {
         "name": "baseFee",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "developerBaseFee",
         "type": "uint64",
         "indexed": false,
         "internalType": "uint64"
@@ -1165,29 +1232,41 @@
   },
   {
     "type": "event",
-    "name": "PriceSetterToggled",
+    "name": "PriceFeedChange",
     "inputs": [
       {
-        "name": "account",
+        "name": "targetAsset",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "isSetter",
-        "type": "bool",
+        "name": "newFeed",
+        "type": "tuple",
         "indexed": false,
-        "internalType": "bool"
+        "internalType": "struct FeedInfo",
+        "components": [
+          {
+            "name": "kind",
+            "type": "uint8",
+            "internalType": "enum FeedType"
+          },
+          {
+            "name": "data",
+            "type": "bytes",
+            "internalType": "bytes"
+          }
+        ]
       }
     ],
     "anonymous": false
   },
   {
     "type": "event",
-    "name": "SharePriceTTLChange",
+    "name": "SharePriceExpirationChange",
     "inputs": [
       {
-        "name": "sharePriceTTL",
+        "name": "validityDuration",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -1200,41 +1279,22 @@
     "name": "TargetShareChange",
     "inputs": [
       {
-        "name": "token",
+        "name": "asset",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "share",
+        "name": "newTargetShare",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
       },
       {
-        "name": "totalTargetShares",
+        "name": "newTotalTargetShares",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TargetShareSetterToggled",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "isSetter",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -1294,7 +1354,7 @@
   },
   {
     "type": "error",
-    "name": "ForcePushedPriceExpired",
+    "name": "ForcePushPriceExpired",
     "inputs": [
       {
         "name": "blockTimestamp",
@@ -1302,7 +1362,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "priceTimestestamp",
+        "name": "priceTimestamp",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -1310,17 +1370,28 @@
   },
   {
     "type": "error",
-    "name": "InsuficcientBalance",
+    "name": "InsufficientBalance",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "InvalidForcePushAuthority",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "InvalidForcePushAuthoritySignature",
+    "name": "InvalidForcePushSignatureNumber",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "InvalidTargetShareSetterAuthority",
+    "name": "InvalidTargetShareAuthority",
     "inputs": []
   },
   {
@@ -1335,7 +1406,22 @@
   },
   {
     "type": "error",
+    "name": "NotEnoughQuantityToBurn",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SignaturesNotSortedOrNotUnique",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "SleepageExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UniV3PriceFetchingReverted",
     "inputs": []
   },
   {

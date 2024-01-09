@@ -1,0 +1,124 @@
+[
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "trade",
+    "inputs": [
+      {
+        "name": "args",
+        "type": "tuple",
+        "internalType": "struct Trader.Args",
+        "components": [
+          {
+            "name": "tokenIn",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "approveIn",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "tokenOut",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "approveOut",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "feeIn",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
+            "name": "feeOut",
+            "type": "uint24",
+            "internalType": "uint24"
+          },
+          {
+            "name": "swapRouter",
+            "type": "address",
+            "internalType": "contract ISwapRouter"
+          },
+          {
+            "name": "amountOfIn",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "outAmount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "multipoolFee",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "multipool",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "fp",
+            "type": "tuple",
+            "internalType": "struct ForcePushArgs",
+            "components": [
+              {
+                "name": "contractAddress",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "timestamp",
+                "type": "uint128",
+                "internalType": "uint128"
+              },
+              {
+                "name": "sharePrice",
+                "type": "uint128",
+                "internalType": "uint128"
+              },
+              {
+                "name": "signatures",
+                "type": "bytes[]",
+                "internalType": "bytes[]"
+              }
+            ]
+          },
+          {
+            "name": "gasLimit",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "weth",
+            "type": "address",
+            "internalType": "contract WETH"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "profit",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "gasUsed",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "payable"
+  }
+]

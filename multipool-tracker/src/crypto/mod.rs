@@ -11,10 +11,10 @@ use crate::multipool_storage::Price;
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SignedSharePrice {
-    contract_address: Address,
-    timestamp: String,
-    share_price: String,
-    signature: String,
+    pub contract_address: Address,
+    pub timestamp: String,
+    pub share_price: String,
+    pub signature: String,
 }
 
 pub fn sign(
