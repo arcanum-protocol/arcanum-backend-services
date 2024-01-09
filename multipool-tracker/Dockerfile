@@ -28,7 +28,7 @@ RUN apt-get update && apt-get -y install ca-certificates libssl-dev && rm -rf /v
 
 # Copy the binary from the builder stage
 WORKDIR /app
-COPY --from=builder /app/target/release/price-oracle app
+COPY --from=builder /app/target/release/price_oracle app
 
 CMD ["./app"]
 
