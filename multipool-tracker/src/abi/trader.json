@@ -15,45 +15,40 @@
           {
             "name": "tokenIn",
             "type": "address",
-            "internalType": "address"
+            "internalType": "contract IERC20"
           },
           {
-            "name": "approveIn",
+            "name": "zeroForOneIn",
             "type": "bool",
             "internalType": "bool"
           },
           {
             "name": "tokenOut",
             "type": "address",
-            "internalType": "address"
+            "internalType": "contract IERC20"
           },
           {
-            "name": "approveOut",
+            "name": "zeroForOneOut",
             "type": "bool",
             "internalType": "bool"
           },
           {
-            "name": "feeIn",
-            "type": "uint24",
-            "internalType": "uint24"
-          },
-          {
-            "name": "feeOut",
-            "type": "uint24",
-            "internalType": "uint24"
-          },
-          {
-            "name": "swapRouter",
+            "name": "poolIn",
             "type": "address",
-            "internalType": "contract ISwapRouter"
+            "internalType": "contract IUniswapV3Pool"
           },
           {
-            "name": "amountOfIn",
+            "name": "poolOut",
+            "type": "address",
+            "internalType": "contract IUniswapV3Pool"
+          },
+          {
+            "name": "multipoolAmountIn",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "outAmount",
+            "name": "multipoolAmountOut",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -65,7 +60,7 @@
           {
             "name": "multipool",
             "type": "address",
-            "internalType": "address"
+            "internalType": "contract Multipool"
           },
           {
             "name": "fp",
@@ -120,5 +115,28 @@
       }
     ],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "uniswapV3SwapCallback",
+    "inputs": [
+      {
+        "name": "amount0Delta",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "amount1Delta",
+        "type": "int256",
+        "internalType": "int256"
+      },
+      {
+        "name": "_data",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   }
 ]

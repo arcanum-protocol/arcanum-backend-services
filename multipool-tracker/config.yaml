@@ -16,3 +16,53 @@ multipools:
       - "0x51fc0f6660482ea73330e414efd7808811a57fa2"
     provider_url: "https://arbitrum.llamarpc.com"
     chain_id: 42161
+uniswap:
+  eth_pools:
+    - address: "0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a"
+      asset_symbol: "GMX"
+      base_is_token0: false
+      pools:
+        - fee: 10000
+          address: "0x80a9ae39310abf666a87c743d6ebbd0e8c42158e"
+        - fee: 3000
+          address: "0x1aeedd3727a6431b8f070c0afaa81cc74f273882"
+        - fee: 500
+          address: "0xb435ebfe0bf4ce66810aa4d44e3a5ca875d40db1"
+    - address: "0x3082cc23568ea640225c2467653db90e9250aaa0"
+      asset_symbol: "RDNT"
+      base_is_token0: true
+      pools:
+        - fee: 10000
+          address: "0xa8ba5f3ccfb8d2b7f4225e371cde11871e088933"
+        - fee: 3000
+          address: "0x446BF9748B4eA044dd759d9B9311C70491dF8F29"
+    - address: "0x0341c0c0ec423328621788d4854119b97f44e391"
+      asset_symbol: "SILO"
+      base_is_token0: true
+      pools:
+        - fee: 10000
+          address: "0xd3e11119d2680c963f1cdcffece0c4ade823fb58"
+    - address: "0x539bde0d7dbd336b79148aa742883198bbf60342"
+      asset_symbol: "MAGIC"
+      base_is_token0: true
+      pools:
+        - fee: 10000
+          address: "0x7e7fb3cceca5f2ac952edf221fd2a9f62e411980"
+        - fee: 3000
+          address: "0x59d72ddb29da32847a4665d08ffc8464a7185fae"
+        - fee: 500
+          address: "0xf44f17a6fc5d2f0ad1ff47e682570fa5a8eb9050"
+    - address: "0x51fc0f6660482ea73330e414efd7808811a57fa2"
+      asset_symbol: "PREMIA"
+      base_is_token0: true
+      pools:
+        - fee: 10000
+          address: "0x4b220d875a5951244896b2f3d7f1545b2a3d0d5f"
+    - address: "0x0c880f6761f1af8d9aa9c466984b80dab9a8c9e8"
+      asset_symbol: "PENDLE"
+      base_is_token0: true
+      pools:
+        - fee: 10000
+          address: "0xe8629b6a488f366d27dad801d1b5b445199e2ada"
+        - fee: 3000
+          address: "0xdbaeb7f0dfe3a0aafd798ccecb5b22e708f7852c"

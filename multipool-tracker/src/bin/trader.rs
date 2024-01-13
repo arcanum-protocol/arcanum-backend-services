@@ -35,7 +35,7 @@ async fn main() -> std::io::Result<()> {
     sleep(Duration::from_secs(10)).await;
     //let jh = tokio::spawn(async {});
 
-    let trader = tokio::spawn(async move { multipool_tracker::trader::run(storage).await });
+    let trader = tokio::spawn(async move { multipool_tracker::trader::run(storage, config).await });
 
     let _ = futures::future::join(jh, trader).await;
     Ok(())

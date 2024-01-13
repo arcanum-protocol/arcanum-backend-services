@@ -9,14 +9,15 @@ use ethers::{prelude::*, utils::hex::decode};
 use tokio::time::sleep;
 
 use crate::{
-    crypto::SignedSharePrice, multipool_storage::MultipoolStorage, trader::analyzer::get_pool_fee,
+    crypto::SignedSharePrice, multipool_storage::MultipoolStorage, config::BotConfig,
 };
 
 use self::analyzer::AssetInfo;
 
 abigen!(TraderContract, "src/abi/trader.json");
 
-pub async fn run(storage: MultipoolStorage) {
+pub async fn run(storage: MultipoolStorage, config: BotConfig) {
+    let uniswap_data = config.uniswap.clone();
     loop {
         let data = storage.get_multipools_data();
         for (_, multipool) in data {
@@ -30,25 +31,19 @@ pub async fn run(storage: MultipoolStorage) {
 
             let deviations = multipool
                 .get_quantities_to_balance(U256::from_dec_str(&sp.share_price).unwrap(), 180)
-                .unwrap();
+                .unwrap()
+                .into_iter();
+                //.filter(|v|
+                //        v.0 == "0x539bde0d7dbd336b79148aa742883198bbf60342".parse().unwrap() || 
+                //        v.0 == "0x3082cc23568ea640225c2467653db90e9250aaa0".parse().unwrap());
 
-            let missing = deviations.clone();
-            let not_missing = deviations.clone();
-           // let missing = deviations
-           //     .clone()
-           //     .into_iter()
-           //     .filter(|(_, data)| data.quantity_to_balance.is_positive())
-           //     .collect::<Vec<_>>();
-
-           // let not_missing = deviations
-           //     .clone()
-           //     .into_iter()
-           //     .filter(|(_, data)| !data.quantity_to_balance.is_positive())
-           //     .collect::<Vec<_>>();
+            let missing = deviations.clone().collect::<Vec<_>>();
+            let not_missing = deviations.clone().collect::<Vec<_>>();
 
             for (missing_address, missing_deviation) in missing.iter() {
                 let missing_asset = multipool.assets.get(missing_address).unwrap();
                 for (not_missing_address, not_missing_deviation) in not_missing.iter() {
+
                     if missing_address == not_missing_address { continue; }
                     let not_missing_asset = multipool.assets.get(not_missing_address).unwrap();
 
@@ -63,8 +58,11 @@ pub async fn run(storage: MultipoolStorage) {
                         signatures: vec![sp.signature.parse().unwrap()],
                     };
 
-                    let (amount_of_in, amount_of_out, (fee_in, fee_out)) = match analyzer::analyze(
+                    
+                    let (multipool_amount_in, multipool_amount_out, ((pool_in,zero_for_one_in), (pool_out,zero_for_one_out))) = match analyzer::analyze(
                         multipool.provider.clone(),
+                        &uniswap_data,
+                        false,
                         AssetInfo {
                             address: missing_address.to_owned(),
                             balancing_data: missing_deviation.to_owned(),
@@ -75,36 +73,49 @@ pub async fn run(storage: MultipoolStorage) {
                             balancing_data: not_missing_deviation.to_owned(),
                             asset_data: not_missing_asset.to_owned(),
                         },
-                        force_push,
+                        force_push.clone(),
                         weth,
                     )
-                    .await {
+                    .await 
+                    {
                         Ok(v) => v,
                         Err(e) => {
                             println!("{}", e);
-                            continue;
+                            analyzer::analyze(
+                        multipool.provider.clone(),
+                        &uniswap_data,
+                        false,
+                        AssetInfo {
+                            address: not_missing_address.to_owned(),
+                            balancing_data: not_missing_deviation.to_owned(),
+                            asset_data: not_missing_asset.to_owned(),
+                        },
+                        AssetInfo {
+                            address: missing_address.to_owned(),
+                            balancing_data: missing_deviation.to_owned(),
+                            asset_data: missing_asset.to_owned(),
+                        },
+                        force_push,
+                        weth,
+                    )
+                    .await.unwrap()
+                            //continue;
                         }
                     };
 
                     let multipool_fee: U256 = 1000000000000000u128.into();
                     let args = Args {
                         token_in: *missing_address,
+                        zero_for_one_in,
                         token_out: *not_missing_address,
-                        amount_of_in,
+                        zero_for_one_out,
 
-                        swap_router: "0xE592427A0AEce92De3Edee1F18E0157C05861564"
-                            .parse()
-                            .unwrap(),
-
+                        multipool_amount_in,
+                        multipool_amount_out,
                         multipool_fee,
 
-                        out_amount: amount_of_out.into(),
-
-                        fee_in,
-                        fee_out,
-
-                        approve_in: true,
-                        approve_out: true,
+                        pool_in,
+                        pool_out,
 
                         multipool: multipool.contract_address,
                         fp: ForcePushArgs {
@@ -116,6 +127,7 @@ pub async fn run(storage: MultipoolStorage) {
                         gas_limit: 5000000.into(),
                         weth,
                     };
+                    //println!("args {:#?}", args);
 
                     let wallet: LocalWallet = LocalWallet::from_bytes(
                         decode(std::env::var("KEY").unwrap())
@@ -131,7 +143,7 @@ pub async fn run(storage: MultipoolStorage) {
                     check_and_send(
                         args,
                         TraderContract::new(
-                            "0x25497ea231c3e355ddC868eDa4E9A08b3e4CeB62"
+                            "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
                                 .parse::<Address>()
                                 .unwrap(),
                             client,
@@ -140,7 +152,7 @@ pub async fn run(storage: MultipoolStorage) {
                     .await;
                     println!("---------------------------------------");
                 }
-                sleep(Duration::from_millis(100)).await;
+                //sleep(Duration::from_millis(100)).await;
             }
         }
     }

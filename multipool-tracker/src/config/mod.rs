@@ -3,7 +3,10 @@ use std::{collections::HashMap, fs};
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::multipool_storage::{MultipoolFetchParams, MultipoolId};
+use crate::{
+    multipool_storage::{MultipoolFetchParams, MultipoolId},
+    trader::analyzer::Uniswap,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultipoolConfig {
@@ -18,6 +21,7 @@ pub struct MultipoolConfig {
 pub struct BotConfig {
     pub multipools: HashMap<MultipoolId, MultipoolConfig>,
     pub poison_time: u64,
+    pub uniswap: Uniswap,
 }
 
 impl BotConfig {
