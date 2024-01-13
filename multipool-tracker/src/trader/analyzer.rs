@@ -176,7 +176,7 @@ pub async fn estimate_uniswap<P: Middleware>(
     asset: AssetInfo,
     amount: AmountWithDirection,
     weth: Address,
-) -> Result<(U256, Address, bool), String> {
+) -> Result<(U256, Address, bool, u32), String> {
     let quoter = Quoter::new(
         "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"
             .parse::<Address>()
@@ -185,6 +185,7 @@ pub async fn estimate_uniswap<P: Middleware>(
     );
 
     let mut best_pool = None;
+    let mut best_fee = None;
     let mut estimated = None;
     let uniswap_pool = uniswap.get_pool_fee(&asset.address)?;
     let zero_for_one = match amount {
@@ -203,6 +204,7 @@ pub async fn estimate_uniswap<P: Middleware>(
                 if estimated.is_none() || strategy_input_new < estimated.unwrap() {
                     best_pool = Some(address);
                     estimated = Some(strategy_input_new);
+                    best_fee = Some(fee);
                 }
             }
             AmountWithDirection::ExactInput(amount) => {
@@ -214,11 +216,17 @@ pub async fn estimate_uniswap<P: Middleware>(
                 if estimated.is_none() || strategy_output_new > estimated.unwrap() {
                     best_pool = Some(address);
                     estimated = Some(strategy_output_new);
+                    best_fee = Some(fee);
                 }
             }
         };
     }
-    Ok((estimated.unwrap(), best_pool.unwrap(), zero_for_one))
+    Ok((
+        estimated.unwrap(),
+        best_pool.unwrap(),
+        zero_for_one,
+        best_fee.unwrap(),
+    ))
 }
 
 pub enum Estimates {
@@ -239,6 +247,15 @@ pub struct Stats {
     pub multipool_amount_out: U256,
     pub strategy: String,
     pub timestamp: u128,
+
+    pub multipool_asset_in_price: U256,
+    pub multipool_asset_out_price: U256,
+
+    pub asset_in_symbol: String,
+    pub asset_out_symbol: String,
+
+    pub pool_in_fee: u32,
+    pub pool_out_fee: u32,
 }
 
 pub async fn analyze<P: Middleware>(
@@ -261,7 +278,7 @@ pub async fn analyze<P: Middleware>(
     )
     .await?;
 
-    let (strategy_input, pool_in, zero_for_one_in) = estimate_uniswap(
+    let (strategy_input, pool_in, zero_for_one_in, pool_in_fee) = estimate_uniswap(
         provider.clone(),
         uniswap,
         asset_in.clone(),
@@ -270,7 +287,7 @@ pub async fn analyze<P: Middleware>(
     )
     .await?;
 
-    let (strategy_output, pool_out, zero_for_one_out) = estimate_uniswap(
+    let (strategy_output, pool_out, zero_for_one_out, pool_out_fee) = estimate_uniswap(
         provider.clone(),
         uniswap,
         asset_out.clone(),
@@ -282,7 +299,22 @@ pub async fn analyze<P: Middleware>(
     let result =
         (I256::from_raw(strategy_output) - fees).as_i128() as f64 / strategy_input.as_u128() as f64;
 
+    let uniswap_in_pool = uniswap.get_pool_fee(&asset_in.address)?;
+    let uniswap_out_pool = uniswap.get_pool_fee(&asset_out.address)?;
+
+    let price1 = asset_in.asset_data.price.not_older_than(180).unwrap();
+    let price2 = asset_out.asset_data.price.not_older_than(180).unwrap();
+
     let stats = Stats {
+        asset_in_symbol: uniswap_in_pool.asset_symbol,
+        asset_out_symbol: uniswap_out_pool.asset_symbol,
+
+        multipool_asset_in_price: price1,
+        multipool_asset_out_price: price2,
+
+        pool_in_fee,
+        pool_out_fee,
+
         profit_ratio: result,
         strategy_input,
         strategy: if maximize_volume {

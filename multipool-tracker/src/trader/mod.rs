@@ -321,6 +321,15 @@ pub async fn save_stats(
             multipool_amount_in,
             multipool_amount_out,
 
+            asset_in_symbol,
+            asset_out_symbol,
+
+            multipool_asset_in_price,
+            multipool_asset_out_price,
+
+            pool_in_fee,
+            pool_out_fee,
+
             estimation_error,
             estimated_gas,
             estimated_profit
@@ -329,15 +338,24 @@ pub async fn save_stats(
                 $5,$6,$7,
                 $8::TEXT::NUMERIC,$9::TEXT::NUMERIC,$10::TEXT::NUMERIC,$11::TEXT::NUMERIC,
                 $12::TEXT::NUMERIC,$13::TEXT::NUMERIC,
-                $14,$15::TEXT::NUMERIC, $16::TEXT::NUMERIC)
+                $14,$15,$16::TEXT::NUMERIC,$17::TEXT::NUMERIC,$18::TEXT::INT,$19::TEXT::INT,
+                $20,$21::TEXT::NUMERIC, $22::TEXT::NUMERIC)
           ",
             &[
-                &serde_json::to_string(&stats.asset_in_address).unwrap(),
-                &serde_json::to_string(&stats.asset_out_address).unwrap(),
-                &(stats.timestamp / (1000 * 60) * (1000 * 60)).to_string(),
+                &serde_json::to_string(&stats.asset_in_address)
+                    .unwrap()
+                    .trim_matches('\"'),
+                &serde_json::to_string(&stats.asset_out_address)
+                    .unwrap()
+                    .trim_matches('\"'),
+                &(stats.timestamp / (1000 * 60 * 5) * (1000 * 60 * 5)).to_string(),
                 &(stats.timestamp).to_string(),
-                &serde_json::to_string(&stats.pool_in_address).unwrap(),
-                &serde_json::to_string(&stats.pool_out_address).unwrap(),
+                &serde_json::to_string(&stats.pool_in_address)
+                    .unwrap()
+                    .trim_matches('\"'),
+                &serde_json::to_string(&stats.pool_out_address)
+                    .unwrap()
+                    .trim_matches('\"'),
                 &stats.strategy,
                 &stats.profit_ratio.to_string(),
                 &stats.strategy_input.to_string(),
@@ -345,6 +363,12 @@ pub async fn save_stats(
                 &stats.multipool_fee.to_string(),
                 &stats.multipool_amount_in.to_string(),
                 &stats.multipool_amount_out.to_string(),
+                &stats.asset_in_symbol,
+                &stats.asset_out_symbol,
+                &stats.multipool_asset_in_price.to_string(),
+                &stats.multipool_asset_out_price.to_string(),
+                &stats.pool_in_fee.to_string(),
+                &stats.pool_out_fee.to_string(),
                 &estimation_error,
                 &estimation_gas,
                 &estimation_profit,
