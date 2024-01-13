@@ -78,6 +78,73 @@ pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client
                         multipool.provider.clone(),
                         multipool.clone(),
                         &uniswap_data,
+                        true,
+                        AssetInfo {
+                            address: missing_address.to_owned(),
+                            balancing_data: missing_deviation.to_owned(),
+                            asset_data: missing_asset.to_owned(),
+                        },
+                        AssetInfo {
+                            address: not_missing_address.to_owned(),
+                            balancing_data: not_missing_deviation.to_owned(),
+                            asset_data: not_missing_asset.to_owned(),
+                        },
+                        force_push.clone(),
+                        weth,
+                    )
+                    .await
+                    {
+                        Ok(Estimates::Profitable((args, stats))) => {
+                            let execution = check_and_send(args, trader.clone()).await;
+                            save_stats(&pg_client, stats, Some(execution)).await;
+                        }
+                        Ok(Estimates::NonProfitable(stats)) => {
+                            save_stats(&pg_client, stats, None).await;
+                            continue;
+                        }
+                        Err(e) => {
+                            println!("{e:?}");
+                            continue;
+                        }
+                    }
+
+                    match analyzer::analyze(
+                        multipool.provider.clone(),
+                        multipool.clone(),
+                        &uniswap_data,
+                        false,
+                        AssetInfo {
+                            address: missing_address.to_owned(),
+                            balancing_data: missing_deviation.to_owned(),
+                            asset_data: missing_asset.to_owned(),
+                        },
+                        AssetInfo {
+                            address: not_missing_address.to_owned(),
+                            balancing_data: not_missing_deviation.to_owned(),
+                            asset_data: not_missing_asset.to_owned(),
+                        },
+                        force_push.clone(),
+                        weth,
+                    )
+                    .await
+                    {
+                        Ok(Estimates::Profitable((args, stats))) => {
+                            let execution = check_and_send(args, trader.clone()).await;
+                            save_stats(&pg_client, stats, Some(execution)).await;
+                        }
+                        Ok(Estimates::NonProfitable(stats)) => {
+                            save_stats(&pg_client, stats, None).await;
+                            continue;
+                        }
+                        Err(e) => {
+                            println!("{e:?}");
+                            continue;
+                        }
+                    }
+                    match analyzer::analyze(
+                        multipool.provider.clone(),
+                        multipool.clone(),
+                        &uniswap_data,
                         false,
                         AssetInfo {
                             address: missing_address.to_owned(),
