@@ -1,11 +1,17 @@
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use ethers::prelude::*;
 
-use crate::multipool_storage::{BalancingData, MultipoolAsset};
+use crate::{
+    multipool_storage::{BalancingData, Multipool, MultipoolAsset},
+    trader::Args,
+};
 
 use self::multipool::ForcePushArgs;
 
@@ -215,29 +221,50 @@ pub async fn estimate_uniswap<P: Middleware>(
     Ok((estimated.unwrap(), best_pool.unwrap(), zero_for_one))
 }
 
+pub enum Estimates {
+    Profitable((Args, Stats)),
+    NonProfitable(Stats),
+}
+
+pub struct Stats {
+    pub profit_ratio: f64,
+    pub strategy_input: U256,
+    pub strategy_output: U256,
+    pub multipool_fee: I256,
+    pub asset_in_address: Address,
+    pub asset_out_address: Address,
+    pub pool_in_address: Address,
+    pub pool_out_address: Address,
+    pub multipool_amount_in: U256,
+    pub multipool_amount_out: U256,
+    pub strategy: String,
+    pub timestamp: u128,
+}
+
 pub async fn analyze<P: Middleware>(
     provider: Arc<P>,
+    multipool: Multipool,
     uniswap: &Uniswap,
     maximize_volume: bool,
     asset_in: AssetInfo,
     asset_out: AssetInfo,
     force_push: ForcePushArgs,
     weth: Address,
-) -> Result<(U256, U256, ((Address, bool), (Address, bool))), String> {
+) -> Result<Estimates, String> {
     let (amount_of_in, amount_of_out, fees) = get_multipool_params(
         provider.clone(),
         uniswap,
         maximize_volume,
         asset_in.clone(),
         asset_out.clone(),
-        force_push,
+        force_push.clone(),
     )
     .await?;
 
     let (strategy_input, pool_in, zero_for_one_in) = estimate_uniswap(
         provider.clone(),
         uniswap,
-        asset_in,
+        asset_in.clone(),
         AmountWithDirection::ExactOutput(amount_of_in),
         weth,
     )
@@ -246,46 +273,64 @@ pub async fn analyze<P: Middleware>(
     let (strategy_output, pool_out, zero_for_one_out) = estimate_uniswap(
         provider.clone(),
         uniswap,
-        asset_out,
+        asset_out.clone(),
         AmountWithDirection::ExactInput(amount_of_out),
         weth,
     )
     .await?;
 
-    let result = strategy_output.as_u128() as f64 / strategy_input.as_u128() as f64;
-    println!(
-        "MULTIPLIER: {}",
-        if strategy_output < strategy_input {
-            result.to_string().red().bold()
-        } else {
-            result.to_string().green().bold()
-        }
-    );
-
     let result =
         (I256::from_raw(strategy_output) - fees).as_i128() as f64 / strategy_input.as_u128() as f64;
-    println!("MULTIPLIER WITH FEE: {}", result);
 
-    let profit = I256::from_raw(strategy_output) - I256::from_raw(strategy_input) - fees;
-    if profit.is_negative() {
-        return Err("Non profitable".to_string());
-    }
-    let profit_string = format!(
-        "Profit: {}{}",
-        if profit.is_positive() { "+" } else { "-" },
-        profit.abs().as_u128() as f64 / 10f64.powf(18f64)
-    );
-    println!(
-        "{}",
-        if profit.is_positive() {
-            profit_string.green().bold()
+    let stats = Stats {
+        profit_ratio: result,
+        strategy_input,
+        strategy: if maximize_volume {
+            "max_volume".to_string()
         } else {
-            profit_string.red().bold()
-        }
-    );
-    Ok((
-        amount_of_in,
-        amount_of_out * 9 / 10,
-        ((pool_in, zero_for_one_in), (pool_out, zero_for_one_out)),
-    ))
+            "balancing".to_string()
+        },
+        strategy_output,
+        multipool_fee: fees,
+        asset_in_address: asset_in.address.clone(),
+        asset_out_address: asset_out.address.clone(),
+        pool_in_address: pool_in.clone(),
+        pool_out_address: pool_out.clone(),
+        multipool_amount_in: amount_of_in.clone(),
+        multipool_amount_out: amount_of_out.clone(),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    };
+
+    if I256::from_raw(strategy_output) - fees < I256::from_raw(strategy_input) {
+        return Ok(Estimates::NonProfitable(stats));
+    }
+
+    let args = Args {
+        token_in: asset_in.address,
+        zero_for_one_in,
+        token_out: asset_out.address,
+        zero_for_one_out,
+
+        multipool_amount_in: amount_of_in,
+        multipool_amount_out: amount_of_out * 9 / 10,
+        multipool_fee: 1000000000000000u128.into(),
+
+        pool_in,
+        pool_out,
+
+        multipool: multipool.contract_address,
+        fp: crate::trader::ForcePushArgs {
+            contract_address: force_push.contract_address,
+            timestamp: force_push.timestamp,
+            share_price: force_push.share_price,
+            signatures: force_push.signatures,
+        },
+        gas_limit: 5000000.into(),
+        weth,
+    };
+
+    Ok(Estimates::Profitable((args, stats)))
 }
