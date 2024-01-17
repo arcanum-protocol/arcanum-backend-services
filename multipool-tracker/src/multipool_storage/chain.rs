@@ -10,7 +10,7 @@ use std::time::Duration;
 use super::Share;
 use super::{Price, Quantity};
 
-static WAITING_TIME: u64 = 10;
+static WAITING_TIME: u64 = 2;
 
 abigen!(
     MultipoolContract,
