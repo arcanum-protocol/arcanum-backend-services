@@ -5,9 +5,12 @@ use futures::Future;
 use futures::FutureExt;
 use primitive_types::U256;
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::Share;
 use super::{Price, Quantity};
+
+static WAITING_TIME: u64 = 10;
 
 abigen!(
     MultipoolContract,
@@ -48,11 +51,17 @@ impl MultipoolContractInterface {
     ) -> impl Future<Output = Result<Price, ContractError<Provider<Http>>>> {
         let multipool = self.multipool.clone();
         async move {
-            multipool
-                .get_price(asset_address)
-                .call()
-                .map(|v| v.map(|v| U256(v.0)))
-                .await
+            let f = multipool.get_price(asset_address);
+            let fut = f.call().map(|v| v.map(|v| U256(v.0)));
+            tokio::select! {
+                val = fut => {
+                    val
+                }
+                _ = tokio::time::sleep(Duration::from_secs(3)) => {
+                    println!("Imeout for block to exceeded");
+                    std::process::exit(0x0500);
+                }
+            }
         }
     }
 
@@ -62,17 +71,23 @@ impl MultipoolContractInterface {
     ) -> impl Future<Output = Result<Asset, ContractError<Provider<Http>>>> {
         let multipool = self.multipool.clone();
         async move {
-            multipool
-                .get_asset(asset_address)
-                .call()
-                .map(|v| {
-                    v.map(|v| Asset {
-                        quantity: v.0,
-                        share: v.1.into(),
-                        cashback: v.2.into(),
-                    })
+            let f = multipool.get_asset(asset_address);
+            let fut = f.call().map(|v| {
+                v.map(|v| Asset {
+                    quantity: v.0,
+                    share: v.1.into(),
+                    cashback: v.2.into(),
                 })
-                .await
+            });
+            tokio::select! {
+                val = fut => {
+                    val
+                }
+                _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
+                    println!("Imeout for block to exceeded");
+                    std::process::exit(0x0500);
+                }
+            }
         }
     }
 
@@ -80,14 +95,36 @@ impl MultipoolContractInterface {
         &self,
     ) -> impl Future<Output = Result<Quantity, ContractError<Provider<Http>>>> {
         let multipool = self.multipool.clone();
-        async move { multipool.total_supply().call().await }
+        async move {
+            let f = multipool.total_supply();
+            tokio::select! {
+                val = f.call() => {
+                    val
+                }
+                _ = tokio::time::sleep(Duration::from_secs(3)) => {
+                    println!("Imeout for block to exceeded");
+                    std::process::exit(0x0500);
+                }
+            }
+        }
     }
 
     pub fn get_total_shares(
         &self,
     ) -> impl Future<Output = Result<Share, ContractError<Provider<Http>>>> {
         let multipool = self.multipool.clone();
-        async move { multipool.total_target_shares().call().await }
+        async move {
+            let f = multipool.total_target_shares();
+            tokio::select! {
+                val = f.call() => {
+                    val
+                }
+                _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
+                    println!("Imeout for block to exceeded");
+                    std::process::exit(0x0500);
+                }
+            }
+        }
     }
 }
 
@@ -99,29 +136,45 @@ impl QuantityUpdate {
         client: Arc<Provider<Http>>,
     ) -> impl Future<Output = Result<impl IntoIterator<Item = QuantityUpdate>, ProviderError>> {
         async move {
-            let block_to = client
-                .get_block_number()
-                .map(|result| {
-                    result.map(|current_block| {
-                        if current_block - block_from > step_limit {
-                            block_from + step_limit
-                        } else {
-                            current_block
-                        }
-                    })
+            let block_to = client.get_block_number().map(|result| {
+                result.map(|current_block| {
+                    if current_block - block_from > step_limit {
+                        block_from + step_limit
+                    } else {
+                        current_block
+                    }
                 })
-                .await?;
-            client
-                .get_logs(
-                    &Filter::new()
-                        .address(address)
-                        .event("AssetChange(address,uint256,uint128)")
-                        .from_block(block_from)
-                        .to_block(block_to),
-                    //.to_block(BlockNumber::Finalized),
-                )
-                .await
-                .map(|logs| logs.into_iter().map(Into::into))
+            });
+            let block_to = tokio::select! {
+                val = block_to => {
+                    val.unwrap_or_else(|error| {
+                        println!("Should successfully fetch block to: {:#?}", error);
+                        std::process::exit(0x0500);
+                    })
+                }
+                _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
+                    println!("Imeout for block to exceeded");
+                    std::process::exit(0x0500);
+                }
+            };
+
+            let filter = Filter::new()
+                .address(address)
+                .event("AssetChange(address,uint256,uint128)")
+                .from_block(block_from)
+                .to_block(block_to);
+            let logs = client.get_logs(&filter);
+
+            let val = tokio::select! {
+                val = logs => {
+                    val.map(|logs|logs.into_iter().map(Into::into))
+                }
+                _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
+                    println!("Get logs for block to exceeded");
+                    std::process::exit(0x0500);
+                }
+            };
+            val
         }
     }
 }
