@@ -55,6 +55,7 @@ impl MultipoolContractInterface {
             let fut = f.call().map(|v| v.map(|v| U256(v.0)));
             tokio::select! {
                 val = fut => {
+                    println!("calling get price");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(3)) => {
@@ -81,6 +82,7 @@ impl MultipoolContractInterface {
             });
             tokio::select! {
                 val = fut => {
+                    println!("calling get asset");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
@@ -99,6 +101,7 @@ impl MultipoolContractInterface {
             let f = multipool.total_supply();
             tokio::select! {
                 val = f.call() => {
+                    println!("calling total supply");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(3)) => {
@@ -117,6 +120,7 @@ impl MultipoolContractInterface {
             let f = multipool.total_target_shares();
             tokio::select! {
                 val = f.call() => {
+                    println!("calling total shares");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
@@ -147,6 +151,7 @@ impl QuantityUpdate {
             });
             let block_to = tokio::select! {
                 val = block_to => {
+                    println!("calling block to");
                     val.unwrap_or_else(|error| {
                         println!("Should successfully fetch block to: {:#?}", error);
                         std::process::exit(0x0500);
@@ -167,6 +172,7 @@ impl QuantityUpdate {
 
             let val = tokio::select! {
                 val = logs => {
+                    println!("calling get logs");
                     val.map(|logs|logs.into_iter().map(Into::into))
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
