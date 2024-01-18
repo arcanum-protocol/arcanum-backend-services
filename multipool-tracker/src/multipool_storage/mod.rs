@@ -71,6 +71,16 @@ impl<V> MayBeExpired<V> {
             })
             .flatten()
     }
+
+    pub fn refresh(self) -> Self {
+        let current_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Shold be always after epoch start")
+            .as_secs();
+        Self {
+            inner: self.inner.map(|v| (v.0, current_timestamp)),
+        }
+    }
 }
 
 impl<V> From<V> for MayBeExpired<V> {
@@ -313,7 +323,6 @@ impl MultipoolStorage {
                             std::process::exit(0x0200);
                         })
                     })) {
-                        log::warn!("Update price {} for {}", price, asset.address);
                         assets
                             .entry(asset.address)
                             .and_modify(|e| e.price = price.into());
@@ -387,6 +396,11 @@ impl MultipoolStorage {
                             e.quantity = asset_data.quantity.into();
                             e.share = asset_data.share.into();
                             e.cashback = asset_data.cashback.into();
+                        });
+                        assets.iter_mut().for_each(|(_address, a)| {
+                            a.quantity = a.quantity.clone().refresh();
+                            a.share = a.share.clone().refresh();
+                            a.cashback = a.cashback.clone().refresh();
                         });
                     }
                     drop(mp);
