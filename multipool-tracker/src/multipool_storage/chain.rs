@@ -3,6 +3,7 @@ use ethers::prelude::*;
 use ethers::types::Log;
 use futures::Future;
 use futures::FutureExt;
+use log::info;
 use primitive_types::U256;
 use std::sync::Arc;
 use std::time::Duration;
@@ -53,14 +54,14 @@ impl MultipoolContractInterface {
         async move {
             let f = multipool.get_price(asset_address);
             let fut = f.call().map(|v| v.map(|v| U256(v.0)));
-            println!("start calling get price");
+            info!("start calling get price");
             tokio::select! {
                 val = fut => {
-                    println!("calling get price");
+                    info!("calling get price");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(3)) => {
-                    println!("Imeout for block to exceeded");
+                    info!("Imeout for block to exceeded");
                     std::process::exit(0x0500);
                 }
             }
@@ -81,14 +82,14 @@ impl MultipoolContractInterface {
                     cashback: v.2.into(),
                 })
             });
-            println!("start calling get asset");
+            info!("start calling get asset");
             tokio::select! {
                 val = fut => {
-                    println!("calling get asset");
+                    info!("calling get asset");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
-                    println!("Imeout for block to exceeded");
+                    info!("Imeout for block to exceeded");
                     std::process::exit(0x0500);
                 }
             }
@@ -101,14 +102,14 @@ impl MultipoolContractInterface {
         let multipool = self.multipool.clone();
         async move {
             let f = multipool.total_supply();
-            println!("start calling total supply");
+            info!("start calling total supply");
             tokio::select! {
                 val = f.call() => {
-                    println!("calling total supply");
+                    info!("calling total supply");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(3)) => {
-                    println!("Imeout for block to exceeded");
+                    info!("Imeout for block to exceeded");
                     std::process::exit(0x0500);
                 }
             }
@@ -121,14 +122,14 @@ impl MultipoolContractInterface {
         let multipool = self.multipool.clone();
         async move {
             let f = multipool.total_target_shares();
-            println!("start calling total shares");
+            info!("start calling total shares");
             tokio::select! {
                 val = f.call() => {
-                    println!("calling total shares");
+                    info!("calling total shares");
                     val
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
-                    println!("Imeout for block to exceeded");
+                    info!("Imeout for block to exceeded");
                     std::process::exit(0x0500);
                 }
             }
@@ -153,17 +154,17 @@ impl QuantityUpdate {
                     }
                 })
             });
-            println!("start calling block to");
+            info!("start calling block to");
             let block_to = tokio::select! {
                 val = block_to => {
-                    println!("calling block to");
+                    info!("calling block to");
                     val.unwrap_or_else(|error| {
-                        println!("Should successfully fetch block to: {:#?}", error);
+                        info!("Should successfully fetch block to: {:#?}", error);
                         std::process::exit(0x0500);
                     })
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
-                    println!("Imeout for block to exceeded");
+                    info!("Imeout for block to exceeded");
                     std::process::exit(0x0500);
                 }
             };
@@ -175,14 +176,14 @@ impl QuantityUpdate {
                 .to_block(block_to);
             let logs = client.get_logs(&filter);
 
-            println!("start calling get logs");
+            info!("start calling get logs");
             let val = tokio::select! {
                 val = logs => {
-                    println!("calling get logs");
+                    info!("calling get logs");
                     val.map(|logs|logs.into_iter().map(Into::into))
                 }
                 _ = tokio::time::sleep(Duration::from_secs(WAITING_TIME)) => {
-                    println!("Get logs for block to exceeded");
+                    info!("Get logs for block to exceeded");
                     std::process::exit(0x0500);
                 }
             };

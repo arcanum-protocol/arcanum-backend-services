@@ -36,6 +36,7 @@ async fn get_signed_price(
 
 #[actix_web::main] // or #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init();
     let bind_address = env::var("BIND_ADDRESS").unwrap_or("0.0.0.0:8080".into());
     let key = env::var("KEY").expect("KEY must be set");
     let config_path = env::var("CONFIG_PATH").expect("CONFIG_PATH must be set");
