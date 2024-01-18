@@ -15,6 +15,7 @@ use ethers::types::U64;
 use ethers::types::{Address, I256};
 use futures::future::join_all;
 use futures::Future;
+use log::info;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use tokio::spawn;
@@ -225,14 +226,32 @@ impl Multipool {
             .assets
             .iter()
             .map(|(_, a)| -> Option<U256> {
-                let quantity = a.quantity.to_owned().not_older_than(poison_time)?;
-                let price = a.price.to_owned().not_older_than(poison_time)?;
+                let quantity = match a.quantity.to_owned().not_older_than(poison_time) {
+                    Some(v) => v,
+                    None => {
+                        log::error!("outdated quantity {}", a.address);
+                        None?
+                    }
+                };
+                let price = match a.price.to_owned().not_older_than(poison_time) {
+                    Some(v) => v,
+                    None => {
+                        log::error!("outdated price {}", a.address);
+                        None?
+                    }
+                };
                 quantity.checked_mul(price).map(|mul| mul.shr(q))
             })
             .collect::<Option<Vec<U256>>>()?
             .into_iter()
             .reduce(|sum, el| sum + el)?;
-        let total_supply = self.total_supply.to_owned().not_older_than(poison_time)?;
+        let total_supply = match self.total_supply.to_owned().not_older_than(poison_time) {
+            Some(v) => v,
+            None => {
+                log::error!("outdated total supply");
+                None?
+            }
+        };
         cap.shl(q).checked_div(total_supply)
     }
 }
