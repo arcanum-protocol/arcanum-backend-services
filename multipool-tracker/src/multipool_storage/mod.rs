@@ -397,11 +397,11 @@ impl MultipoolStorage {
                             e.share = asset_data.share.into();
                             e.cashback = asset_data.cashback.into();
                         });
-                        assets.iter_mut().for_each(|(_address, a)| {
-                            a.quantity = a.quantity.clone().refresh();
-                            a.share = a.share.clone().refresh();
-                            a.cashback = a.cashback.clone().refresh();
-                        });
+                    }
+                    for (_asset, a) in assets {
+                        a.quantity = a.quantity.clone().refresh();
+                        a.share = a.share.clone().refresh();
+                        a.cashback = a.cashback.clone().refresh();
                     }
                     drop(mp);
                 }
