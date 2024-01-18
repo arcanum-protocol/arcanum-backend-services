@@ -374,6 +374,7 @@ impl MultipoolStorage {
                 }
             }
             loop {
+                println!("loop quantity {}", id);
                 let mp = state.get(&id).expect("Multipool should present");
                 let last_block = mp.last_observed_block;
                 drop(mp);
@@ -426,6 +427,7 @@ impl MultipoolStorage {
                     let key = entries.key().clone();
                     spawn(async move {
                         loop {
+                            println!("loop price {}", key);
                             this.fetch_price(key.to_owned()).await;
                             sleep(Duration::from_millis(params.price_fetch_interval)).await
                         }

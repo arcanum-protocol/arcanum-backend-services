@@ -53,6 +53,7 @@ impl MultipoolContractInterface {
         async move {
             let f = multipool.get_price(asset_address);
             let fut = f.call().map(|v| v.map(|v| U256(v.0)));
+            println!("start calling get price");
             tokio::select! {
                 val = fut => {
                     println!("calling get price");
@@ -80,6 +81,7 @@ impl MultipoolContractInterface {
                     cashback: v.2.into(),
                 })
             });
+            println!("start calling get asset");
             tokio::select! {
                 val = fut => {
                     println!("calling get asset");
@@ -99,6 +101,7 @@ impl MultipoolContractInterface {
         let multipool = self.multipool.clone();
         async move {
             let f = multipool.total_supply();
+            println!("start calling total supply");
             tokio::select! {
                 val = f.call() => {
                     println!("calling total supply");
@@ -118,6 +121,7 @@ impl MultipoolContractInterface {
         let multipool = self.multipool.clone();
         async move {
             let f = multipool.total_target_shares();
+            println!("start calling total shares");
             tokio::select! {
                 val = f.call() => {
                     println!("calling total shares");
@@ -149,6 +153,7 @@ impl QuantityUpdate {
                     }
                 })
             });
+            println!("start calling block to");
             let block_to = tokio::select! {
                 val = block_to => {
                     println!("calling block to");
@@ -170,6 +175,7 @@ impl QuantityUpdate {
                 .to_block(block_to);
             let logs = client.get_logs(&filter);
 
+            println!("start calling get logs");
             let val = tokio::select! {
                 val = logs => {
                     println!("calling get logs");
