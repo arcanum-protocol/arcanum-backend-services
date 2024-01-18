@@ -398,11 +398,6 @@ impl MultipoolStorage {
                             e.cashback = asset_data.cashback.into();
                         });
                     }
-                    for (_asset, a) in assets {
-                        a.quantity = a.quantity.clone().refresh();
-                        a.share = a.share.clone().refresh();
-                        a.cashback = a.cashback.clone().refresh();
-                    }
                     drop(mp);
                 }
             }
@@ -440,6 +435,12 @@ impl MultipoolStorage {
                                 cashback: Default::default(),
                             });
                     }
+                }
+                mp.total_supply = mp.total_supply.clone().refresh();
+                for (_asset, a) in mp.assets.iter_mut() {
+                    a.quantity = a.quantity.clone().refresh();
+                    a.share = a.share.clone().refresh();
+                    a.cashback = a.cashback.clone().refresh();
                 }
                 drop(mp);
                 sleep(Duration::from_millis(params.quantity_fetch_interval)).await;

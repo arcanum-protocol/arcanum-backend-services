@@ -1,4 +1,4 @@
-poison_time: 180
+poison_time: 60
 multipools:
   arbi:
     fetch_params: 
