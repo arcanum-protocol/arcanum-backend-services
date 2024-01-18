@@ -74,18 +74,14 @@ impl Uniswap {
 
 pub async fn get_multipool_params<P: Middleware>(
     provider: Arc<P>,
+    multipool_address: Address,
     uniswap: &Uniswap,
     maximize_volume: bool,
     asset1: AssetInfo,
     asset2: AssetInfo,
     force_push: ForcePushArgs,
 ) -> Result<(U256, U256, I256), String> {
-    let mp_contract = multipool::MultipoolContract::new(
-        "0x4810E5A7741ea5fdbb658eDA632ddfAc3b19e3c6"
-            .parse::<Address>()
-            .unwrap(),
-        provider.clone(),
-    );
+    let mp_contract = multipool::MultipoolContract::new(multipool_address, provider.clone());
 
     let price1 = asset1.asset_data.price.not_older_than(180).unwrap();
     let price2 = asset2.asset_data.price.not_older_than(180).unwrap();
@@ -113,6 +109,7 @@ pub async fn get_multipool_params<P: Middleware>(
 
     let amount_to_use = (quote_to_use << 96) / price1;
 
+    println!("{name1} -> {name2}");
     let mut swap_args = vec![
         multipool::AssetArgs {
             asset_address: asset1.address,
@@ -135,7 +132,6 @@ pub async fn get_multipool_params<P: Middleware>(
     let amount_of_in = U256::try_from(amounts[1].max(amounts[0]).abs()).unwrap();
     let amount_of_out = U256::try_from(amounts[1].min(amounts[0]).abs()).unwrap();
 
-    println!("{name1} -> {name2}");
     // println!(
     //     "IN:  {} {:.4}, {:.4}",
     //     name1,
@@ -270,6 +266,7 @@ pub async fn analyze<P: Middleware>(
 ) -> Result<Estimates, String> {
     let (amount_of_in, amount_of_out, fees) = get_multipool_params(
         provider.clone(),
+        multipool.contract_address,
         uniswap,
         maximize_volume,
         asset_in.clone(),

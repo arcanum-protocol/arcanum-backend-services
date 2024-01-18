@@ -22,6 +22,7 @@ pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client
     let uniswap_data = config.uniswap.clone();
     loop {
         let data = storage.get_multipools_data();
+        println!("{:#?}", data);
         for (multipool_id, multipool) in data {
             let wallet: LocalWallet = LocalWallet::from_bytes(
                 decode(std::env::var("KEY").unwrap())
