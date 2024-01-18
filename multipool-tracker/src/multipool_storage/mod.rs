@@ -15,7 +15,6 @@ use ethers::types::U64;
 use ethers::types::{Address, I256};
 use futures::future::join_all;
 use futures::Future;
-use log::info;
 use primitive_types::U256;
 use serde::{Deserialize, Serialize};
 use tokio::spawn;
@@ -314,6 +313,7 @@ impl MultipoolStorage {
                             std::process::exit(0x0200);
                         })
                     })) {
+                        log::warn!("Update price {} for {}", price, asset.address);
                         assets
                             .entry(asset.address)
                             .and_modify(|e| e.price = price.into());
