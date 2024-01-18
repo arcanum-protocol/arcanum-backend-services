@@ -305,7 +305,7 @@ pub async fn save_stats(
             estimated_gas,
             estimated_profit
             ) values (
-                $1,$2,$3::TEXT::BIGINT,$4::TEXT::BIGINT,
+                $23, $1,$2,$3::TEXT::BIGINT,$4::TEXT::BIGINT,
                 $5,$6,$7,
                 $8::TEXT::NUMERIC,$9::TEXT::NUMERIC,$10::TEXT::NUMERIC,$11::TEXT::NUMERIC,
                 $12::TEXT::NUMERIC,$13::TEXT::NUMERIC,
@@ -313,7 +313,6 @@ pub async fn save_stats(
                 $20,$21::TEXT::NUMERIC, $22::TEXT::NUMERIC)
           ",
             &[
-                &multipool_id,
                 &serde_json::to_string(&stats.asset_in_address)
                     .unwrap()
                     .trim_matches('\"'),
@@ -344,6 +343,7 @@ pub async fn save_stats(
                 &estimation_error,
                 &estimation_gas,
                 &estimation_profit,
+                &multipool_id,
             ],
         )
         .await;
