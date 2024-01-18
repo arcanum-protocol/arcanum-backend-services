@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS trader_stats
     asset_out_address TEXT NOT NULL,
     strategy TEXT NOT NULL,
     timestamp BIGINT NOT NULL,
+    multipool_id TEXT NOT NULL,
 
     row_timestamp BIGINT NOT NULL,
 
@@ -29,5 +30,5 @@ CREATE TABLE IF NOT EXISTS trader_stats
     estimation_error TEXT NULL,
     estimated_gas numeric NULL,
     estimated_profit numeric NULL,
-    PRIMARY KEY (asset_in_address, asset_out_address, strategy, timestamp)
+    PRIMARY KEY (multipool_id, asset_in_address, asset_out_address, strategy, timestamp)
 );

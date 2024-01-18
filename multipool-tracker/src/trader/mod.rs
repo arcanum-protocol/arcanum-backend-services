@@ -22,7 +22,7 @@ pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client
     let uniswap_data = config.uniswap.clone();
     loop {
         let data = storage.get_multipools_data();
-        for (_, multipool) in data {
+        for (multipool_id, multipool) in data {
             let wallet: LocalWallet = LocalWallet::from_bytes(
                 decode(std::env::var("KEY").unwrap())
                     .expect("Failed to decode")
@@ -78,6 +78,41 @@ pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client
                         multipool.provider.clone(),
                         multipool.clone(),
                         &uniswap_data,
+                        false,
+                        AssetInfo {
+                            address: missing_address.to_owned(),
+                            balancing_data: missing_deviation.to_owned(),
+                            asset_data: missing_asset.to_owned(),
+                        },
+                        AssetInfo {
+                            address: not_missing_address.to_owned(),
+                            balancing_data: not_missing_deviation.to_owned(),
+                            asset_data: not_missing_asset.to_owned(),
+                        },
+                        force_push.clone(),
+                        weth,
+                    )
+                    .await
+                    {
+                        Ok(Estimates::Profitable((args, stats))) => {
+                            let execution = check_and_send(args, trader.clone()).await;
+                            save_stats(&pg_client, multipool_id.clone(), stats, Some(execution))
+                                .await;
+                        }
+                        Ok(Estimates::NonProfitable(stats)) => {
+                            save_stats(&pg_client, multipool_id.clone(), stats, None).await;
+                            continue;
+                        }
+                        Err(e) => {
+                            println!("{e:?}");
+                            continue;
+                        }
+                    }
+
+                    match analyzer::analyze(
+                        multipool.provider.clone(),
+                        multipool.clone(),
+                        &uniswap_data,
                         true,
                         AssetInfo {
                             address: missing_address.to_owned(),
@@ -96,77 +131,11 @@ pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client
                     {
                         Ok(Estimates::Profitable((args, stats))) => {
                             let execution = check_and_send(args, trader.clone()).await;
-                            save_stats(&pg_client, stats, Some(execution)).await;
+                            save_stats(&pg_client, multipool_id.clone(), stats, Some(execution))
+                                .await;
                         }
                         Ok(Estimates::NonProfitable(stats)) => {
-                            save_stats(&pg_client, stats, None).await;
-                            continue;
-                        }
-                        Err(e) => {
-                            println!("{e:?}");
-                            continue;
-                        }
-                    }
-
-                    match analyzer::analyze(
-                        multipool.provider.clone(),
-                        multipool.clone(),
-                        &uniswap_data,
-                        false,
-                        AssetInfo {
-                            address: missing_address.to_owned(),
-                            balancing_data: missing_deviation.to_owned(),
-                            asset_data: missing_asset.to_owned(),
-                        },
-                        AssetInfo {
-                            address: not_missing_address.to_owned(),
-                            balancing_data: not_missing_deviation.to_owned(),
-                            asset_data: not_missing_asset.to_owned(),
-                        },
-                        force_push.clone(),
-                        weth,
-                    )
-                    .await
-                    {
-                        Ok(Estimates::Profitable((args, stats))) => {
-                            let execution = check_and_send(args, trader.clone()).await;
-                            save_stats(&pg_client, stats, Some(execution)).await;
-                        }
-                        Ok(Estimates::NonProfitable(stats)) => {
-                            save_stats(&pg_client, stats, None).await;
-                            continue;
-                        }
-                        Err(e) => {
-                            println!("{e:?}");
-                            continue;
-                        }
-                    }
-                    match analyzer::analyze(
-                        multipool.provider.clone(),
-                        multipool.clone(),
-                        &uniswap_data,
-                        false,
-                        AssetInfo {
-                            address: missing_address.to_owned(),
-                            balancing_data: missing_deviation.to_owned(),
-                            asset_data: missing_asset.to_owned(),
-                        },
-                        AssetInfo {
-                            address: not_missing_address.to_owned(),
-                            balancing_data: not_missing_deviation.to_owned(),
-                            asset_data: not_missing_asset.to_owned(),
-                        },
-                        force_push.clone(),
-                        weth,
-                    )
-                    .await
-                    {
-                        Ok(Estimates::Profitable((args, stats))) => {
-                            let execution = check_and_send(args, trader.clone()).await;
-                            save_stats(&pg_client, stats, Some(execution)).await;
-                        }
-                        Ok(Estimates::NonProfitable(stats)) => {
-                            save_stats(&pg_client, stats, None).await;
+                            save_stats(&pg_client, multipool_id.clone(), stats, None).await;
                             continue;
                         }
                         Err(e) => {
@@ -287,6 +256,7 @@ pub async fn check_and_send<M: Middleware>(
 
 pub async fn save_stats(
     pg_client: &Client,
+    multipool_id: String,
     stats: Stats,
     execution: Option<Result<Execution, String>>,
 ) {
@@ -305,6 +275,7 @@ pub async fn save_stats(
         .execute(
             "
         insert into trader_stats(
+            multipool_id,
             asset_in_address,
             asset_out_address,
             timestamp,
@@ -342,6 +313,7 @@ pub async fn save_stats(
                 $20,$21::TEXT::NUMERIC, $22::TEXT::NUMERIC)
           ",
             &[
+                &multipool_id,
                 &serde_json::to_string(&stats.asset_in_address)
                     .unwrap()
                     .trim_matches('\"'),
