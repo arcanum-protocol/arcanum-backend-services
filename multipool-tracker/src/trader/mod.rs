@@ -39,13 +39,15 @@ pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client
                     .unwrap(),
                 client,
             );
-            let sp: SignedSharePrice =
-                reqwest::get("https://api.arcanum.to/oracle/v1/signed_price?multipool_id=arbi")
-                    .await
-                    .unwrap()
-                    .json()
-                    .await
-                    .unwrap();
+            let sp: SignedSharePrice = reqwest::get(format!(
+                "https://api.arcanum.to/oracle/v1/signed_price?multipool_id={}",
+                multipool_id
+            ))
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
 
             let deviations = multipool
                 .get_quantities_to_balance(U256::from_dec_str(&sp.share_price).unwrap(), 180)
