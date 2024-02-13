@@ -4,24 +4,41 @@ use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    multipool_storage::{MultipoolFetchParams, MultipoolId},
-    trader::analyzer::Uniswap,
+    multipool_storage::MultipoolId,
+    rpc_controller::RpcParams,
+    //trader::analyzer::Uniswap
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultipoolConfig {
-    pub fetch_params: MultipoolFetchParams,
     pub contract_address: Address,
-    pub assets: Vec<Address>,
-    pub provider_url: String,
-    pub chain_id: u128,
+    pub initial_assets: Vec<Address>,
+    pub price_fetcher: PriceFetcherConfig,
+    pub event_fetcher: EventFetcherConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PriceFetcherConfig {
+    pub interval: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventFetcherConfig {
+    pub interval: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BotConfig {
+    pub chains: Vec<ChainConfig>,
+    //pub uniswap: Option<Uniswap>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainConfig {
     pub multipools: HashMap<MultipoolId, MultipoolConfig>,
+    pub rpc: Vec<RpcParams>,
+    pub chain_id: u128,
     pub poison_time: u64,
-    pub uniswap: Uniswap,
 }
 
 impl BotConfig {

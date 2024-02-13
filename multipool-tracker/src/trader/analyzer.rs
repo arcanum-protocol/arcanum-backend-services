@@ -1,5 +1,6 @@
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 
 use std::{
     sync::Arc,
@@ -9,7 +10,7 @@ use std::{
 use ethers::prelude::*;
 
 use crate::{
-    multipool_storage::{BalancingData, Multipool, MultipoolAsset},
+    multipool_storage::{Multipool, MultipoolAsset},
     trader::Args,
 };
 
@@ -35,13 +36,6 @@ abigen!(
         function quoteExactOutputSingle(address tokenIn,address tokenOut,uint24 fee,uint256 amountOut,uint160 sqrtPriceLimitX96) external returns (uint256 amountIn)
     ]"#,
 );
-
-#[derive(Debug, Clone)]
-pub struct AssetInfo {
-    pub address: Address,
-    pub balancing_data: BalancingData,
-    pub asset_data: MultipoolAsset,
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PoolInfo {
@@ -74,14 +68,14 @@ impl Uniswap {
 
 pub async fn get_multipool_params<P: Middleware>(
     provider: Arc<P>,
-    multipool_address: Address,
+    multipool: Multipool,
     uniswap: &Uniswap,
     maximize_volume: bool,
-    asset1: AssetInfo,
-    asset2: AssetInfo,
+    asset1: Address,
+    asset2: Address,
     force_push: ForcePushArgs,
 ) -> Result<(U256, U256, I256), String> {
-    let mp_contract = multipool::MultipoolContract::new(multipool_address, provider.clone());
+    //let mp_contract = multipool::MultipoolContract::new(multipool_address, provider.clone());
 
     let price1 = asset1.asset_data.price.not_older_than(180).unwrap();
     let price2 = asset2.asset_data.price.not_older_than(180).unwrap();
@@ -112,11 +106,11 @@ pub async fn get_multipool_params<P: Middleware>(
     println!("{name1} -> {name2}");
     let mut swap_args = vec![
         multipool::AssetArgs {
-            asset_address: asset1.address,
+            asset_address: asset1,
             amount: I256::from_raw(amount_to_use),
         },
         multipool::AssetArgs {
-            asset_address: asset2.address,
+            asset_address: asset2,
             amount: I256::from(-10000000i128),
         },
     ];
@@ -266,7 +260,7 @@ pub async fn analyze<P: Middleware>(
 ) -> Result<Estimates, String> {
     let (amount_of_in, amount_of_out, fees) = get_multipool_params(
         provider.clone(),
-        multipool.contract_address,
+        multipool.contract_address(),
         uniswap,
         maximize_volume,
         asset_in.clone(),
@@ -299,7 +293,7 @@ pub async fn analyze<P: Middleware>(
     let uniswap_in_pool = uniswap.get_pool_fee(&asset_in.address)?;
     let uniswap_out_pool = uniswap.get_pool_fee(&asset_out.address)?;
 
-    let price1 = asset_in.asset_data.price.not_older_than(180).unwrap();
+    let price1 = multipool.get_price(asset_in) asset_in.asset_data.price.not_older_than(180).unwrap();
     let price2 = asset_out.asset_data.price.not_older_than(180).unwrap();
 
     let stats = Stats {
@@ -350,7 +344,7 @@ pub async fn analyze<P: Middleware>(
         pool_in,
         pool_out,
 
-        multipool: multipool.contract_address,
+        multipool: multipool.contract_address(),
         fp: crate::trader::ForcePushArgs {
             contract_address: force_push.contract_address,
             timestamp: force_push.timestamp,

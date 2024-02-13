@@ -270,6 +270,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.79"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -570,6 +576,17 @@ checksum = "773f3b9af64447d2ce9850330c473515014aa235e6a783b02db81ff39e4a3dad"
 dependencies = [
  "crypto-common",
  "inout",
+]
+
+[[package]]
+name = "clocksource"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "129026dd5a8a9592d96916258f3a5379589e513ea5e86aeb0bd2530286e44e9e"
+dependencies = [
+ "libc",
+ "time",
+ "winapi",
 ]
 
 [[package]]
@@ -2105,6 +2122,7 @@ version = "0.1.0"
 dependencies = [
  "actix-cors",
  "actix-web",
+ "anyhow",
  "colored",
  "dashmap",
  "env_logger",
@@ -2112,11 +2130,14 @@ dependencies = [
  "futures",
  "log",
  "primitive-types",
+ "rand",
+ "ratelimit",
  "reqwest",
  "serde",
  "serde_json",
  "serde_qs",
  "serde_yaml",
+ "sorts",
  "tokio",
  "tokio-postgres",
 ]
@@ -2719,6 +2740,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ratelimit"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "969d6064e6e4d98485d83cf363147371243df7423b5d43d59f57ed72dc85943e"
+dependencies = [
+ "clocksource",
+ "parking_lot",
+ "thiserror",
+]
+
+[[package]]
 name = "rayon"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3313,6 +3345,12 @@ dependencies = [
  "thiserror",
  "unicode-xid",
 ]
+
+[[package]]
+name = "sorts"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaeb1046047ab796c67658308dee604f6901cdcee3c40bb5d23c3cffa43dafb8"
 
 [[package]]
 name = "spin"
