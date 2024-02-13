@@ -8,8 +8,6 @@ use tokio::sync::Semaphore;
 
 use rand::Rng;
 
-use anyhow::Result;
-
 pub struct Provider {
     pub parallel_calls: Semaphore,
     pub rate_limits: Ratelimiter,
@@ -18,13 +16,14 @@ pub struct Provider {
 
 impl Provider {
     pub async fn aquire<
+        E,
         R,
-        T: Future<Output = Result<R>> + Send,
+        T: Future<Output = core::result::Result<R, E>> + Send,
         F: (Fn(Arc<providers::Provider<providers::Http>>) -> T) + Send,
     >(
         &self,
         action: F,
-    ) -> Result<R> {
+    ) -> core::result::Result<R, E> {
         let val = self
             .parallel_calls
             .acquire()
@@ -77,14 +76,15 @@ impl RpcRobber {
     }
 
     pub async fn aquire<
+        E,
         R,
-        T: Future<Output = Result<R>> + Send,
+        T: Future<Output = core::result::Result<R, E>> + Send,
         F: (Fn(Arc<providers::Provider<providers::Http>>) -> T) + Send + Sync,
     >(
         &self,
         action: F,
         retries: Option<usize>,
-    ) -> Result<R> {
+    ) -> core::result::Result<R, E> {
         let index = rand::thread_rng().gen::<usize>() % self.providers.len();
         let mut r = self.providers[index].aquire(&action).await;
         let retries = retries.unwrap_or(1);

@@ -14,7 +14,7 @@ use crate::{
     rpc_controller::RpcRobber, trader::analyzer::Estimates,
 };
 
-use self::analyzer::{AssetInfo, Stats};
+use self::analyzer::Stats;
 
 abigen!(TraderContract, "src/abi/trader.json");
 
@@ -32,14 +32,15 @@ pub async fn run(storage: MultipoolStorage, rpc: RpcRobber, config: BotConfig, p
             .unwrap()
             .with_chain_id(42161u64);
 
-            let client = SignerMiddleware::new(multipool.provider.clone(), wallet);
-            let client = Arc::new(client);
-            let trader = TraderContract::new(
-                "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
-                    .parse::<Address>()
-                    .unwrap(),
-                client,
-            );
+            // l
+            // et client = SignerMiddleware::new(multipool.provider.clone(), wallet);
+            // let client = Arc::new(client);
+            // let trader = TraderContract::new(
+            //     "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
+            //         .parse::<Address>()
+            //         .unwrap(),
+            //     client,
+            // );
             let sp: SignedSharePrice = reqwest::get(format!(
                 "https://api.arcanum.to/oracle/v1/signed_price?multipool_id={}",
                 multipool_id

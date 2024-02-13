@@ -75,12 +75,40 @@ impl Multipool {
     }
 
     // TODO: calculate quantity to balance
-    fn quantity_to_deviation(
+    pub fn quantity_to_deviation(
         &self,
         asset_address: &Address,
         target_deviation: I256,
+        poison_time: u64,
     ) -> Option<MayBeExpired<I256>> {
-        todo!();
+        let asset = self.asset(asset_address)?;
+        let quantity = asset.quantity_slot?.not_older_than(poison_time)?.quantity;
+        let price = asset.price?.not_older_than(poison_time)?;
+        let share = asset.share?.not_older_than(poison_time)?;
+        let total_shares = self.total_shares?.not_older_than(poison_time)?;
+        let total_supply = self.total_supply?.not_older_than(poison_time)?;
+
+        let usd_cap = self.cap()?.not_older_than(poison_time)?;
+        let current_share = self
+            .current_share(asset_address)?
+            .not_older_than(poison_time)?;
+        let target_share = self
+            .target_share(asset_address)?
+            .not_older_than(poison_time)?;
+
+        let share_bound =
+            (U256::try_from(target_deviation.checked_abs()?).ok()? * total_shares) >> 32;
+        let amount = if target_deviation.gt(&I256::from(0)) {
+            I256::from_raw((share + share_bound).min(total_shares) * usd_cap / price / total_shares)
+                - I256::from_raw(quantity)
+        } else {
+            I256::from_raw(
+                (share.checked_sub(share_bound).unwrap_or(U256::zero())) * usd_cap
+                    / price
+                    / total_shares,
+            ) - I256::from_raw(quantity)
+        };
+        Some(amount.into())
     }
 
     pub fn find_best_quantities(&self, quote_amount: U256, interval: u64) -> Option<()> {

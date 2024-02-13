@@ -1,5 +1,7 @@
 pub mod expiry;
 pub mod read;
+#[cfg(test)]
+pub mod tests;
 pub mod write;
 
 use ethers::types::Address;
