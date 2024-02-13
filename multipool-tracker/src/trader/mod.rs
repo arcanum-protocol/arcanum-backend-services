@@ -11,17 +11,17 @@ use tokio::time::sleep;
 
 use crate::{
     config::BotConfig, crypto::SignedSharePrice, multipool_storage::MultipoolStorage,
-    trader::analyzer::Estimates,
+    rpc_controller::RpcRobber, trader::analyzer::Estimates,
 };
 
 use self::analyzer::{AssetInfo, Stats};
 
 abigen!(TraderContract, "src/abi/trader.json");
 
-pub async fn run(storage: MultipoolStorage, config: BotConfig, pg_client: Client) {
-    let uniswap_data = config.uniswap.clone();
+pub async fn run(storage: MultipoolStorage, rpc: RpcRobber, config: BotConfig, pg_client: Client) {
+    let uniswap_data = config.uniswap.clone().unwrap();
     loop {
-        let data = storage.get_multipools_data();
+        let data = storage.into_iter();
         println!("{:#?}", data);
         for (multipool_id, multipool) in data {
             let wallet: LocalWallet = LocalWallet::from_bytes(
