@@ -10,7 +10,8 @@ use std::{
 use ethers::prelude::*;
 
 use crate::{
-    multipool_storage::{Multipool, MultipoolAsset},
+    multipool_storage::{expiry::MayBeExpired, Multipool, MultipoolAsset},
+    rpc_controller::RpcRobber,
     trader::Args,
 };
 
@@ -66,36 +67,58 @@ impl Uniswap {
     }
 }
 
-pub async fn get_multipool_params<P: Middleware>(
-    provider: Arc<P>,
-    multipool: Multipool,
+pub const RETRIES: Option<usize> = Some(3);
+
+pub async fn get_multipool_params(
+    rpc: &RpcRobber,
+    multipool: &Multipool,
     uniswap: &Uniswap,
     maximize_volume: bool,
     asset1: Address,
     asset2: Address,
     force_push: ForcePushArgs,
 ) -> Result<(U256, U256, I256), String> {
-    //let mp_contract = multipool::MultipoolContract::new(multipool_address, provider.clone());
+    let price1 = multipool
+        .get_price(&asset1)
+        .unwrap()
+        .not_older_than(180)
+        .unwrap();
+    let price2 = multipool
+        .get_price(&asset2)
+        .unwrap()
+        .not_older_than(180)
+        .unwrap();
 
-    let price1 = asset1.asset_data.price.not_older_than(180).unwrap();
-    let price2 = asset2.asset_data.price.not_older_than(180).unwrap();
+    let name1 = uniswap.get_pool_fee(&asset1)?.asset_symbol;
+    let name2 = uniswap.get_pool_fee(&asset2)?.asset_symbol;
 
-    let name1 = uniswap.get_pool_fee(&asset1.address)?.asset_symbol;
-    let name2 = uniswap.get_pool_fee(&asset2.address)?.asset_symbol;
+    let target_deviation = I256::from(644245094) / 2;
+
+    let to_u256 = |val: Option<MayBeExpired<I256>>, price| {
+        U256::try_from(val.unwrap().not_older_than(180).unwrap().abs()).unwrap() * price >> 96
+    };
 
     let (quote_to_balance1, quote_to_balance2) = if maximize_volume {
         (
-            (U256::try_from(asset1.balancing_data.quantity_to_upper_bound.abs()).unwrap() * price1)
-                >> 96,
-            (U256::try_from(asset2.balancing_data.quantity_to_lower_bound.abs()).unwrap() * price2)
-                >> 96,
+            to_u256(
+                multipool.quantity_to_deviation(&asset1, target_deviation, 180),
+                price1,
+            ),
+            to_u256(
+                multipool.quantity_to_deviation(&asset2, -target_deviation, 180),
+                price2,
+            ),
         )
     } else {
         (
-            (U256::try_from(asset1.balancing_data.quantity_to_balance.abs()).unwrap() * price1)
-                >> 96,
-            (U256::try_from(asset2.balancing_data.quantity_to_balance.abs()).unwrap() * price2)
-                >> 96,
+            to_u256(
+                multipool.quantity_to_deviation(&asset1, I256::zero(), 180),
+                price1,
+            ),
+            to_u256(
+                multipool.quantity_to_deviation(&asset2, I256::zero(), 180),
+                price2,
+            ),
         )
     };
 
@@ -117,40 +140,23 @@ pub async fn get_multipool_params<P: Middleware>(
 
     swap_args.sort_by_key(|v| v.asset_address);
 
-    let (fee, amounts): (I256, Vec<I256>) = mp_contract
-        .check_swap(force_push.clone(), swap_args, true)
-        .call()
+    let (fee, amounts): (I256, Vec<I256>) = rpc
+        .aquire(
+            |provider| async {
+                let swap_args = swap_args.clone();
+                let force_push = force_push.clone();
+                multipool::MultipoolContract::new(multipool.contract_address(), provider)
+                    .check_swap(force_push, swap_args, true)
+                    .call()
+                    .await
+            },
+            RETRIES,
+        )
         .await
         .map_err(|e| format!("{e:?}"))?;
 
     let amount_of_in = U256::try_from(amounts[1].max(amounts[0]).abs()).unwrap();
     let amount_of_out = U256::try_from(amounts[1].min(amounts[0]).abs()).unwrap();
-
-    // println!(
-    //     "IN:  {} {:.4}, {:.4}",
-    //     name1,
-    //     asset1.balancing_data.deviation,
-    //     amount_of_in * price1 >> 96
-    // );
-    // println!(
-    //     "Out: {} {:.4}, {:.4}",
-    //     name2,
-    //     asset2.balancing_data.deviation,
-    //     amount_of_out * price2 >> 96
-    // );
-
-    // println!(
-    //     "DIFF: {}",
-    //     (amount_of_in * price1 >> 96).abs_diff(amount_of_out * price2 >> 96)
-    // );
-    // println!(
-    //     "Multipool quote in: {}",
-    //     quote_to_use.as_u128() as f64 / 10f64.powf(18f64)
-    // );
-    // println!(
-    //     "Multipool fee: {}",
-    //     fee.as_i128() as f64 * 100f64 / quote_to_use.as_u128() as f64
-    // );
 
     Ok((amount_of_in, amount_of_out, fee))
 }
@@ -160,24 +166,17 @@ pub enum AmountWithDirection {
     ExactOutput(U256),
 }
 
-pub async fn estimate_uniswap<P: Middleware>(
-    provider: Arc<P>,
+pub async fn estimate_uniswap(
+    rpc: &RpcRobber,
     uniswap: &Uniswap,
-    asset: AssetInfo,
+    asset: Address,
     amount: AmountWithDirection,
     weth: Address,
 ) -> Result<(U256, Address, bool, u32), String> {
-    let quoter = Quoter::new(
-        "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"
-            .parse::<Address>()
-            .unwrap(),
-        provider.clone(),
-    );
-
     let mut best_pool = None;
     let mut best_fee = None;
     let mut estimated = None;
-    let uniswap_pool = uniswap.get_pool_fee(&asset.address)?;
+    let uniswap_pool = uniswap.get_pool_fee(&asset)?;
     let zero_for_one = match amount {
         AmountWithDirection::ExactInput(_) => uniswap_pool.base_is_token0,
         AmountWithDirection::ExactOutput(_) => !uniswap_pool.base_is_token0,
@@ -186,9 +185,21 @@ pub async fn estimate_uniswap<P: Middleware>(
     for PoolInfo { fee, address } in uniswap_pool.pools {
         match amount {
             AmountWithDirection::ExactOutput(amount) => {
-                let strategy_input_new = quoter
-                    .quote_exact_output_single(weth, asset.address, fee, amount, U256::zero())
-                    .call()
+                let strategy_input_new = rpc
+                    .aquire(
+                        |provider| async {
+                            Quoter::new(
+                                "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"
+                                    .parse::<Address>()
+                                    .unwrap(),
+                                provider,
+                            )
+                            .quote_exact_output_single(weth, asset, fee, amount, U256::zero())
+                            .call()
+                            .await
+                        },
+                        RETRIES,
+                    )
                     .await
                     .map_err(|e| format!("{e:?}"))?;
                 if estimated.is_none() || strategy_input_new < estimated.unwrap() {
@@ -198,9 +209,21 @@ pub async fn estimate_uniswap<P: Middleware>(
                 }
             }
             AmountWithDirection::ExactInput(amount) => {
-                let strategy_output_new = quoter
-                    .quote_exact_input_single(asset.address, weth, fee, amount, U256::zero())
-                    .call()
+                let strategy_output_new = rpc
+                    .aquire(
+                        |provider| async {
+                            Quoter::new(
+                                "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"
+                                    .parse::<Address>()
+                                    .unwrap(),
+                                provider,
+                            )
+                            .quote_exact_input_single(asset, weth, fee, amount, U256::zero())
+                            .call()
+                            .await
+                        },
+                        RETRIES,
+                    )
                     .await
                     .map_err(|e| format!("{e:?}"))?;
                 if estimated.is_none() || strategy_output_new > estimated.unwrap() {
@@ -248,19 +271,19 @@ pub struct Stats {
     pub pool_out_fee: u32,
 }
 
-pub async fn analyze<P: Middleware>(
-    provider: Arc<P>,
-    multipool: Multipool,
+pub async fn analyze(
+    rpc: &RpcRobber,
+    multipool: &Multipool,
     uniswap: &Uniswap,
     maximize_volume: bool,
-    asset_in: AssetInfo,
-    asset_out: AssetInfo,
+    asset_in: Address,
+    asset_out: Address,
     force_push: ForcePushArgs,
     weth: Address,
 ) -> Result<Estimates, String> {
     let (amount_of_in, amount_of_out, fees) = get_multipool_params(
-        provider.clone(),
-        multipool.contract_address(),
+        rpc,
+        multipool,
         uniswap,
         maximize_volume,
         asset_in.clone(),
@@ -270,7 +293,7 @@ pub async fn analyze<P: Middleware>(
     .await?;
 
     let (strategy_input, pool_in, zero_for_one_in, pool_in_fee) = estimate_uniswap(
-        provider.clone(),
+        rpc,
         uniswap,
         asset_in.clone(),
         AmountWithDirection::ExactOutput(amount_of_in),
@@ -279,7 +302,7 @@ pub async fn analyze<P: Middleware>(
     .await?;
 
     let (strategy_output, pool_out, zero_for_one_out, pool_out_fee) = estimate_uniswap(
-        provider.clone(),
+        rpc,
         uniswap,
         asset_out.clone(),
         AmountWithDirection::ExactInput(amount_of_out),
@@ -290,11 +313,19 @@ pub async fn analyze<P: Middleware>(
     let result =
         (I256::from_raw(strategy_output) - fees).as_i128() as f64 / strategy_input.as_u128() as f64;
 
-    let uniswap_in_pool = uniswap.get_pool_fee(&asset_in.address)?;
-    let uniswap_out_pool = uniswap.get_pool_fee(&asset_out.address)?;
+    let uniswap_in_pool = uniswap.get_pool_fee(&asset_in)?;
+    let uniswap_out_pool = uniswap.get_pool_fee(&asset_out)?;
 
-    let price1 = multipool.get_price(asset_in) asset_in.asset_data.price.not_older_than(180).unwrap();
-    let price2 = asset_out.asset_data.price.not_older_than(180).unwrap();
+    let price1 = multipool
+        .get_price(&asset_in)
+        .unwrap()
+        .not_older_than(180)
+        .unwrap();
+    let price2 = multipool
+        .get_price(&asset_out)
+        .unwrap()
+        .not_older_than(180)
+        .unwrap();
 
     let stats = Stats {
         asset_in_symbol: uniswap_in_pool.asset_symbol,
@@ -315,8 +346,8 @@ pub async fn analyze<P: Middleware>(
         },
         strategy_output,
         multipool_fee: fees,
-        asset_in_address: asset_in.address.clone(),
-        asset_out_address: asset_out.address.clone(),
+        asset_in_address: asset_in.clone(),
+        asset_out_address: asset_out.clone(),
         pool_in_address: pool_in.clone(),
         pool_out_address: pool_out.clone(),
         multipool_amount_in: amount_of_in.clone(),
@@ -332,9 +363,9 @@ pub async fn analyze<P: Middleware>(
     }
 
     let args = Args {
-        token_in: asset_in.address,
+        token_in: asset_in,
         zero_for_one_in,
-        token_out: asset_out.address,
+        token_out: asset_out,
         zero_for_one_out,
 
         multipool_amount_in: amount_of_in,
