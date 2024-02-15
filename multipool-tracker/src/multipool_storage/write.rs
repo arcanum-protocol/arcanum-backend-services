@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Multipool, MultipoolAsset, Price, QuantityData, Share};
+use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
 use ethers::prelude::*;
 
 impl Multipool {
@@ -60,7 +60,7 @@ impl Multipool {
                 .into_iter()
                 .map(|(address, slot)| MultipoolAsset {
                     address,
-                    quantity_slot: Some(slot.into()),
+                    quantity_slot: Some(slot).filter(|s| !s.is_empty()).map(Into::into),
                     price: Default::default(),
                     share: Default::default(),
                 }),
@@ -70,18 +70,30 @@ impl Multipool {
     pub fn update_shares(&mut self, shares: &[(Address, Share)], update_expiry: bool) {
         //TODO: replase with 0(max(len(quantities), len(self.assets)))
         let mut shares_set: HashMap<Address, Share> = shares.into_iter().cloned().collect();
+        let mut total_shares = self
+            .total_shares
+            .clone()
+            .map(MayBeExpired::any_age)
+            .unwrap_or(U256::zero());
         self.assets = self
             .assets
             .clone()
             .into_iter()
             .filter_map(|mut asset| {
+                let old_share = asset
+                    .share
+                    .clone()
+                    .map(MayBeExpired::any_age)
+                    .unwrap_or(U256::zero());
                 if let Some(new_share) = shares_set.remove(&asset.address) {
+                    total_shares -= old_share;
                     if new_share.is_zero() && asset.quantity_slot.is_none() {
                         return None;
                     } else if new_share.is_zero() {
                         asset.share = None;
                     } else {
                         asset.share = Some(new_share.into());
+                        total_shares += new_share;
                     }
                 } else if update_expiry {
                     asset.share.as_mut().map(|v| v.refresh());
@@ -89,6 +101,11 @@ impl Multipool {
                 Some(asset)
             })
             .collect();
+        self.total_shares = if total_shares.is_zero() {
+            None
+        } else {
+            Some(total_shares.into())
+        };
         self.assets.extend(
             shares_set
                 .into_iter()
@@ -96,7 +113,7 @@ impl Multipool {
                     address,
                     quantity_slot: Default::default(),
                     price: Default::default(),
-                    share: Some(share.into()),
+                    share: Some(share).filter(|s| !s.is_zero()).map(Into::into),
                 }),
         );
     }

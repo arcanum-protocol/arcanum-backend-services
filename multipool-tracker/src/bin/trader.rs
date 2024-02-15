@@ -1,17 +1,12 @@
-use std::{env, iter::repeat, str::FromStr, sync::Arc, time::Duration};
+use std::{env, time::Duration};
 
-use futures::future::join_all;
-use serde_json::Value;
 use tokio::time::sleep;
 use tokio_postgres::NoTls;
 
-use ethers::signers::Wallet;
-use multipool_tracker::{config::BotConfig, multipool_storage::MultipoolStorage};
+use multipool_tracker::{bootstrap, config::BotConfig};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    //let bind_address = env::var("BIND_ADDRESS").unwrap_or("0.0.0.0:8080".into());
-    //let key = env::var("KEY").expect("KEY must be set");
     let config_path = env::var("CONFIG_PATH").expect("CONFIG_PATH must be set");
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
@@ -29,15 +24,11 @@ async fn main() -> std::io::Result<()> {
     });
 
     let config = BotConfig::from_file(&config_path);
-    let storage = MultipoolStorage::from_config(config.clone());
+    let (storage, rpcs) = bootstrap::run(config.clone()).await;
 
-    let jh = tokio::spawn(storage.gen_fetching_future());
     sleep(Duration::from_secs(10)).await;
-    //let jh = tokio::spawn(async {});
 
-    let trader =
-        tokio::spawn(async move { multipool_tracker::trader::run(storage, config, client).await });
+    multipool_tracker::trader::run(&storage, rpcs[0].clone(), config, client).await;
 
-    let _ = futures::future::join(jh, trader).await;
     Ok(())
 }

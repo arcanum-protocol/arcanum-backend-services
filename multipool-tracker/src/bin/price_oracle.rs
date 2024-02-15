@@ -73,7 +73,7 @@ async fn main() -> std::io::Result<()> {
     // });
 
     let config = BotConfig::from_file(&config_path);
-    let storage = bootstrap::run(config.clone()).await;
+    let (storage, rpcs) = bootstrap::run(config.clone()).await;
     // {
     //     let storage = storage.clone();
     //     let client = Arc::new(client);

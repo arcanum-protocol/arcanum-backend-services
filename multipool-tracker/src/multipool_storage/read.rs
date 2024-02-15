@@ -74,7 +74,7 @@ impl Multipool {
         )
     }
 
-    // TODO: calculate quantity to balance
+    // TODO: rewrite with merging
     pub fn quantity_to_deviation(
         &self,
         asset_address: &Address,
@@ -82,19 +82,20 @@ impl Multipool {
         poison_time: u64,
     ) -> Option<MayBeExpired<I256>> {
         let asset = self.asset(asset_address)?;
-        let quantity = asset.quantity_slot?.not_older_than(poison_time)?.quantity;
-        let price = asset.price?.not_older_than(poison_time)?;
-        let share = asset.share?.not_older_than(poison_time)?;
-        let total_shares = self.total_shares?.not_older_than(poison_time)?;
-        let total_supply = self.total_supply?.not_older_than(poison_time)?;
+        let quantity = asset
+            .quantity_slot
+            .unwrap()
+            .not_older_than(poison_time)?
+            .quantity;
+        let price = asset.price.unwrap().not_older_than(poison_time)?;
+        let share = asset.share.unwrap().not_older_than(poison_time)?;
+        let total_shares = self
+            .total_shares
+            .clone()
+            .unwrap()
+            .not_older_than(poison_time)?;
 
-        let usd_cap = self.cap()?.not_older_than(poison_time)?;
-        let current_share = self
-            .current_share(asset_address)?
-            .not_older_than(poison_time)?;
-        let target_share = self
-            .target_share(asset_address)?
-            .not_older_than(poison_time)?;
+        let usd_cap = self.cap().unwrap().not_older_than(poison_time)?;
 
         let share_bound =
             (U256::try_from(target_deviation.checked_abs()?).ok()? * total_shares) >> 32;
@@ -109,26 +110,5 @@ impl Multipool {
             ) - I256::from_raw(quantity)
         };
         Some(amount.into())
-    }
-
-    pub fn find_best_quantities(&self, quote_amount: U256, interval: u64) -> Option<()> {
-        todo!();
-        // let mut data: Vec<(I256, U256, MultipoolAsset)> = self
-        //     .assets
-        //     .clone()
-        //     .into_iter()
-        //     .map(|asset| -> Option<_> {
-        //         Some((
-        //             self.quantity_to_balance(&asset.address)?
-        //                 .not_older_than(interval)?,
-        //             self.target_share(&asset.address)?
-        //                 .not_older_than(interval)?,
-        //             asset,
-        //         ))
-        //     })
-        //     .collect::<Option<Vec<_>>>()?;
-        // data.sort_by_key(|a| a.0);
-        // //data.into_iter().filter(|(quantity_to_bal, _, _)| quantity_to_bal.is_negative()).take_while(||)
-        // Some(())
     }
 }
