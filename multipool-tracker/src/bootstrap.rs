@@ -1,18 +1,20 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use tokio::sync::RwLock;
 
 use crate::{
     chain_workers::{multipool_events::EventPoller, multipool_prices::PricePoller},
     config::BotConfig,
-    multipool_storage::Multipool,
+    multipool_storage::{Multipool, MultipoolStorage},
     rpc_controller::RpcRobber,
 };
 
-pub async fn run(config: BotConfig) -> HashMap<String, Arc<RwLock<Multipool>>> {
-    let mut multipools = HashMap::new();
+pub async fn run(config: BotConfig) -> (MultipoolStorage, Vec<RpcRobber>) {
+    let mut multipools = BTreeMap::new();
+    let mut rpcs = Vec::new();
     for config in config.chains {
         let rpc = RpcRobber::new(config.rpc);
+        rpcs.push(rpc.clone());
         for (id, multipool) in config.multipools {
             let storage = Arc::new(RwLock::new(Multipool::new(multipool.contract_address)));
             {
@@ -37,9 +39,9 @@ pub async fn run(config: BotConfig) -> HashMap<String, Arc<RwLock<Multipool>>> {
                         rpc,
                         multipool_storage: storage,
                         quantity_fetch_interval: multipool.event_fetcher.interval,
-                        target_share_fetch_interval: 0,
+                        target_share_fetch_interval: multipool.event_fetcher.interval,
                     }
-                    .init(multipool.initial_assets, false, true)
+                    .init(multipool.initial_assets, true, true)
                     .await
                     .unwrap()
                 });
@@ -47,5 +49,5 @@ pub async fn run(config: BotConfig) -> HashMap<String, Arc<RwLock<Multipool>>> {
             multipools.insert(id, storage);
         }
     }
-    multipools
+    (MultipoolStorage { inner: multipools }, rpcs)
 }

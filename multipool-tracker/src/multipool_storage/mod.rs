@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 
 use std::ops::Shr;
 use std::sync::Arc;
-use std::sync::RwLock;
+use tokio::sync::RwLock;
 
 use self::expiry::MayBeExpired;
 
@@ -21,6 +21,7 @@ pub type BlockNumber = U64;
 pub type Quantity = U256;
 pub type Share = U256;
 
+#[derive(Clone, Debug)]
 pub struct MultipoolStorage {
     pub inner: BTreeMap<MultipoolId, Arc<RwLock<Multipool>>>,
 }

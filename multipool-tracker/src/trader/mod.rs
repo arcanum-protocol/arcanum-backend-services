@@ -14,33 +14,21 @@ use crate::{
     rpc_controller::RpcRobber, trader::analyzer::Estimates,
 };
 
-use self::analyzer::Stats;
+use self::analyzer::{Stats, RETRIES};
 
 abigen!(TraderContract, "src/abi/trader.json");
 
-pub async fn run(storage: MultipoolStorage, rpc: RpcRobber, config: BotConfig, pg_client: Client) {
+pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, pg_client: Client) {
     let uniswap_data = config.uniswap.clone().unwrap();
+    let wallet: LocalWallet = LocalWallet::from_bytes(
+        decode(std::env::var("KEY").unwrap())
+            .expect("Failed to decode")
+            .as_slice(),
+    )
+    .unwrap()
+    .with_chain_id(42161u64);
     loop {
-        let data = storage.into_iter();
-        println!("{:#?}", data);
-        for (multipool_id, multipool) in data {
-            let wallet: LocalWallet = LocalWallet::from_bytes(
-                decode(std::env::var("KEY").unwrap())
-                    .expect("Failed to decode")
-                    .as_slice(),
-            )
-            .unwrap()
-            .with_chain_id(42161u64);
-
-            // l
-            // et client = SignerMiddleware::new(multipool.provider.clone(), wallet);
-            // let client = Arc::new(client);
-            // let trader = TraderContract::new(
-            //     "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
-            //         .parse::<Address>()
-            //         .unwrap(),
-            //     client,
-            // );
+        for (multipool_id, multipool) in storage.iter() {
             let sp: SignedSharePrice = reqwest::get(format!(
                 "https://api.arcanum.to/oracle/v1/signed_price?multipool_id={}",
                 multipool_id
@@ -51,21 +39,14 @@ pub async fn run(storage: MultipoolStorage, rpc: RpcRobber, config: BotConfig, p
             .await
             .unwrap();
 
-            let deviations = multipool
-                .get_quantities_to_balance(U256::from_dec_str(&sp.share_price).unwrap(), 180)
-                .unwrap()
-                .into_iter();
+            let multipool = multipool.read().await.clone();
+            let assets = multipool.asset_list();
 
-            let missing = deviations.clone().collect::<Vec<_>>();
-            let not_missing = deviations.clone().collect::<Vec<_>>();
-
-            for (missing_address, missing_deviation) in missing.iter() {
-                let missing_asset = multipool.assets.get(missing_address).unwrap();
-                for (not_missing_address, not_missing_deviation) in not_missing.iter() {
-                    if missing_address == not_missing_address {
+            for input_address in assets.iter() {
+                for output_address in assets.iter() {
+                    if input_address == output_address {
                         continue;
                     }
-                    let not_missing_asset = multipool.assets.get(not_missing_address).unwrap();
 
                     let weth: Address = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
                         .parse()
@@ -79,27 +60,19 @@ pub async fn run(storage: MultipoolStorage, rpc: RpcRobber, config: BotConfig, p
                     };
 
                     match analyzer::analyze(
-                        multipool.provider.clone(),
-                        multipool.clone(),
+                        &rpc,
+                        &multipool,
                         &uniswap_data,
                         false,
-                        AssetInfo {
-                            address: missing_address.to_owned(),
-                            balancing_data: missing_deviation.to_owned(),
-                            asset_data: missing_asset.to_owned(),
-                        },
-                        AssetInfo {
-                            address: not_missing_address.to_owned(),
-                            balancing_data: not_missing_deviation.to_owned(),
-                            asset_data: not_missing_asset.to_owned(),
-                        },
+                        *input_address,
+                        *output_address,
                         force_push.clone(),
                         weth,
                     )
                     .await
                     {
                         Ok(Estimates::Profitable((args, stats))) => {
-                            let execution = check_and_send(args, trader.clone()).await;
+                            let execution = check_and_send(&rpc, args, wallet.clone()).await;
                             save_stats(&pg_client, multipool_id.clone(), stats, Some(execution))
                                 .await;
                         }
@@ -114,27 +87,19 @@ pub async fn run(storage: MultipoolStorage, rpc: RpcRobber, config: BotConfig, p
                     }
 
                     match analyzer::analyze(
-                        multipool.provider.clone(),
-                        multipool.clone(),
+                        &rpc,
+                        &multipool,
                         &uniswap_data,
                         true,
-                        AssetInfo {
-                            address: missing_address.to_owned(),
-                            balancing_data: missing_deviation.to_owned(),
-                            asset_data: missing_asset.to_owned(),
-                        },
-                        AssetInfo {
-                            address: not_missing_address.to_owned(),
-                            balancing_data: not_missing_deviation.to_owned(),
-                            asset_data: not_missing_asset.to_owned(),
-                        },
+                        *input_address,
+                        *output_address,
                         force_push.clone(),
                         weth,
                     )
                     .await
                     {
                         Ok(Estimates::Profitable((args, stats))) => {
-                            let execution = check_and_send(args, trader.clone()).await;
+                            let execution = check_and_send(&rpc, args, wallet.clone()).await;
                             save_stats(&pg_client, multipool_id.clone(), stats, Some(execution))
                                 .await;
                         }
@@ -162,22 +127,45 @@ pub struct Execution {
     pub transaction: Option<Result<TxHash, String>>,
 }
 
-pub async fn check_and_send<M: Middleware>(
+pub async fn check_and_send(
+    rpc: &RpcRobber,
     args: Args,
-    contract: TraderContract<M>,
+    wallet: LocalWallet,
 ) -> Result<Execution, String> {
-    let arbitrage_call = contract
-        .trade(args.clone())
-        .gas(args.gas_limit)
-        // 0.02
-        .value(20000000000000000u128);
-    match arbitrage_call.call().await {
+    // let client = SignerMiddleware::new(multipool.provider.clone(), wallet);
+    // let client = Arc::new(client);
+    // let trader = TraderContract::new(
+    //     "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
+    //         .parse::<Address>()
+    //         .unwrap(),
+    //     client,
+    // );
+    //
+
+    let simulate = rpc
+        .aquire(
+            |provider| async {
+                let client = SignerMiddleware::new(provider, wallet.clone());
+                let client = Arc::new(client);
+                TraderContract::new(
+                    "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
+                        .parse::<Address>()
+                        .unwrap(),
+                    client,
+                )
+                .trade(args.clone())
+                .gas(args.gas_limit)
+                // 0.02
+                .value(20000000000000000u128)
+                .call()
+                .await
+            },
+            RETRIES,
+        )
+        .await;
+
+    match simulate {
         Ok((profit, gas_used)) => {
-            let gas_used = {
-                let val = arbitrage_call.estimate_gas().await;
-                println!("gas: {val:?}");
-                val.unwrap_or(gas_used)
-            };
             println!("Simlulation SUCCESS, profit: {}, gas: {}", profit, gas_used);
             // * 0.1 / 10^9
             let eth_for_gas = gas_used * U256::from(1_000_000_000_000_000_000u128)
@@ -192,13 +180,37 @@ pub async fn check_and_send<M: Middleware>(
                     "Actual profit {}",
                     (profit - eth_for_gas).as_u128() as f64 / 10f64.powf(18f64)
                 );
-                let val = match arbitrage_call.send().await {
+
+                let broadcast = rpc
+                    .aquire(
+                        |provider| async {
+                            let client = SignerMiddleware::new(provider, wallet.clone());
+                            let client = Arc::new(client);
+                            TraderContract::new(
+                                "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
+                                    .parse::<Address>()
+                                    .unwrap(),
+                                client,
+                            )
+                            .trade(args.clone())
+                            .gas(args.gas_limit)
+                            // 0.02
+                            .value(20000000000000000u128)
+                            .send()
+                            .await
+                            .map(|v| v.to_owned())
+                        },
+                        RETRIES,
+                    )
+                    .await;
+
+                let val = match broadcast {
                     Ok(v) => {
                         println!("Successful trade {:?}", v);
                         Ok(Execution {
                             estimated_gas: gas_used,
                             estimated_profit: profit,
-                            transaction: Some(Ok(*v)),
+                            transaction: Some(Ok(v)),
                         })
                     }
                     Err(e) => {

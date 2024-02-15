@@ -122,6 +122,8 @@ pub async fn get_multipool_params(
         )
     };
 
+    println!("{quote_to_balance1} {quote_to_balance2}");
+
     let quote_to_use = quote_to_balance1.min(quote_to_balance2);
 
     let amount_to_use = (quote_to_use << 96) / price1;
