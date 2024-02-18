@@ -10,7 +10,7 @@ use std::{
 use ethers::prelude::*;
 
 use crate::{
-    multipool_storage::{expiry::MayBeExpired, Multipool, MultipoolAsset},
+    multipool_storage::{expiry::MayBeExpired, Multipool},
     rpc_controller::RpcRobber,
     trader::Args,
 };
@@ -80,12 +80,12 @@ pub async fn get_multipool_params(
 ) -> Result<(U256, U256, I256), String> {
     let price1 = multipool
         .get_price(&asset1)
-        .unwrap()
+        .map_err(|err| format!("{err:?}"))?
         .not_older_than(180)
         .unwrap();
     let price2 = multipool
         .get_price(&asset2)
-        .unwrap()
+        .map_err(|err| format!("{err:?}"))?
         .not_older_than(180)
         .unwrap();
 
@@ -94,29 +94,29 @@ pub async fn get_multipool_params(
 
     let target_deviation = I256::from(644245094) / 2;
 
-    let to_u256 = |val: Option<MayBeExpired<I256>>, price| {
+    let to_u256 = |val: Result<MayBeExpired<I256>,String>, price| {
         U256::try_from(val.unwrap().not_older_than(180).unwrap().abs()).unwrap() * price >> 96
     };
 
     let (quote_to_balance1, quote_to_balance2) = if maximize_volume {
         (
             to_u256(
-                multipool.quantity_to_deviation(&asset1, target_deviation, 180),
+                multipool.quantity_to_deviation(&asset1, target_deviation).map_err(|err| format!("{err:?}")),
                 price1,
             ),
             to_u256(
-                multipool.quantity_to_deviation(&asset2, -target_deviation, 180),
+                multipool.quantity_to_deviation(&asset2, -target_deviation).map_err(|err| format!("{err:?}")),
                 price2,
             ),
         )
     } else {
         (
             to_u256(
-                multipool.quantity_to_deviation(&asset1, I256::zero(), 180),
+                multipool.quantity_to_deviation(&asset1, I256::zero()).map_err(|err| format!("{err:?}")),
                 price1,
             ),
             to_u256(
-                multipool.quantity_to_deviation(&asset2, I256::zero(), 180),
+                multipool.quantity_to_deviation(&asset2, I256::zero()).map_err(|err| format!("{err:?}")),
                 price2,
             ),
         )
