@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
+use super::{
+    errors::MultipoolErrors, expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData,
+    Share,
+};
 use ethers::prelude::*;
 
 impl Multipool {
@@ -10,7 +13,7 @@ impl Multipool {
         let prices_set: HashMap<Address, Price> = prices.into_iter().cloned().collect();
         for asset in self.assets.iter_mut() {
             if let Some(new_price) = prices_set.get(&asset.address).cloned() {
-                asset.price = Some(new_price.into());
+                asset.price = Some(MayBeExpired::new(new_price));
             } else if update_expiry {
                 asset.price.as_mut().map(|v| v.refresh());
             }
@@ -31,7 +34,7 @@ impl Multipool {
             cashback: _,
         }) = quantities_set.remove(&self.contract_address)
         {
-            self.total_supply = Some(total_supply.into());
+            self.total_supply = Some(MayBeExpired::new(total_supply));
         } else if update_expiry {
             self.total_supply.as_mut().map(|v| v.refresh());
         }
@@ -47,7 +50,7 @@ impl Multipool {
                     } else if new_quantity_data.is_empty() {
                         asset.quantity_slot = None;
                     } else {
-                        asset.quantity_slot = Some(new_quantity_data.into());
+                        asset.quantity_slot = Some(MayBeExpired::new(new_quantity_data));
                     }
                 } else if update_expiry {
                     asset.quantity_slot.as_mut().map(|v| v.refresh());
@@ -60,7 +63,7 @@ impl Multipool {
                 .into_iter()
                 .map(|(address, slot)| MultipoolAsset {
                     address,
-                    quantity_slot: Some(slot).filter(|s| !s.is_empty()).map(Into::into),
+                    quantity_slot: Some(slot).filter(|s| !s.is_empty()).map(MayBeExpired::new),
                     price: Default::default(),
                     share: Default::default(),
                 }),
@@ -92,7 +95,7 @@ impl Multipool {
                     } else if new_share.is_zero() {
                         asset.share = None;
                     } else {
-                        asset.share = Some(new_share.into());
+                        asset.share = Some(MayBeExpired::new(new_share));
                         total_shares += new_share;
                     }
                 } else if update_expiry {
@@ -104,7 +107,7 @@ impl Multipool {
         self.total_shares = if total_shares.is_zero() {
             None
         } else {
-            Some(total_shares.into())
+            Some(MayBeExpired::new(total_shares))
         };
         self.assets.extend(
             shares_set
@@ -113,7 +116,7 @@ impl Multipool {
                     address,
                     quantity_slot: Default::default(),
                     price: Default::default(),
-                    share: Some(share).filter(|s| !s.is_zero()).map(Into::into),
+                    share: Some(share).filter(|s| !s.is_zero()).map(MayBeExpired::new),
                 }),
         );
     }
