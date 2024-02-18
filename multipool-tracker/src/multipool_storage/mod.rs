@@ -1,5 +1,7 @@
-pub mod expiry;
+pub mod errors;
 pub mod read;
+
+pub mod expiry;
 #[cfg(test)]
 pub mod tests;
 pub mod write;
@@ -13,7 +15,8 @@ use std::ops::Shr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use self::expiry::MayBeExpired;
+use self::expiry::{MayBeExpired, Merge};
+use errors::MultipoolErrors;
 
 pub type MultipoolId = String;
 pub type Price = U256;
@@ -53,17 +56,21 @@ const X96: u128 = 96;
 const X32: u128 = 32;
 
 impl MultipoolAsset {
-    fn quoted_quantity(&self) -> Option<MayBeExpired<Price>> {
-        merge(
-            self.quantity_slot.clone(),
-            self.price.clone(),
-            |slot, price| {
-                slot.merge(price, |slot, price| -> Option<U256> {
-                    slot.quantity.checked_mul(price).map(|m| m.shr(X96))
-                })
-                .transpose()
-            },
-        )
+    fn quoted_quantity(&self) -> Result<MayBeExpired<Price>, MultipoolErrors> {
+        let slot = self
+            .quantity_slot
+            .clone()
+            .ok_or(MultipoolErrors::QuantitySlotMissing(self.address))?;
+        let price = self
+            .price
+            .clone()
+            .ok_or(MultipoolErrors::PriceMissing(self.address))?;
+        (slot, price)
+            .merge(|(slot, price)| -> Option<U256> {
+                slot.quantity.checked_mul(price).map(|m| m.shr(X96))
+            })
+            .transpose()
+            .ok_or(MultipoolErrors::QuotedQuantityMissing(self.address))
     }
 }
 
@@ -77,14 +84,6 @@ impl QuantityData {
     fn is_empty(&self) -> bool {
         self.quantity.is_zero() && self.cashback.is_zero()
     }
-}
-
-fn merge<T1, T2, T3, F: FnOnce(T1, T2) -> Option<T3>>(
-    first: Option<T1>,
-    second: Option<T2>,
-    merger: F,
-) -> Option<T3> {
-    merger(first?, second?)
 }
 
 impl Multipool {

@@ -1,14 +1,18 @@
 use std::ops::Shl;
 
-use super::{expiry::MayBeExpired, merge, Multipool, MultipoolAsset, Price, Share, X32, X96};
+use super::{
+    errors::MultipoolErrors, errors::MultipoolOverflowErrors, expiry::MayBeExpired, Merge,
+    Multipool, MultipoolAsset, Price, Share, X32, X96,
+};
 use ethers::prelude::*;
 
 impl Multipool {
-    pub fn asset(&self, asset_address: &Address) -> Option<MultipoolAsset> {
+    pub fn asset(&self, asset_address: &Address) -> Result<MultipoolAsset, MultipoolErrors> {
         self.assets
             .iter()
             .find(|asset| asset.address.eq(asset_address))
             .cloned()
+            .ok_or(MultipoolErrors::AssetMissing(*asset_address))
     }
 
     pub fn contract_address(&self) -> Address {
@@ -24,54 +28,106 @@ impl Multipool {
     }
 
     /// Returns optional price that may be expired, returns None if there is no such asset
-    pub fn cap(&self) -> Option<MayBeExpired<Price>> {
-        self.assets
+    pub fn cap(&self) -> Result<MayBeExpired<Price>, MultipoolErrors> {
+        let merged_prices = self
+            .assets
             .iter()
-            .filter_map(MultipoolAsset::quoted_quantity)
-            .map(Option::from)
-            .reduce(|a, b| merge(a, b, |a, b| a.merge(b, |a, b| a.checked_add(b)).transpose()))
-            .flatten()
+            .map(|asset| -> Result<_, MultipoolErrors> { asset.quoted_quantity() })
+            .collect::<Result<Vec<_>, MultipoolErrors>>()?;
+        merged_prices.iter().try_fold(
+            merged_prices[0].clone(),
+            |a, b| -> Result<MayBeExpired<U256>, MultipoolErrors> {
+                (a, b.clone())
+                    .merge(|(a, b)| a.checked_add(b))
+                    .transpose()
+                    .ok_or(MultipoolErrors::Overflow(
+                        MultipoolOverflowErrors::PriceCapOverflow,
+                    ))
+            },
+        )
     }
 
     /// Returns optional price that may be expired, returns None if there is no such asset
-    pub fn get_price(&self, asset_address: &Address) -> Option<MayBeExpired<Price>> {
+    pub fn get_price(
+        &self,
+        asset_address: &Address,
+    ) -> Result<MayBeExpired<Price>, MultipoolErrors> {
         if self.contract_address.eq(asset_address) {
-            merge(self.cap(), self.total_supply.as_ref(), |cap, ts| {
-                cap.merge(ts.clone(), |c, t| c.shl(X96).checked_div(t))
-                    .transpose()
-            })
+            let total_supply = self
+                .total_supply
+                .as_ref()
+                .ok_or(MultipoolErrors::TotalSupplyMissing(*asset_address))?;
+            (self.cap()?, total_supply.clone())
+                .merge(|(c, t)| c.shl(X96).checked_div(t))
+                .transpose()
+                .ok_or(MultipoolErrors::Overflow(
+                    MultipoolOverflowErrors::TotalSupplyOverflow,
+                ))
         } else {
-            self.asset(asset_address).map(|asset| asset.price).flatten()
+            self.asset(asset_address).and_then(|asset| {
+                asset
+                    .price
+                    .ok_or(MultipoolErrors::PriceMissing(*asset_address))
+            })
         }
     }
 
-    pub fn current_share(&self, asset_address: &Address) -> Option<MayBeExpired<Share>> {
+    pub fn current_share(
+        &self,
+        asset_address: &Address,
+    ) -> Result<MayBeExpired<Share>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
-        merge(asset.quoted_quantity(), self.cap(), |q, c| {
-            q.merge(c, |q, c| q.shl(X32).checked_div(c)).transpose()
-        })
+        (asset.quoted_quantity()?, self.cap()?)
+            .merge(|(q, c)| q.shl(X32).checked_div(c))
+            .transpose()
+            .ok_or(MultipoolErrors::Overflow(
+                MultipoolOverflowErrors::TotalSupplyOverflow,
+            ))
     }
 
-    pub fn target_share(&self, asset_address: &Address) -> Option<MayBeExpired<Share>> {
+    pub fn target_share(
+        &self,
+        asset_address: &Address,
+    ) -> Result<MayBeExpired<Share>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
-        merge(asset.share, self.total_shares.clone(), |s, t| {
-            s.merge(t, |s, t| s.shl(X32).checked_div(t)).transpose()
-        })
+        let share = asset
+            .share
+            .ok_or(MultipoolErrors::ShareMissing(*asset_address))?;
+        let total_shares = self
+            .total_shares
+            .clone()
+            .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
+            .clone();
+        (share, total_shares)
+            .merge(|(s, t)| s.shl(X32).checked_div(t))
+            .transpose()
+            .ok_or(MultipoolErrors::Overflow(
+                MultipoolOverflowErrors::TotalSupplyOverflow,
+            ))
     }
 
-    pub fn deviation(&self, asset_address: &Address) -> Option<MayBeExpired<I256>> {
-        merge(
-            self.target_share(asset_address),
-            self.current_share(asset_address),
-            |t, c| {
-                t.merge(c, |t, c| {
-                    merge(I256::try_from(t).ok(), I256::try_from(c).ok(), |t, c| {
-                        c.checked_sub(t)
-                    })
-                })
-                .transpose()
-            },
+    pub fn deviation(
+        &self,
+        asset_address: &Address,
+    ) -> Result<MayBeExpired<I256>, MultipoolErrors> {
+        (
+            self.target_share(asset_address)?,
+            self.current_share(asset_address)?,
         )
+            .merge(|(t, c)| -> Result<I256, MultipoolErrors> {
+                let current_share = I256::try_from(c).map_err(|_| {
+                    MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig)
+                })?;
+                let target_share = I256::try_from(t).map_err(|_| {
+                    MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig)
+                })?;
+                current_share
+                    .checked_sub(target_share)
+                    .ok_or(MultipoolErrors::Overflow(
+                        MultipoolOverflowErrors::TargetShareTooBig,
+                    ))
+            })
+            .transpose()
     }
 
     // TODO: rewrite with merging
@@ -79,26 +135,33 @@ impl Multipool {
         &self,
         asset_address: &Address,
         target_deviation: I256,
-        poison_time: u64,
-    ) -> Option<MayBeExpired<I256>> {
+    ) -> Result<MayBeExpired<I256>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
         let quantity = asset
             .quantity_slot
-            .unwrap()
-            .not_older_than(poison_time)?
+            .ok_or(MultipoolErrors::PriceMissing(*asset_address))?
+            .any_age()
             .quantity;
-        let price = asset.price.unwrap().not_older_than(poison_time)?;
-        let share = asset.share.unwrap().not_older_than(poison_time)?;
+        let price = asset
+            .price
+            .ok_or(MultipoolErrors::PriceMissing(*asset_address))?
+            .any_age();
+        let share = asset
+            .share
+            .ok_or(MultipoolErrors::ShareMissing(*asset_address))?
+            .any_age();
         let total_shares = self
             .total_shares
             .clone()
-            .unwrap()
-            .not_older_than(poison_time)?;
-
-        let usd_cap = self.cap().unwrap().not_older_than(poison_time)?;
-
-        let share_bound =
-            (U256::try_from(target_deviation.checked_abs()?).ok()? * total_shares) >> 32;
+            .ok_or(MultipoolErrors::ShareMissing(*asset_address))?
+            .any_age();
+        let usd_cap = self.cap()?.any_age();
+        let share_bound = (U256::try_from(target_deviation.checked_abs().ok_or(
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetShareTooBig),
+        )?)
+        .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig))?
+            * total_shares)
+            >> 32;
         let amount = if target_deviation.gt(&I256::from(0)) {
             I256::from_raw((share + share_bound).min(total_shares) * usd_cap / price / total_shares)
                 - I256::from_raw(quantity)
@@ -109,6 +172,6 @@ impl Multipool {
                     / total_shares,
             ) - I256::from_raw(quantity)
         };
-        Some(amount.into())
+        Ok(MayBeExpired::new(amount))
     }
 }
