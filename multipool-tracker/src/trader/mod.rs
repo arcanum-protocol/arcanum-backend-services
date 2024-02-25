@@ -10,7 +10,7 @@ use ethers::{prelude::*, utils::hex::decode};
 use tokio::time::sleep;
 
 use crate::{
-    config::BotConfig, crypto::SignedSharePrice, multipool_storage::MultipoolStorage,
+    config::BotConfig, crypto::SignedSharePrice, multipool::MultipoolStorage,
     rpc_controller::RpcRobber, trader::analyzer::Estimates,
 };
 

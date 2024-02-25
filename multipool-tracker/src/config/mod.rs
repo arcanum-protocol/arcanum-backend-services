@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs};
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
-use crate::{multipool_storage::MultipoolId, rpc_controller::RpcParams, trader::analyzer::Uniswap};
+use crate::{multipool::MultipoolId, rpc_controller::RpcParams, trader::analyzer::Uniswap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultipoolConfig {
@@ -25,16 +25,11 @@ pub struct EventFetcherConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BotConfig {
-    pub chains: Vec<ChainConfig>,
-    pub uniswap: Option<Uniswap>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChainConfig {
     pub multipools: HashMap<MultipoolId, MultipoolConfig>,
     pub rpc: Vec<RpcParams>,
     pub chain_id: u128,
     pub poison_time: u64,
+    pub uniswap: Option<Uniswap>,
 }
 
 impl BotConfig {

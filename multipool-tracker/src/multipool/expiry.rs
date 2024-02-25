@@ -1,7 +1,9 @@
 use super::errors::MultipoolErrors;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MayBeExpired<V>(V, u64);
 
 impl<V> MayBeExpired<V> {
@@ -13,6 +15,10 @@ impl<V> MayBeExpired<V> {
                 .expect("Shold be always after epoch start")
                 .as_secs(),
         )
+    }
+
+    pub fn with_time(value: V, timestamp: u64) -> Self {
+        Self(value, timestamp)
     }
 
     pub fn not_older_than(self, interval: u64) -> Option<V> {

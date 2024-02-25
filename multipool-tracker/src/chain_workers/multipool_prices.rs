@@ -7,7 +7,7 @@ use futures::{future::join_all, TryFutureExt};
 use tokio::sync::RwLock;
 
 use crate::{
-    multipool_storage::{Multipool, Price},
+    multipool::{Multipool, Price},
     rpc_controller::RpcRobber,
 };
 

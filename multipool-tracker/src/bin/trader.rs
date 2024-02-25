@@ -24,11 +24,11 @@ async fn main() -> std::io::Result<()> {
     });
 
     let config = BotConfig::from_file(&config_path);
-    let (storage, rpcs) = bootstrap::run(config.clone()).await;
+    let (storage, rpc) = bootstrap::run(config.clone()).await;
 
     sleep(Duration::from_secs(10)).await;
 
-    multipool_tracker::trader::run(&storage, rpcs[0].clone(), config, client).await;
+    multipool_tracker::trader::run(&storage, rpc, config, client).await;
 
     Ok(())
 }
