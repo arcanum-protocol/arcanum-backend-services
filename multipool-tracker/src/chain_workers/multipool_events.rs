@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     contracts::multipool::MpAsset,
-    multipool_storage::{Multipool, QuantityData, Share},
+    multipool::{Multipool, QuantityData, Share},
     rpc_controller::RpcRobber,
 };
 

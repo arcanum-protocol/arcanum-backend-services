@@ -8,6 +8,28 @@ use serde_json::Value;
 use tokio::{sync::RwLock, time::sleep};
 use tokio_postgres::NoTls;
 
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Path to ledger storage
+    #[arg(short, long, default_value_t = "./ledger/")]
+    ledger: String,
+
+    /// Path to bootstrap data
+    #[arg(short, long, default_value_t = "./bootstrap.yaml")]
+    bootstrap: Option<String>,
+
+    /// Path to config file
+    #[arg(short, long, default_value_t = "./config.yaml")]
+    config: String,
+
+    /// Port to manage node
+    #[arg(short, long)]
+    admin_port: Option<String>,
+}
+
 #[get("/api/v1/health")]
 async fn health() -> impl Responder {
     format!("ok")
@@ -24,10 +46,10 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct PriceRequest {
-    multipool_id: String,
+    multipool_address: String,
 }
 
-#[get("/oracle/v1/signed_price")]
+#[get("/signed_price")]
 async fn get_signed_price(
     params: web::Query<PriceRequest>,
     key: web::Data<String>,
@@ -48,6 +70,26 @@ async fn get_signed_price(
         .not_older_than(180)
         .unwrap();
     let price = crypto::sign(contract, price, config.chain_id, &signer);
+    HttpResponse::Ok().json(price)
+}
+
+#[get("/assets")]
+async fn get_assets(
+    params: web::Query<PriceRequest>,
+    key: web::Data<String>,
+    config: web::Data<BotConfig>,
+    storage: web::Data<HashMap<String, Arc<RwLock<Multipool>>>>,
+) -> impl Responder {
+    HttpResponse::Ok().json(price)
+}
+
+#[get("/bootstrap")]
+async fn get_bootstrap_data(
+    params: web::Query<PriceRequest>,
+    key: web::Data<String>,
+    config: web::Data<BotConfig>,
+    storage: web::Data<HashMap<String, Arc<RwLock<Multipool>>>>,
+) -> impl Responder {
     HttpResponse::Ok().json(price)
 }
 

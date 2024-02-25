@@ -9,14 +9,13 @@ pub mod write;
 use ethers::types::Address;
 use ethers::types::U64;
 use primitive_types::U256;
-use std::collections::BTreeMap;
 
 use std::ops::Shr;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 use self::expiry::{MayBeExpired, Merge};
 use errors::MultipoolErrors;
+
+use serde::{Deserialize, Serialize};
 
 pub type MultipoolId = String;
 pub type Price = U256;
@@ -24,32 +23,20 @@ pub type BlockNumber = U64;
 pub type Quantity = U256;
 pub type Share = U256;
 
-#[derive(Clone, Debug)]
-pub struct MultipoolStorage {
-    pub inner: BTreeMap<MultipoolId, Arc<RwLock<Multipool>>>,
-}
-
-impl std::ops::Deref for MultipoolStorage {
-    type Target = BTreeMap<MultipoolId, Arc<RwLock<Multipool>>>;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Multipool {
-    contract_address: Address,
-    assets: Vec<MultipoolAsset>,
-    total_supply: Option<MayBeExpired<Quantity>>,
-    total_shares: Option<MayBeExpired<Share>>,
+    pub(super) contract_address: Address,
+    pub(super) assets: Vec<MultipoolAsset>,
+    pub(super) total_supply: Option<MayBeExpired<Quantity>>,
+    pub(super) total_shares: Option<MayBeExpired<Share>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct MultipoolAsset {
-    address: Address,
-    price: Option<MayBeExpired<Price>>,
-    quantity_slot: Option<MayBeExpired<QuantityData>>,
-    share: Option<MayBeExpired<Share>>,
+    pub(super) address: Address,
+    pub(super) price: Option<MayBeExpired<Price>>,
+    pub(super) quantity_slot: Option<MayBeExpired<QuantityData>>,
+    pub(super) share: Option<MayBeExpired<Share>>,
 }
 
 const X96: u128 = 96;
@@ -74,10 +61,10 @@ impl MultipoolAsset {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuantityData {
-    pub quantity: Quantity,
-    pub cashback: Quantity,
+    pub(super) quantity: Quantity,
+    pub(super) cashback: Quantity,
 }
 
 impl QuantityData {
