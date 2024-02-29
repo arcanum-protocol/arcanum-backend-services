@@ -54,7 +54,6 @@ jobs:
           # - name: 🔎 Clippy check
           #   id: cargo-clippy
           #   continue-on-error: true
-          #   if: steps.changes.outputs.recompile-code == 'true'
           #   run: cargo clippy --all-targets --all-features --tests -- -D warnings
 
       - run: du -sh target
@@ -63,7 +62,7 @@ jobs:
       - run: du -sh ~/.cargo/registry
         continue-on-error: true
 
-      - run: du -sh target/x86_64-unknown-linux-musl/release/adapter-grpc-service
+      - run: du -sh target/x86_64-unknown-linux-musl/release/node
         continue-on-error: true
 
       - name: Delete Previous Cache
@@ -77,7 +76,6 @@ jobs:
 
       - name: ⚡Store Build Cache
         uses: actions/cache/save@v4
-        if: ${{ steps.changes.outputs.recompile-code == 'true' }}
         with:
           path: |
             ~/.cargo/registry
@@ -86,7 +84,8 @@ jobs:
           key: ${{ runner.os }}-rust-cache
 
       - name: Check on failures
-        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' # || steps.cargo-clippy.outcome != 'success' 
+        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' 
+          # || steps.cargo-clippy.outcome != 'success' 
         run: exit 1
 
       # build container
