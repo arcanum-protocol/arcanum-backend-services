@@ -1,46 +1,101 @@
-#name: Docker Image CI
-#
-#on:
-#  push:
-#    branches: [ "master" ]
-#  pull_request:
-#    branches: [ "master" ]
-#
-#jobs:
-#  build-multipool-tracker:
-#
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#    - uses: actions/checkout@v3
-#
-#    - name: Build price-oracle image
-#      run: docker build multipool-tracker --target price-oracle --tag badconfig/arcanum-price-oracle
-#
-#    - name: Build trader image
-#      run: docker build multipool-tracker --target trader --tag badconfig/arcanum-trader
-#
-#    - name: Login to dockerhub
-#      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-#
-#    - name: push price-oracle image
-#      run: docker push badconfig/arcanum-price-oracle
-#
-#    - name: push trader image
-#      run: docker push badconfig/arcanum-trader
-#
-#  build-backend-api:
-#
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#    - uses: actions/checkout@v3
-#
-#    - name: Build the Docker image
-#      run: docker build api --tag badconfig/backend-api
-#
-#    - name: Login to dockerhub
-#      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
-#
-#    - name: push image
-#      run: docker push badconfig/backend-api 
+name: Cached rust build
+on: 
+  push:
+
+env:
+  SOLANA_VERSION: v1.16.15
+
+permissions:
+  contents: read
+  actions: write # require to delete cache
+
+jobs:
+  build-and-check-binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: musl-dev musl-tools
+          version: 1.0
+
+      - run: rustup target add x86_64-unknown-linux-musl
+
+      # Building project stuff
+      - name: ⚡Restore Build Cache
+        uses: actions/cache/restore@v4
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-cache
+
+      - name: 🔨 Build
+        id: cargo-building
+        continue-on-error: true
+        run: |
+          cargo build --bin node --release --target=x86_64-unknown-linux-musl
+
+      - name: 🔎 Test
+        id: cargo-testing
+        continue-on-error: true
+        run: cargo test -- --nocapture
+
+      - name: 🔎 Formatting check
+        id: cargo-formatting
+        continue-on-error: true
+        run: cargo fmt --all --check
+
+          # - name: 🔎 Clippy check
+          #   id: cargo-clippy
+          #   continue-on-error: true
+          #   if: steps.changes.outputs.recompile-code == 'true'
+          #   run: cargo clippy --all-targets --all-features --tests -- -D warnings
+
+      - run: du -sh target
+        continue-on-error: true
+
+      - run: du -sh ~/.cargo/registry
+        continue-on-error: true
+
+      - run: du -sh target/x86_64-unknown-linux-musl/release/adapter-grpc-service
+        continue-on-error: true
+
+      - name: Delete Previous Cache
+        if: ${{ steps.build-cache.outputs.cache-hit }} # github.ref == 'refs/heads/master' 
+        continue-on-error: true
+        run: |
+          gh extension install actions/gh-actions-cache
+          gh actions-cache delete "${{ runner.os }}-rust-cache" --confirm
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡Store Build Cache
+        uses: actions/cache/save@v4
+        if: ${{ steps.changes.outputs.recompile-code == 'true' }}
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-cache
+
+      - name: Check on failures
+        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' # || steps.cargo-clippy.outcome != 'success' 
+        run: exit 1
+
+      # build container
+      - name: Build the Docker image
+        run: docker build --tag badconfig/arcanum-node -f node.Dockerfile .
+
+      - name: Login to dockerhub
+        run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+      - name: push image
+        run: docker push badconfig/arcanum-node 
+
