@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use ethers::prelude::*;
 
@@ -18,17 +21,23 @@ use super::{
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Time {
     pub timestamp: u64,
-    pub block: U256,
+    pub block: U64,
 }
 
 impl Time {
-    fn new(timestamp: u64, block: U256) -> Self {
-        Self { block, timestamp }
+    pub fn new(block: U64) -> Self {
+        Self {
+            block,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Shold be always after epoch start")
+                .as_secs(),
+        }
     }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct FactoryWatcher {
+pub struct MultipoolFactoryIR {
     pub factory_time: Time,
     pub factory_address: Address,
 }
@@ -36,7 +45,7 @@ pub struct FactoryWatcher {
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct MultipoolStorageIR {
     pub pools: Vec<MultipoolIR>,
-    pub factory_watcher: Option<FactoryWatcher>,
+    pub factories: Vec<MultipoolFactoryIR>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -71,26 +80,17 @@ impl MultipoolStorageIR {
         serde_json::from_slice(data).map_err(Into::into)
     }
 
-    pub fn add_factory(mut self, factory_address: Address, start: Time) -> Self {
-        self.factory_watcher = Some(FactoryWatcher {
-            factory_time: start,
-            factory_address,
-        });
-        self
-    }
-
-    pub fn add_pools(mut self, mut pools: Vec<MultipoolIR>) -> Self {
-        self.pools.append(&mut pools);
-        self
-    }
-
-    pub fn build_storage(&self) -> MultipoolStorage {
+    pub fn build_storage(self) -> MultipoolStorage {
         MultipoolStorage {
             inner: Arc::new(RwLock::new(MultipoolStorageInner {
-                factory: self.factory_watcher.map(|f| MultipoolFactory {
-                    factory_time: f.factory_time,
-                    factory_address: f.factory_address,
-                }),
+                factories: self
+                    .factories
+                    .into_iter()
+                    .map(|f| MultipoolFactory {
+                        factory_time: f.factory_time,
+                        factory_address: f.factory_address,
+                    })
+                    .collect(),
                 pools: self
                     .pools
                     .into_iter()

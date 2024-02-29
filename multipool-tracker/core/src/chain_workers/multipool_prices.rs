@@ -3,13 +3,10 @@ use std::{sync::Arc, time::Duration};
 use ethers::contract::Multicall;
 use ethers::prelude::*;
 
-use futures::{future::join_all, TryFutureExt};
+use futures::{future::join_all, Future, FutureExt, TryFutureExt};
 use tokio::sync::RwLock;
 
-use crate::{
-    multipool::{Multipool, Price},
-    rpc_controller::RpcRobber,
-};
+use crate::{multipool::Price, rpc_controller::RpcRobber, storage::MultipoolWithMeta};
 
 use anyhow::Result;
 
@@ -17,20 +14,29 @@ const RETRIES: Option<usize> = Some(3);
 
 pub struct PricePoller {
     pub rpc: RpcRobber,
-    pub multipool_storage: Arc<RwLock<Multipool>>,
+    pub multipool_storage: Arc<RwLock<MultipoolWithMeta>>,
     pub fetch_interval: u64,
 }
 
 impl PricePoller {
-    pub async fn init(&self) -> Result<()> {
-        let contract_address = self.multipool_storage.read().await.contract_address();
+    pub async fn init(self) -> impl Future<Output = Result<()>> {
+        let contract_address = {
+            self.multipool_storage
+                .read()
+                .await
+                .multipool
+                .contract_address()
+        };
         tokio::spawn(fetch_price(
             self.rpc.clone(),
             self.fetch_interval,
             contract_address,
             self.multipool_storage.clone(),
         ))
-        .await?
+        .map(|task| match task {
+            Err(e) => Err(e.into()),
+            Ok(v) => v,
+        })
     }
 }
 
@@ -38,19 +44,22 @@ pub async fn fetch_price(
     rpc: RpcRobber,
     fetch_interval: u64,
     contract_address: Address,
-    multipool_storage: Arc<RwLock<Multipool>>,
+    multipool_storage: Arc<RwLock<MultipoolWithMeta>>,
 ) -> Result<()> {
     let mut interval = tokio::time::interval(Duration::from_millis(fetch_interval));
     loop {
         interval.tick().await;
 
-        let assets = multipool_storage.read().await.asset_list();
+        let assets = { multipool_storage.read().await.multipool.asset_list() };
         let price_updates =
             get_prices(&rpc, contract_address, assets, 4, MULTICALL_ADDRESS).await?;
-        multipool_storage
-            .write()
-            .await
-            .update_prices(&price_updates, false);
+        {
+            multipool_storage
+                .write()
+                .await
+                .multipool
+                .update_prices(&price_updates, false);
+        }
     }
 }
 

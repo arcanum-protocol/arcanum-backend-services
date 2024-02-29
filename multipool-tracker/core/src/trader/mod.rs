@@ -10,8 +10,11 @@ use ethers::{prelude::*, utils::hex::decode};
 use tokio::time::sleep;
 
 use crate::{
-    config::BotConfig, crypto::SignedSharePrice, multipool::MultipoolStorage,
-    rpc_controller::RpcRobber, trader::analyzer::Estimates,
+    config::BotConfig,
+    crypto::SignedSharePrice,
+    rpc_controller::RpcRobber,
+    storage::{MultipoolStorage, StorageEntry},
+    trader::analyzer::Estimates,
 };
 
 use self::analyzer::{Stats, RETRIES};
@@ -28,10 +31,10 @@ pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, 
     .unwrap()
     .with_chain_id(42161u64);
     loop {
-        for (multipool_id, multipool) in storage.iter() {
+        for StorageEntry { multipool, address } in storage.pools().await {
             let sp: SignedSharePrice = reqwest::get(format!(
-                "https://api.arcanum.to/oracle/v1/signed_price?multipool_id={}",
-                multipool_id
+                "https://api.arcanum.to/oracle/v1/signed_price?multipool_address={}",
+                address
             ))
             .await
             .unwrap()
@@ -40,7 +43,7 @@ pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, 
             .unwrap();
 
             let multipool = multipool.read().await.clone();
-            let assets = multipool.asset_list();
+            let assets = multipool.multipool.asset_list();
 
             for input_address in assets.iter() {
                 for output_address in assets.iter() {
@@ -61,7 +64,7 @@ pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, 
 
                     match analyzer::analyze(
                         &rpc,
-                        &multipool,
+                        &multipool.multipool,
                         &uniswap_data,
                         false,
                         *input_address,
@@ -73,11 +76,16 @@ pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, 
                     {
                         Ok(Estimates::Profitable((args, stats))) => {
                             let execution = check_and_send(&rpc, args, wallet.clone()).await;
-                            save_stats(&pg_client, multipool_id.clone(), stats, Some(execution))
-                                .await;
+                            save_stats(
+                                &pg_client,
+                                address.to_string().clone(),
+                                stats,
+                                Some(execution),
+                            )
+                            .await;
                         }
                         Ok(Estimates::NonProfitable(stats)) => {
-                            save_stats(&pg_client, multipool_id.clone(), stats, None).await;
+                            save_stats(&pg_client, address.to_string().clone(), stats, None).await;
                             continue;
                         }
                         Err(e) => {
@@ -88,7 +96,7 @@ pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, 
 
                     match analyzer::analyze(
                         &rpc,
-                        &multipool,
+                        &multipool.multipool,
                         &uniswap_data,
                         true,
                         *input_address,
@@ -100,11 +108,16 @@ pub async fn run(storage: &MultipoolStorage, rpc: RpcRobber, config: BotConfig, 
                     {
                         Ok(Estimates::Profitable((args, stats))) => {
                             let execution = check_and_send(&rpc, args, wallet.clone()).await;
-                            save_stats(&pg_client, multipool_id.clone(), stats, Some(execution))
-                                .await;
+                            save_stats(
+                                &pg_client,
+                                address.to_string().clone(),
+                                stats,
+                                Some(execution),
+                            )
+                            .await;
                         }
                         Ok(Estimates::NonProfitable(stats)) => {
-                            save_stats(&pg_client, multipool_id.clone(), stats, None).await;
+                            save_stats(&pg_client, address.to_string().clone(), stats, None).await;
                             continue;
                         }
                         Err(e) => {
