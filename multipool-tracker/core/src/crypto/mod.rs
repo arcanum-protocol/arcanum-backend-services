@@ -6,7 +6,7 @@ use primitive_types::{U128, U256};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::multipool_storage::Price;
+use crate::multipool::Price;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]

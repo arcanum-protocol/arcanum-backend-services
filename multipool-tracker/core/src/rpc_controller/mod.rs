@@ -1,4 +1,4 @@
-use std::{iter, sync::Arc, time::Duration};
+use std::{fs, iter, path::PathBuf, sync::Arc, time::Duration};
 
 use ethers::providers;
 use futures::Future;
@@ -51,6 +51,16 @@ pub struct RpcParams {
 }
 
 impl RpcRobber {
+    pub fn read(config_path: PathBuf) -> Self {
+        let rpc_params: Vec<RpcParams> = serde_yaml::from_slice(
+            fs::read(config_path)
+                .expect("Config should exist")
+                .as_slice(),
+        )
+        .expect("Config should be valid");
+        Self::new(rpc_params)
+    }
+
     pub fn new<I: IntoIterator<Item = RpcParams>>(params: I) -> Self {
         Self {
             providers: Arc::new(

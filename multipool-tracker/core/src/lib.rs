@@ -1,4 +1,3 @@
-pub mod bootstrap;
 pub mod chain_workers;
 pub mod config;
 pub mod contracts;

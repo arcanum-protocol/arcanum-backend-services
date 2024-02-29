@@ -1,4 +1,3 @@
-use super::errors::MultipoolErrors;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};

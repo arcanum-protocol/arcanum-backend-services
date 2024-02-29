@@ -5,14 +5,15 @@ use ethers::prelude::*;
 
 use futures::{
     future::{join_all, select},
-    TryFutureExt,
+    Future, TryFutureExt,
 };
-use tokio::sync::RwLock;
+use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{
     contracts::multipool::MpAsset,
-    multipool::{Multipool, QuantityData, Share},
+    multipool::{QuantityData, Share},
     rpc_controller::RpcRobber,
+    storage::{ir::Time, MultipoolWithMeta},
 };
 
 use anyhow::Result;
@@ -21,19 +22,59 @@ const RETRIES: Option<usize> = Some(3);
 
 pub struct EventPoller {
     pub rpc: RpcRobber,
-    pub multipool_storage: Arc<RwLock<Multipool>>,
-    pub quantity_fetch_interval: u64,
-    pub target_share_fetch_interval: u64,
+    pub multipool_storage: Arc<RwLock<MultipoolWithMeta>>,
 }
 
 impl EventPoller {
     pub async fn init(
         &self,
-        initial_assets: Vec<Address>,
-        to_fetch_target_shares: bool,
-        to_fetch_quantities: bool,
-    ) -> Result<()> {
-        let contract_address = self.multipool_storage.read().await.contract_address();
+        quantity_fetch_interval: Option<u64>,
+        target_share_fetch_interval: Option<u64>,
+    ) -> impl Future<Output = Result<()>> {
+        let mp = self.multipool_storage.read().await;
+        let contract_address = mp.multipool.contract_address();
+        let quantity_from_block = mp.quantity_time.block;
+        let share_from_block = mp.share_time.block;
+
+        let quantity_fetching_future = if let Some(interval) = quantity_fetch_interval {
+            tokio::spawn(fetch_quantities(
+                self.rpc.clone(),
+                interval,
+                contract_address,
+                quantity_from_block,
+                self.multipool_storage.clone(),
+            ))
+        } else {
+            tokio::spawn(futures::future::pending())
+        };
+
+        let target_share_fetching_future = if let Some(interval) = target_share_fetch_interval {
+            tokio::spawn(fetch_target_shares(
+                self.rpc.clone(),
+                interval,
+                contract_address,
+                share_from_block,
+                self.multipool_storage.clone(),
+            ))
+        } else {
+            tokio::spawn(futures::future::pending())
+        };
+
+        async {
+            match select(target_share_fetching_future, quantity_fetching_future).await {
+                futures::future::Either::Left((v, _)) => v?,
+                futures::future::Either::Right((v, _)) => v?,
+            }
+        }
+    }
+
+    pub async fn fill(&self, initial_assets: Vec<Address>) -> Result<()> {
+        let contract_address = self
+            .multipool_storage
+            .read()
+            .await
+            .multipool
+            .contract_address();
         let from_block = current_block(&self.rpc).await?;
         let total_supply = total_supply(&self.rpc, contract_address).await?;
         let assets = get_assets(
@@ -46,6 +87,9 @@ impl EventPoller {
         .await?;
         {
             let mut mp = self.multipool_storage.write().await;
+
+            mp.quantity_time = Time::new(from_block);
+            mp.share_time = Time::new(from_block);
 
             let mut quantities = assets
                 .iter()
@@ -67,9 +111,9 @@ impl EventPoller {
                 },
             ));
 
-            mp.update_quantities(&quantities, false);
+            mp.multipool.update_quantities(&quantities, false);
 
-            mp.update_shares(
+            mp.multipool.update_shares(
                 &assets
                     .iter()
                     .map(|(asset_address, quantity_data)| {
@@ -79,35 +123,7 @@ impl EventPoller {
                 false,
             );
         }
-
-        let quantity_fetching_future = if to_fetch_quantities {
-            tokio::spawn(fetch_quantities(
-                self.rpc.clone(),
-                self.quantity_fetch_interval,
-                contract_address,
-                from_block,
-                self.multipool_storage.clone(),
-            ))
-        } else {
-            tokio::spawn(futures::future::pending())
-        };
-
-        let target_share_fetching_future = if to_fetch_target_shares {
-            tokio::spawn(fetch_target_shares(
-                self.rpc.clone(),
-                self.target_share_fetch_interval,
-                contract_address,
-                from_block,
-                self.multipool_storage.clone(),
-            ))
-        } else {
-            tokio::spawn(futures::future::pending())
-        };
-
-        match select(target_share_fetching_future, quantity_fetching_future).await {
-            futures::future::Either::Left((v, _)) => v?,
-            futures::future::Either::Right((v, _)) => v?,
-        }
+        Ok(())
     }
 }
 
@@ -116,7 +132,7 @@ pub async fn fetch_quantities(
     fetch_interval: u64,
     contract_address: Address,
     start_block: U64,
-    multipool_storage: Arc<RwLock<Multipool>>,
+    multipool_storage: Arc<RwLock<MultipoolWithMeta>>,
 ) -> Result<()> {
     let mut from_block = start_block;
     let mut interval = tokio::time::interval(Duration::from_millis(fetch_interval));
@@ -124,13 +140,14 @@ pub async fn fetch_quantities(
         interval.tick().await;
 
         let to_block = current_block(&rpc).await?;
-        println!("{from_block}, {to_block}");
         let quantity_updates =
             get_quantities_updates(&rpc, contract_address, from_block, to_block).await?;
-        multipool_storage
-            .write()
-            .await
-            .update_quantities(&quantity_updates, true);
+        {
+            let mut mp = multipool_storage.write().await;
+            mp.multipool.update_quantities(&quantity_updates, true);
+            mp.quantity_time = Time::new(to_block);
+            drop(mp);
+        }
         from_block = to_block;
     }
 }
@@ -140,7 +157,7 @@ pub async fn fetch_target_shares(
     fetch_interval: u64,
     contract_address: Address,
     start_block: U64,
-    multipool_storage: Arc<RwLock<Multipool>>,
+    multipool_storage: Arc<RwLock<MultipoolWithMeta>>,
 ) -> Result<()> {
     let mut from_block = start_block;
     let mut interval = tokio::time::interval(Duration::from_millis(fetch_interval));
@@ -150,10 +167,12 @@ pub async fn fetch_target_shares(
         let to_block = current_block(&rpc).await?;
         let target_shares_updates =
             get_target_shares_updates(&rpc, contract_address, from_block, to_block).await?;
-        multipool_storage
-            .write()
-            .await
-            .update_shares(&target_shares_updates, true);
+        {
+            let mut mp = multipool_storage.write().await;
+            mp.multipool.update_shares(&target_shares_updates, true);
+            mp.share_time = Time::new(to_block);
+            drop(mp);
+        }
         from_block = to_block;
     }
 }
