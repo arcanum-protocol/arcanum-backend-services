@@ -241,17 +241,12 @@ fn check_cap_overflow() {
     let contract_address = H160::from_low_u64_be(0x10);
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
-        .fill_updated_quantities_with_value(
-            ADDRESSES.to_vec(),
-            U256::MAX, //U256::from(100000000) << 96,
-            None,
-        )
+        .fill_updated_quantities_with_value(ADDRESSES.to_vec(), U256::MAX, None)
         .set_quantity(contract_address, U256::MAX)
-        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::one())
+        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::from(2))
         .build();
     let expected_error =
         MultipoolErrors::Overflow(errors::MultipoolOverflowErrors::QuotedQuantityOverflow);
-    println!("in check");
     assert_eq!(Err(expected_error), multipool.cap());
 }
 
