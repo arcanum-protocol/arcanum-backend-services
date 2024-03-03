@@ -3,8 +3,6 @@ use std::{env, str::FromStr};
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
-use futures::future::select;
-
 use clap::Parser;
 
 pub mod crypto;
@@ -82,7 +80,7 @@ async fn main() -> std::io::Result<()> {
     let args = Args::parse();
     let key = env::var("KEY").expect("KEY must be set");
 
-    let (storage, handle) = MultipoolStorageBuilder::default()
+    let storage = MultipoolStorageBuilder::default()
         .ledger(
             DiscLedger::new(args.ledger.into())
                 .await
@@ -97,7 +95,7 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Failed to build storage");
 
-    let server = HttpServer::new(move || {
+    HttpServer::new(move || {
         let cors = Cors::permissive();
         let key = key.clone();
         let storage = storage.clone();
@@ -110,7 +108,6 @@ async fn main() -> std::io::Result<()> {
             .service(get_asset_list)
     })
     .bind(format!("0.0.0.0:{}", args.api_port))?
-    .run();
-    select(server, std::pin::pin!(handle)).await;
-    Ok(())
+    .run()
+    .await
 }

@@ -11,7 +11,7 @@ use multipool_ledger::{ir::MultipoolStorageIR, MockLedger};
 
 use crate::builder::MultipoolStorageBuilder;
 
-use crate::ir_builder::{ExternalMultipool, MultipoolStorageIRBuilder};
+use crate::ir_builder::{ExternalFactory, ExternalMultipool, MultipoolStorageIRBuilder};
 use crate::multipool_with_meta::MultipoolWithMeta;
 
 #[tokio::test]
@@ -32,13 +32,13 @@ async fn storage_happy_path() -> Result<()> {
         .arg("--broadcast")
         .output()
         .await?;
-    println!("{out:?}");
+    println!("{}", String::from_utf8(out.stdout).unwrap());
 
     let rpc = RpcRobber::from_anvil_mock(
         anvil.endpoint(),
         anvil.chain_id(),
         Some(
-            "0x1dC8a38A078A17DFFeDCa3f576C45aE7309611EE"
+            "0x340f0BCD1310306eD33eF881fEABB18d788D6328"
                 .parse()
                 .unwrap(),
         ),
@@ -48,7 +48,7 @@ async fn storage_happy_path() -> Result<()> {
         .add_pool(
             MultipoolWithMeta::fill(
                 ExternalMultipool {
-                    contract_address: "0x195ADA83492986766C34f3e97bC1CA5454Aa2D46"
+                    contract_address: "0xA7Da2C3C2e2CCbF69dE3F9b089A7c4a6A74156Bf"
                         .parse()
                         .unwrap(),
                     assets: vec![
@@ -74,11 +74,18 @@ async fn storage_happy_path() -> Result<()> {
             .await
             .unwrap(),
         )
+        .add_factory(ExternalFactory {
+            factory_address: "0x6fab5332a5F677613C1Eba902d82B1BE15DE4D07"
+                .parse()
+                .unwrap(),
+            block_number: 0,
+        })
         .into();
 
-    let (storage, handle) = MultipoolStorageBuilder::default()
+    let storage = MultipoolStorageBuilder::default()
         .ledger(ledger)
         .rpc(rpc)
+        .monitoring_interval(100)
         .target_share_interval(100)
         .price_interval(100)
         .ledger_sync_interval(100)
@@ -94,6 +101,8 @@ async fn storage_happy_path() -> Result<()> {
         .unwrap();
     let pool = storage.get_pool(&address).await;
     println!("{pool:?}");
+
+    storage.abort_handles().await;
 
     Ok(())
 }

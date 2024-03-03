@@ -3,8 +3,8 @@ use std::{sync::Arc, time::Duration};
 use ethers::contract::Multicall;
 use ethers::prelude::*;
 
-use futures::{future::join_all, Future, FutureExt, TryFutureExt};
-use tokio::sync::RwLock;
+use futures::{future::join_all, TryFutureExt};
+use tokio::{sync::RwLock, task::JoinHandle};
 
 use super::MultipoolWithMeta;
 
@@ -21,19 +21,14 @@ impl MultipoolWithMeta {
         multipool: Arc<RwLock<MultipoolWithMeta>>,
         rpc: RpcRobber,
         fetch_interval: u64,
-    ) -> impl Future<Output = Result<()>> {
+    ) -> JoinHandle<Result<()>> {
         let contract_address = { multipool.read().await.multipool.contract_address() };
-
         tokio::spawn(fetch_price(
             rpc,
             fetch_interval,
             contract_address,
             multipool,
         ))
-        .map(|task| match task {
-            Err(e) => Err(e.into()),
-            Ok(v) => v,
-        })
     }
 }
 

@@ -1,22 +1,15 @@
-use std::{pin::Pin, time::Duration};
-
-use futures::{future::join_all, Future, FutureExt};
+use std::time::Duration;
 
 use multipool_ledger::Ledger;
 use rpc_controller::RpcRobber;
 
 use anyhow::Result;
+use tokio::task::JoinHandle;
 
 use crate::MultipoolStorage;
 
-use crate::multipool_with_meta::MultipoolWithMeta;
+use crate::factory_watcher::IntervalParams;
 
-/// Options to build
-/// * Use ledger and nothing else (if exists)
-/// * Use bootstrap node and save everything to ledger
-/// * Use bootstrap node and don't save to ledger
-/// * Add additional account
-/// * Add Factory address
 pub struct MultipoolStorageBuilder<L: Ledger> {
     ledger: Option<L>,
     rpc: Option<RpcRobber>,
@@ -24,6 +17,7 @@ pub struct MultipoolStorageBuilder<L: Ledger> {
     quantity_interval: Option<u64>,
     sync_interval: Option<u64>,
     price_interval: Option<u64>,
+    monitoring_interval: Option<u64>,
 }
 
 impl<L: Ledger> Default for MultipoolStorageBuilder<L> {
@@ -35,6 +29,7 @@ impl<L: Ledger> Default for MultipoolStorageBuilder<L> {
             quantity_interval: None,
             sync_interval: None,
             price_interval: None,
+            monitoring_interval: None,
         }
     }
 }
@@ -60,6 +55,11 @@ impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
         self
     }
 
+    pub fn monitoring_interval(mut self, interval: u64) -> Self {
+        self.monitoring_interval = Some(interval);
+        self
+    }
+
     pub fn quantity_interval(mut self, interval: u64) -> Self {
         self.quantity_interval = Some(interval);
         self
@@ -70,7 +70,7 @@ impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
         self
     }
 
-    pub async fn build(self) -> Result<(MultipoolStorage, impl Future)> {
+    pub async fn build(self) -> Result<MultipoolStorage> {
         let ledger = self.ledger.expect("Ledger is not set");
         let storage = MultipoolStorage::from_ir(ledger.read().await?);
 
@@ -83,39 +83,42 @@ impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
         let target_share_interval = self
             .target_share_interval
             .expect("Target share interval is not set");
+        let monitoring_intgerval = self
+            .monitoring_interval
+            .expect("Monitoring interval is not set");
+        let interval_params = IntervalParams {
+            price_fetch_interval,
+            quantity_fetch_interval: Some(quantity_fetch_interval),
+            target_share_fetch_interval: Some(target_share_interval),
+        };
 
-        let mut handles = Vec::<Pin<Box<dyn Future<Output = Result<()>>>>>::new();
-
-        let s = storage.inner.read().await;
-
-        for pool in s.pools.iter() {
-            let price_handle = MultipoolWithMeta::spawn_price_fetching_task(
-                pool.multipool.clone(),
-                rpc.clone(),
-                price_fetch_interval,
+        let pools = storage.inner.read().await.pools.clone();
+        storage
+            .run_multipool_tasks(
+                pools
+                    .iter()
+                    .map(|e| e.multipool.clone())
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+                &rpc,
+                &interval_params,
             )
             .await;
-            let event_handle = MultipoolWithMeta::spawn_event_fetching_task(
-                pool.multipool.clone(),
-                rpc.clone(),
-                Some(quantity_fetch_interval),
-                Some(target_share_interval),
-            )
+
+        let factories = storage.inner.read().await.factories.clone();
+        storage
+            .run_factory_tasks(&factories, &rpc, monitoring_intgerval, &interval_params)
             .await;
-            handles.push(price_handle.boxed());
-            handles.push(event_handle.boxed());
-        }
-        drop(s);
 
         let sync_handle = spawn_syncing_task(
             ledger,
             storage.clone(),
             self.sync_interval.expect("Sync interval is not set"),
         );
-        handles.push(sync_handle.boxed());
 
-        let handle = async { join_all(handles).await };
-        Ok((storage, handle))
+        storage.append_handle(sync_handle).await;
+
+        Ok(storage)
     }
 }
 
@@ -123,15 +126,12 @@ pub fn spawn_syncing_task<L: Ledger + Send + 'static>(
     ledger: L,
     storage: MultipoolStorage,
     sync_interval: u64,
-) -> impl Future<Output = Result<()>> {
-    async move {
-        tokio::task::spawn(async move {
-            loop {
-                let ir = storage.build_ir().await;
-                ledger.write(ir)?.await?;
-                tokio::time::sleep(Duration::from_millis(sync_interval)).await;
-            }
-        })
-        .await?
-    }
+) -> JoinHandle<Result<()>> {
+    tokio::task::spawn(async move {
+        loop {
+            let ir = storage.build_ir().await;
+            ledger.write(ir)?.await?;
+            tokio::time::sleep(Duration::from_millis(sync_interval)).await;
+        }
+    })
 }

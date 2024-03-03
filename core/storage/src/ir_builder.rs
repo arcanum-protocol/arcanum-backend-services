@@ -18,8 +18,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::RwLock;
 
+use crate::factory_watcher::FactoryWatcher;
 use crate::multipool_with_meta::MultipoolWithMeta;
-use crate::MultipoolFactory;
 use crate::MultipoolStorage;
 use crate::MultipoolStorageInner;
 use crate::StorageEntry;
@@ -54,8 +54,12 @@ impl MultipoolStorageIRBuilder for MultipoolStorageIR {
         self
     }
 
-    fn add_factory(self, factory: ExternalFactory) -> Self {
-        unimplemented!()
+    fn add_factory(mut self, factory: ExternalFactory) -> Self {
+        self.factories.push(MultipoolFactoryIR {
+            factory_block: factory.block_number,
+            factory_address: factory.factory_address,
+        });
+        self
     }
 }
 
@@ -87,8 +91,12 @@ fn build_multipool_ir(pool: MultipoolWithMeta) -> MultipoolIR {
 
 impl MultipoolStorage {
     pub async fn build_ir(&self) -> MultipoolStorageIR {
-        let value = self.inner.read().await.to_owned();
-        let pools = join_all(value.pools.into_iter().map(|pool| async move {
+        let value = self.inner.read().await;
+        let pools = value.pools.clone();
+        let factories = value.factories.clone();
+        drop(value);
+
+        let pools = join_all(pools.into_iter().map(|pool| async move {
             let mp = pool.multipool.read().await;
             let val = mp.to_owned();
             drop(mp);
@@ -98,26 +106,28 @@ impl MultipoolStorage {
         .into_iter()
         .map(build_multipool_ir)
         .collect();
-        let factories = value
-            .factories
-            .into_iter()
-            .map(|f| MultipoolFactoryIR {
-                factory_time: f.factory_time,
-                factory_address: f.factory_address,
-            })
-            .collect();
+        let factories = join_all(factories.into_iter().map(|factory| async move {
+            MultipoolFactoryIR {
+                factory_block: factory.block_number.read().await.clone().as_u64(),
+                factory_address: factory.factory_address,
+            }
+        }))
+        .await;
         MultipoolStorageIR { pools, factories }
     }
 
     pub fn from_ir(ir: MultipoolStorageIR) -> MultipoolStorage {
         MultipoolStorage {
             inner: Arc::new(RwLock::new(MultipoolStorageInner {
+                handles: Default::default(),
                 factories: ir
                     .factories
                     .into_iter()
-                    .map(|f| MultipoolFactory {
-                        factory_time: f.factory_time,
-                        factory_address: f.factory_address,
+                    .map(|f| {
+                        Arc::new(FactoryWatcher::new(
+                            f.factory_address,
+                            f.factory_block.into(),
+                        ))
                     })
                     .collect(),
                 pools: ir

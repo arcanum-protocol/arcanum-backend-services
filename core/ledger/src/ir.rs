@@ -26,7 +26,7 @@ impl Time {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MultipoolFactoryIR {
-    pub factory_time: Time,
+    pub factory_block: u64,
     pub factory_address: Address,
 }
 
