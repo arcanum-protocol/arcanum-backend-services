@@ -3,11 +3,8 @@ use std::{sync::Arc, time::Duration};
 use ethers::contract::Multicall;
 use ethers::prelude::*;
 
-use futures::{
-    future::{join_all, select},
-    Future, TryFutureExt,
-};
-use tokio::sync::RwLock;
+use futures::{future::join_all, TryFutureExt};
+use tokio::{sync::RwLock, task::JoinHandle};
 
 use crate::{contracts::multipool::MpAsset, ir_builder::ExternalMultipool};
 
@@ -29,7 +26,7 @@ impl MultipoolWithMeta {
         rpc: RpcRobber,
         quantity_fetch_interval: Option<u64>,
         target_share_fetch_interval: Option<u64>,
-    ) -> impl Future<Output = Result<()>> {
+    ) -> (JoinHandle<Result<()>>, JoinHandle<Result<()>>) {
         let mp = multipool.read().await;
         let contract_address = mp.multipool.contract_address();
         let quantity_from_block = mp.quantity_time.block;
@@ -60,11 +57,14 @@ impl MultipoolWithMeta {
             tokio::spawn(futures::future::pending())
         };
 
-        async {
-            match select(target_share_fetching_future, quantity_fetching_future).await {
-                futures::future::Either::Left((v, _)) => v?,
-                futures::future::Either::Right((v, _)) => v?,
-            }
+        (quantity_fetching_future, target_share_fetching_future)
+    }
+
+    pub fn new(address: Address, start_block: U64) -> Self {
+        Self {
+            multipool: Multipool::new(address),
+            quantity_time: Time::new(start_block),
+            share_time: Time::new(start_block),
         }
     }
 
