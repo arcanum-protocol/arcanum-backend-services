@@ -1,6 +1,9 @@
 [workspace]
 members = [
-    "core",
+    "core/*",
+    "utils/*",
+    "cli",
+    "node",
     "trading-view-api",
 ]
 resolver = "2"
