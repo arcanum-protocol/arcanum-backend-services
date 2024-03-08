@@ -28,8 +28,10 @@ multipool-ledger = { path = "../core/ledger" }
 
 async-process = "2.1.0"
 
+url = "2.5.0"
+
 sorts = "0.6.1"
-clap = { version = "4.5.0", features = ["derive"] }
+clap = { version = "4.5.0", features = ["derive", "string"] }
 
 colored = "2.1.0"
 

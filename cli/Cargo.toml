@@ -22,6 +22,11 @@ actix-cors = "0.6.4"
 actix-web = { version = "4.5.1", features = ["rustls"] }
 tokio-postgres = "0.7.10"
 
+url = "2.5.0"
+multipool-ledger = { path = "../core/ledger" }
+multipool-storage = { path = "../core/storage" }
+rpc-controller = { path = "../utils/rpc-controller" }
+
 async-process = "2.1.0"
 
 sorts = "0.6.1"

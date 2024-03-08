@@ -25,7 +25,7 @@ async fn storage_happy_path() -> Result<()> {
     let out = Command::new("forge")
         .arg("script")
         .arg("--root")
-        .arg(d)
+        .arg(&d)
         .arg("DeployTestEnv")
         .arg("--rpc-url")
         .arg(anvil.endpoint())
@@ -74,12 +74,14 @@ async fn storage_happy_path() -> Result<()> {
             .await
             .unwrap(),
         )
+        .unwrap()
         .add_factory(ExternalFactory {
             factory_address: "0x6fab5332a5F677613C1Eba902d82B1BE15DE4D07"
                 .parse()
                 .unwrap(),
             block_number: 0,
         })
+        .unwrap()
         .into();
 
     let storage = MultipoolStorageBuilder::default()
@@ -101,6 +103,23 @@ async fn storage_happy_path() -> Result<()> {
         .unwrap();
     let pool = storage.get_pool(&address).await;
     println!("{pool:?}");
+
+    let out = Command::new("forge")
+        .arg("script")
+        .arg("--root")
+        .arg(&d)
+        .arg("DeployEtfWithFactory")
+        .arg("--rpc-url")
+        .arg(anvil.endpoint())
+        .arg("--broadcast")
+        .output()
+        .await?;
+    println!("{}", String::from_utf8(out.stdout).unwrap());
+
+    sleep(Duration::from_millis(500)).await;
+
+    let pools = storage.pools().await;
+    println!("{pools:#?}");
 
     storage.abort_handles().await;
 

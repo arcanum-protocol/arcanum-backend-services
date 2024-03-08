@@ -2,6 +2,7 @@ use std::{env, str::FromStr};
 
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
+use url::Url;
 
 use clap::Parser;
 
@@ -14,20 +15,28 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("./ledger/"))]
     ledger: String,
 
-    /// Path to bootstrap data
-    #[arg(short, long)]
-    bootstrap: Option<String>,
-
     /// Path to config file
     #[arg(short, long)]
     rpc_config: Option<String>,
 
+    #[arg(long)]
+    price_fetch_interval: u64,
+
+    #[arg(long)]
+    quantity_fetch_interval: u64,
+
+    #[arg(long)]
+    share_fetch_interval: u64,
+
+    #[arg(long)]
+    sync_interval: u64,
+
     /// Path to config file
-    #[arg(short, long, default_value_t = String::from("8080"))]
-    api_port: String,
+    #[arg(short, long, default_value_t = 8080)]
+    bind_port: u64,
 }
 
-#[get("/api/v1/health")]
+#[get("/health")]
 async fn health() -> impl Responder {
     format!("ok")
 }
@@ -74,6 +83,17 @@ async fn get_asset_list(
     HttpResponse::Ok().json(assets)
 }
 
+#[get("/assets")]
+async fn get_assets(
+    params: web::Query<MultipoolId>,
+    storage: web::Data<MultipoolStorage>,
+) -> impl Responder {
+    let mp = storage.get_pool(&params.multipool_address).await.unwrap();
+    let mp = mp.read().await.clone();
+    let assets = mp.multipool.asset_list();
+    HttpResponse::Ok().json(assets)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -82,15 +102,15 @@ async fn main() -> std::io::Result<()> {
 
     let storage = MultipoolStorageBuilder::default()
         .ledger(
-            DiscLedger::new(args.ledger.into())
+            DiscLedger::at(args.ledger.into())
                 .await
                 .expect("Failed to set up ledger"),
         )
         .rpc(RpcRobber::read(args.rpc_config.unwrap().into()))
-        .target_share_interval(5000)
-        .price_interval(5000)
-        .ledger_sync_interval(10000)
-        .quantity_interval(5000)
+        .target_share_interval(args.share_fetch_interval)
+        .price_interval(args.price_fetch_interval)
+        .ledger_sync_interval(args.sync_interval)
+        .quantity_interval(args.quantity_fetch_interval)
         .build()
         .await
         .expect("Failed to build storage");
@@ -106,8 +126,9 @@ async fn main() -> std::io::Result<()> {
             .service(health)
             .service(get_signed_price)
             .service(get_asset_list)
+            .service(get_assets)
     })
-    .bind(format!("0.0.0.0:{}", args.api_port))?
+    .bind(format!("0.0.0.0:{}", args.bind_port))?
     .run()
     .await
 }
