@@ -43,23 +43,39 @@ impl ExternalMultipool {
     }
 }
 
-pub trait MultipoolStorageIRBuilder {
-    fn add_pool(self, pool: MultipoolWithMeta) -> Self;
-    fn add_factory(self, factory: ExternalFactory) -> Self;
+pub trait MultipoolStorageIRBuilder: Sized {
+    fn add_pool(self, pool: MultipoolWithMeta) -> Option<Self>;
+    fn add_factory(self, factory: ExternalFactory) -> Option<Self>;
 }
 
 impl MultipoolStorageIRBuilder for MultipoolStorageIR {
-    fn add_pool(mut self, pool: MultipoolWithMeta) -> Self {
+    fn add_pool(mut self, pool: MultipoolWithMeta) -> Option<Self> {
+        if self
+            .pools
+            .iter()
+            .find(|p| p.contract_address.eq(&pool.multipool.contract_address))
+            .is_some()
+        {
+            return None;
+        }
         self.pools.push(build_multipool_ir(pool));
-        self
+        Some(self)
     }
 
-    fn add_factory(mut self, factory: ExternalFactory) -> Self {
+    fn add_factory(mut self, factory: ExternalFactory) -> Option<Self> {
+        if self
+            .factories
+            .iter()
+            .find(|f| f.factory_address.eq(&factory.factory_address))
+            .is_some()
+        {
+            return None;
+        }
         self.factories.push(MultipoolFactoryIR {
             factory_block: factory.block_number,
             factory_address: factory.factory_address,
         });
-        self
+        Some(self)
     }
 }
 

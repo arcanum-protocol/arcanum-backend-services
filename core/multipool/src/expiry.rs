@@ -62,9 +62,9 @@ pub trait Merge: Sized {
     fn merge<V, F: FnOnce(Self::Item) -> V>(self, operator: F) -> MayBeExpired<V>;
 }
 
-#[macro_use]
 macro_rules! impl_merge {
     ($($type:ident),*) => {
+        #[allow(non_snake_case)]
         impl<$($type),*> Merge for ($(MayBeExpired<$type>),*)
         {
             type Item = ($($type),*);

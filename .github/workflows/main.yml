@@ -44,6 +44,7 @@ jobs:
         continue-on-error: true
         run: |
           cargo build --bin multipool-node --release --target=x86_64-unknown-linux-musl
+          cargo build --bin multipool-cli --release --target=x86_64-unknown-linux-musl
 
       - name: 🔎 Test
         id: cargo-testing
@@ -94,11 +95,15 @@ jobs:
 
       # build container
       - name: Build the Docker image
-        run: docker build --tag badconfig/arcanum-node -f node.Dockerfile .
+        run: |
+          docker build --build-arg BIN=multipool-node --tag badconfig/arcanum-node .
+          docker build --build-arg BIN=multipool-cli --tag badconfig/arcanum-cli .
 
       - name: Login to dockerhub
         run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
       - name: push image
-        run: docker push badconfig/arcanum-node 
+        run: |
+          docker push badconfig/arcanum-node 
+          docker push badconfig/arcanum-cli 
 
