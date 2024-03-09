@@ -8,11 +8,11 @@ use clap::Parser;
 use futures::{future::join_all, FutureExt};
 use multipool_cache::cache::CachedMultipoolData;
 
-use log::{error, Level};
-use opentelemetry::{global, KeyValue};
+use log::Level;
+use opentelemetry::KeyValue;
 use opentelemetry_appender_log::OpenTelemetryLogBridge;
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::logs::{BatchConfig, Config, LoggerProvider};
+use opentelemetry_sdk::logs::Config;
 use opentelemetry_sdk::Resource;
 
 #[derive(Parser, Debug)]
