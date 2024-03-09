@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use crate::{expiry::TimeExtractor, MultipoolFees};
 
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
 use ethers::prelude::*;
+use std::collections::HashMap;
 
 impl<T: TimeExtractor> Multipool<T> {
     pub fn update_fees(&mut self, fees: Option<MultipoolFees>, update_expiry: bool) {
@@ -104,7 +103,6 @@ impl<T: TimeExtractor> Multipool<T> {
                     .map(MayBeExpired::any_age)
                     .unwrap_or(U256::zero());
                 if let Some(new_share) = shares_set.remove(&asset.address) {
-                    println!("{} {} - {}", self.contract_address, total_shares, old_share);
                     total_shares -= old_share;
                     if new_share.is_zero() && asset.quantity_slot.is_none() {
                         return None;

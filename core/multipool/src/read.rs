@@ -36,17 +36,15 @@ impl<T: TimeExtractor> Multipool<T> {
             .iter()
             .map(|asset| -> Result<_, MultipoolErrors> { asset.quoted_quantity() })
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
-        merged_prices.iter().try_fold(
+        Ok(merged_prices.iter().fold(
             MayBeExpired::new(Default::default()),
             |a, b| -> Result<MayBeExpired<U256, T>, MultipoolErrors> {
                 (a, b.clone())
                     .merge(|(a, b)| a.checked_add(b))
                     .transpose()
-                    .ok_or(MultipoolErrors::Overflow(
-                        MultipoolOverflowErrors::PriceCapOverflow,
-                    ))
+                    .expect("should never be error, overflow will be earlier")
             },
-        )
+        ))
     }
 
     /// Returns optional price that may be expired, returns None if there is no such asset
@@ -82,9 +80,7 @@ impl<T: TimeExtractor> Multipool<T> {
         (asset.quoted_quantity()?, self.cap()?)
             .merge(|(q, c)| q.shl(X32).checked_div(c))
             .transpose()
-            .ok_or(MultipoolErrors::Overflow(
-                MultipoolOverflowErrors::TotalSupplyOverflow,
-            ))
+            .ok_or(MultipoolErrors::ZeroCap)
     }
 
     pub fn target_share(
@@ -98,7 +94,7 @@ impl<T: TimeExtractor> Multipool<T> {
         let total_shares = self
             .total_shares
             .clone()
-            .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
+            .expect("total_shares should always exists")
             .clone();
         (share, total_shares)
             .merge(|(s, t)| s.shl(X32).checked_div(t))
@@ -117,17 +113,11 @@ impl<T: TimeExtractor> Multipool<T> {
             self.current_share(asset_address)?,
         )
             .merge(|(t, c)| -> Result<I256, MultipoolErrors> {
-                let current_share = I256::try_from(c).map_err(|_| {
-                    MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig)
-                })?;
-                let target_share = I256::try_from(t).map_err(|_| {
-                    MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig)
-                })?;
-                current_share
+                let current_share = I256::try_from(c).expect("should always convert, shr X32");
+                let target_share = I256::try_from(t).expect("should always convert, shr X32");
+                Ok(current_share
                     .checked_sub(target_share)
-                    .ok_or(MultipoolErrors::Overflow(
-                        MultipoolOverflowErrors::TargetShareTooBig,
-                    ))
+                    .expect("should never overflow, both values are x32 values below hundred"))
             })
             .transpose()
     }
@@ -141,10 +131,11 @@ impl<T: TimeExtractor> Multipool<T> {
         let asset = self.asset(asset_address)?;
         let quantity = asset
             .quantity_slot
-            .unwrap_or(MayBeExpired::new(QuantityData {
-                quantity: U256::zero(),
-                cashback: U256::zero(),
-            }))
+            //.unwrap_or(MayBeExpired::new(QuantityData {
+            //    quantity: U256::zero(),
+            //    cashback: U256::zero(),
+            //}))
+            .ok_or(MultipoolErrors::QuantitySlotMissing(*asset_address))?
             .any_age()
             .quantity;
         let price = asset
@@ -158,28 +149,31 @@ impl<T: TimeExtractor> Multipool<T> {
         let total_shares = self
             .total_shares
             .clone()
-            .ok_or(MultipoolErrors::ShareMissing(*asset_address))?
+            .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
             .any_age();
-        let usd_cap = self.cap()?.any_age();
+        let usd_cap = U512::from(self.cap()?.any_age());
         let share_bound = (U256::try_from(target_deviation.checked_abs().ok_or(
-            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetShareTooBig),
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow),
         )?)
-        .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig))?
-            * total_shares)
+        .map_err(|_| {
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow)
+        })? * total_shares)
             >> 32;
         let result_share = if target_deviation.ge(&I256::from(0)) {
-            (share + share_bound).min(total_shares)
+            U512::from((share + share_bound).min(total_shares))
         } else {
-            share.checked_sub(share_bound).unwrap_or(U256::zero())
+            U512::from(share.checked_sub(share_bound).unwrap_or(U256::zero()))
         };
-        let amount = I256::from_raw(
-            U256::try_from(
-                U512::from(result_share) * U512::from(usd_cap << 96)
-                    / U512::from(price)
-                    / U512::from(total_shares),
-            )
-            .unwrap(),
-        ) - I256::from_raw(quantity);
+        let amount: I256 = I256::from_raw(
+            (result_share * (usd_cap << 96))
+                .checked_div(U512::from(price))
+                .expect("should never overflow")
+                .checked_div(U512::from(total_shares))
+                .expect("should never overflow")
+                .try_into()
+                .expect("should never overflow"),
+        );
+        let amount = amount - I256::from_raw(quantity);
         Ok(MayBeExpired::new(amount))
     }
 }

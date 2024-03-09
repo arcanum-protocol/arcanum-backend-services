@@ -92,10 +92,13 @@ impl<T: TimeExtractor> MultipoolAsset<T> {
             .ok_or(MultipoolErrors::PriceMissing(self.address))?;
         (slot, price)
             .merge(|(slot, price)| -> Option<U256> {
-                slot.quantity.checked_mul(price).map(|m| m.shr(X96))
+                let mul_result = slot.quantity.checked_mul(price)?;
+                Some(mul_result.shr(X96))
             })
             .transpose()
-            .ok_or(MultipoolErrors::QuotedQuantityMissing(self.address))
+            .ok_or(MultipoolErrors::Overflow(
+                errors::MultipoolOverflowErrors::QuotedQuantityOverflow,
+            ))
     }
 }
 
@@ -106,6 +109,11 @@ pub struct QuantityData {
 }
 
 impl QuantityData {
+    #[cfg(test)]
+    fn new(quantity: U256, cashback: U256) -> Self {
+        QuantityData { quantity, cashback }
+    }
+
     fn is_empty(&self) -> bool {
         self.quantity.is_zero() && self.cashback.is_zero()
     }
