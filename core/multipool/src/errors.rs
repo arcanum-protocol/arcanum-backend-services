@@ -4,7 +4,9 @@ use ethers::types::Address;
 pub enum MultipoolErrors {
     Overflow(MultipoolOverflowErrors),
     QuotedQuantityMissing(Address),
+    ZeroCap,
     QuantitySlotMissing(Address),
+    QuantitySlotQuantitySlotMissing(Address),
     AssetMissing(Address),
     PriceMissing(Address),
     TotalSupplyMissing(Address),
@@ -15,10 +17,7 @@ pub enum MultipoolErrors {
 #[derive(Debug, Clone)]
 pub enum MultipoolOverflowErrors {
     QuotedQuantityOverflow,
-    TargetShareOverflow,
     TargetDeviationOverflow,
     PriceCapOverflow,
     TotalSupplyOverflow,
-    CurrentShareTooBig,
-    TargetShareTooBig,
 }
