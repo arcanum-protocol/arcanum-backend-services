@@ -81,7 +81,7 @@ impl Multipool {
             .merge(|(q, c)| q.shl(X32).checked_div(c))
             .transpose()
             .ok_or(MultipoolErrors::Overflow(
-                MultipoolOverflowErrors::TotalSupplyOverflow,
+                MultipoolOverflowErrors::TotalSupplyOverflow, // ZeroCap
             ))
     }
 
@@ -98,6 +98,7 @@ impl Multipool {
             .clone()
             .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
             .clone();
+        println!("{:?},{:?}", share, total_shares);
         (share, total_shares)
             .merge(|(s, t)| s.shl(X32).checked_div(t))
             .transpose()
@@ -110,22 +111,17 @@ impl Multipool {
         &self,
         asset_address: &Address,
     ) -> Result<MayBeExpired<I256>, MultipoolErrors> {
+        println!("{:?}", self);
         (
             self.target_share(asset_address)?,
             self.current_share(asset_address)?,
         )
             .merge(|(t, c)| -> Result<I256, MultipoolErrors> {
-                let current_share = I256::try_from(c).map_err(|_| {
-                    MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig)
-                })?;
-                let target_share = I256::try_from(t).map_err(|_| {
-                    MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig)
-                })?;
-                current_share
+                let current_share = I256::try_from(c).expect("should always convert, shr X32");
+                let target_share = I256::try_from(t).expect("should always convert, shr X32");
+                Ok(current_share
                     .checked_sub(target_share)
-                    .ok_or(MultipoolErrors::Overflow(
-                        MultipoolOverflowErrors::TargetShareTooBig,
-                    ))
+                    .expect("should never overflow, both values are x32 values below hundred"))
             })
             .transpose()
     }
@@ -139,7 +135,7 @@ impl Multipool {
         let asset = self.asset(asset_address)?;
         let quantity = asset
             .quantity_slot
-            .ok_or(MultipoolErrors::PriceMissing(*asset_address))?
+            .ok_or(MultipoolErrors::QuantitySlotMissing(*asset_address))?
             .any_age()
             .quantity;
         let price = asset
@@ -153,14 +149,15 @@ impl Multipool {
         let total_shares = self
             .total_shares
             .clone()
-            .ok_or(MultipoolErrors::ShareMissing(*asset_address))?
+            .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
             .any_age();
         let usd_cap = self.cap()?.any_age();
         let share_bound = (U256::try_from(target_deviation.checked_abs().ok_or(
-            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetShareTooBig),
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow),
         )?)
-        .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig))?
-            * total_shares)
+        .map_err(|_| {
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow)
+        })? * total_shares)
             >> 32;
         let amount = if target_deviation.gt(&I256::from(0)) {
             I256::from_raw((share + share_bound).min(total_shares) * usd_cap / price / total_shares)

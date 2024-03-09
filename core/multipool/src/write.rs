@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
 use ethers::prelude::*;
+use std::collections::HashMap;
 
 impl Multipool {
-    /// Prices are updated if these assets present in pool. Otherwhise there is no effect
     pub fn update_prices(&mut self, prices: &[(Address, Price)], update_expiry: bool) {
         //TODO: replase with 0(max(len(prices), len(self.assets)))
         let prices_set: HashMap<Address, Price> = prices.iter().cloned().collect();

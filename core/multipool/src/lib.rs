@@ -57,7 +57,9 @@ impl MultipoolAsset {
                 slot.quantity.checked_mul(price).map(|m| m.shr(X96))
             })
             .transpose()
-            .ok_or(MultipoolErrors::QuotedQuantityMissing(self.address))
+            .ok_or(MultipoolErrors::Overflow(
+                errors::MultipoolOverflowErrors::QuotedQuantityOverflow,
+            ))
     }
 }
 

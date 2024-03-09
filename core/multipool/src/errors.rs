@@ -19,6 +19,4 @@ pub enum MultipoolOverflowErrors {
     TargetDeviationOverflow,
     PriceCapOverflow,
     TotalSupplyOverflow,
-    CurrentShareTooBig,
-    TargetShareTooBig,
 }
