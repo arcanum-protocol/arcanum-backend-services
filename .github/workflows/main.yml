@@ -93,17 +93,21 @@ jobs:
           # || steps.cargo-clippy.outcome != 'success' 
         run: exit 1
 
+      - name: Find commit short sha
+        id: commitsha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
       # build container
       - name: Build the Docker image
         run: |
-          docker build --build-arg BIN=multipool-node --tag badconfig/arcanum-node .
-          docker build --build-arg BIN=multipool-cli --tag badconfig/arcanum-cli .
+          docker build --build-arg BIN=multipool-node --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} .
+          docker build --build-arg BIN=multipool-cli --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} .
 
       - name: Login to dockerhub
         run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
       - name: push image
         run: |
-          docker push badconfig/arcanum-node 
-          docker push badconfig/arcanum-cli 
+          docker push badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }}
+          docker push badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} 
 
