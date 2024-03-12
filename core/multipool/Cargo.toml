@@ -35,3 +35,4 @@ log = "0.4.20"
 
 [dev-dependencies]
 pretty_assertions="1.4.0"
+lazy_static = "1.4.0"

@@ -2390,6 +2390,7 @@ dependencies = [
  "env_logger",
  "ethers",
  "futures",
+ "lazy_static",
  "log",
  "pretty_assertions",
  "primitive-types",

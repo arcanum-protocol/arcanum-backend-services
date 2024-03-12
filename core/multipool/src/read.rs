@@ -34,6 +34,7 @@ impl Multipool {
             .iter()
             .map(|asset| -> Result<_, MultipoolErrors> { asset.quoted_quantity() })
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
+        println!("{:?}", merged_prices);
         merged_prices.iter().try_fold(
             MayBeExpired::new(Default::default()),
             |a, b| -> Result<MayBeExpired<U256>, MultipoolErrors> {
@@ -77,12 +78,10 @@ impl Multipool {
         asset_address: &Address,
     ) -> Result<MayBeExpired<Share>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
-        (asset.quoted_quantity()?, self.cap()?)
+        Ok((asset.quoted_quantity()?, self.cap()?)
             .merge(|(q, c)| q.shl(X32).checked_div(c))
             .transpose()
-            .ok_or(MultipoolErrors::Overflow(
-                MultipoolOverflowErrors::TotalSupplyOverflow, // ZeroCap
-            ))
+            .expect("cap should always not be zero"))
     }
 
     pub fn target_share(
@@ -96,9 +95,8 @@ impl Multipool {
         let total_shares = self
             .total_shares
             .clone()
-            .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
+            .expect("total_shares should always exists")
             .clone();
-        println!("{:?},{:?}", share, total_shares);
         (share, total_shares)
             .merge(|(s, t)| s.shl(X32).checked_div(t))
             .transpose()
@@ -111,7 +109,6 @@ impl Multipool {
         &self,
         asset_address: &Address,
     ) -> Result<MayBeExpired<I256>, MultipoolErrors> {
-        println!("{:?}", self);
         (
             self.target_share(asset_address)?,
             self.current_share(asset_address)?,

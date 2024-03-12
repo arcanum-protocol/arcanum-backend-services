@@ -54,7 +54,8 @@ impl MultipoolAsset {
             .ok_or(MultipoolErrors::PriceMissing(self.address))?;
         (slot, price)
             .merge(|(slot, price)| -> Option<U256> {
-                slot.quantity.checked_mul(price).map(|m| m.shr(X96))
+                let mul_result = slot.quantity.checked_mul(price)?;
+                Some(mul_result.shr(X96))
             })
             .transpose()
             .ok_or(MultipoolErrors::Overflow(
