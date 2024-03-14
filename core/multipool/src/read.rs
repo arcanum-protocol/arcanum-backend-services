@@ -34,7 +34,6 @@ impl Multipool {
             .iter()
             .map(|asset| -> Result<_, MultipoolErrors> { asset.quoted_quantity() })
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
-        println!("{:?}", merged_prices);
         merged_prices.iter().try_fold(
             MayBeExpired::new(Default::default()),
             |a, b| -> Result<MayBeExpired<U256>, MultipoolErrors> {
