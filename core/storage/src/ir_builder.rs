@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 use crate::factory_watcher::FactoryWatcher;
 use crate::multipool_with_meta::MultipoolWithMeta;
 use crate::MultipoolStorage;
+use crate::MultipoolStorageHook;
 use crate::MultipoolStorageInner;
 use crate::StorageEntry;
 
@@ -105,7 +106,7 @@ fn build_multipool_ir(pool: MultipoolWithMeta) -> MultipoolIR {
     }
 }
 
-impl MultipoolStorage {
+impl<H: MultipoolStorageHook> MultipoolStorage<H> {
     pub async fn build_ir(&self) -> MultipoolStorageIR {
         let value = self.inner.read().await;
         let pools = value.pools.clone();
@@ -132,9 +133,10 @@ impl MultipoolStorage {
         MultipoolStorageIR { pools, factories }
     }
 
-    pub fn from_ir(ir: MultipoolStorageIR) -> MultipoolStorage {
+    pub fn from_ir(ir: MultipoolStorageIR) -> MultipoolStorage<H> {
         MultipoolStorage {
             inner: Arc::new(RwLock::new(MultipoolStorageInner {
+                hook: Default::default(),
                 handles: Default::default(),
                 factories: ir
                     .factories

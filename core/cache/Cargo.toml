@@ -1,5 +1,5 @@
 [package]
-name = "multipool-node"
+name = "multipool-cache"
 version = "0.1.0"
 edition = "2021"
 
@@ -22,11 +22,7 @@ actix-cors = "0.6.4"
 actix-web = { version = "4.5.1", features = ["rustls"] }
 tokio-postgres = "0.7.10"
 
-multipool-storage = { path = "../core/storage" }
-multipool-cache = { path = "../core/cache" }
-multipool-trader = { path = "../trader" }
-rpc-controller = { path = "../utils/rpc-controller" }
-multipool-ledger = { path = "../core/ledger" }
+multipool-storage = { path = "../storage" }
 
 dashmap = "5.5.3"
 async-process = "2.1.0"

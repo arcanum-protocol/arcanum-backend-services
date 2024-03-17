@@ -5,7 +5,7 @@ use ethers::prelude::*;
 use rpc_controller::RpcRobber;
 use tokio::{sync::RwLock, task::JoinHandle};
 
-use crate::MultipoolStorage;
+use crate::{MultipoolStorage, MultipoolStorageHook};
 
 const RETRIES: Option<usize> = Some(3);
 
@@ -30,9 +30,11 @@ impl FactoryWatcher {
         }
     }
 
-    pub async fn spawn_new_multipool_monitoring_task(
+    pub async fn spawn_new_multipool_monitoring_task<
+        H: MultipoolStorageHook + Send + Sync + 'static,
+    >(
         factory_watcher: Arc<FactoryWatcher>,
-        multipool_storage: MultipoolStorage,
+        multipool_storage: MultipoolStorage<H>,
         rpc: RpcRobber,
         monitoring_interval: u64,
         intervals: IntervalParams,
@@ -47,10 +49,10 @@ impl FactoryWatcher {
     }
 }
 
-pub async fn fetch_spawn_events(
+pub async fn fetch_spawn_events<H: MultipoolStorageHook + Send + Sync + 'static>(
     rpc: RpcRobber,
     fetch_interval: u64,
-    multipool_storage: MultipoolStorage,
+    multipool_storage: MultipoolStorage<H>,
     factory_watcher: Arc<FactoryWatcher>,
     intervals: IntervalParams,
 ) -> Result<()> {

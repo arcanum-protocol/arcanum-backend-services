@@ -1,23 +1,24 @@
-use std::{env, str::FromStr};
+use std::{env, sync::Arc};
 
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
-use url::Url;
 
 use clap::Parser;
-
-pub mod crypto;
+use multipool_cache::cache::CachedMultipoolData;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// Path to ledger storage
-    #[arg(short, long, default_value_t = String::from("./ledger/"))]
+    #[arg(short, long, default_value_t = String::from("./ledger"))]
     ledger: String,
 
     /// Path to config file
-    #[arg(short, long)]
+    #[arg(long)]
     rpc_config: Option<String>,
+
+    #[arg(long)]
+    uniswap_config: Option<String>,
 
     #[arg(long)]
     price_fetch_interval: u64,
@@ -31,6 +32,9 @@ struct Args {
     #[arg(long)]
     sync_interval: u64,
 
+    #[arg(long)]
+    monitoring_interval: u64,
+
     /// Path to config file
     #[arg(short, long, default_value_t = 8080)]
     bind_port: u64,
@@ -42,11 +46,13 @@ async fn health() -> impl Responder {
 }
 
 use multipool_ledger::DiscLedger;
+use multipool_trader::{trade::Uniswap, TraderHook};
 use rpc_controller::RpcRobber;
 
-use ethers::{signers::Wallet, types::Address};
-use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage};
+use ethers::types::Address;
+use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage, MultipoolStorageHook};
 use serde::Deserialize;
+use tokio::runtime::Handle;
 
 #[derive(Deserialize)]
 struct MultipoolId {
@@ -56,26 +62,18 @@ struct MultipoolId {
 #[get("/signed_price")]
 async fn get_signed_price(
     params: web::Query<MultipoolId>,
-    key: web::Data<String>,
-    storage: web::Data<MultipoolStorage>,
+    cache: web::Data<Arc<CachedMultipoolData>>,
 ) -> impl Responder {
-    let signer = Wallet::from_str(&key).unwrap();
-    let mp = storage.get_pool(&params.multipool_address).await.unwrap();
-    let mp = mp.read().await.clone();
-    let price = mp
-        .multipool
-        .get_price(&params.multipool_address)
-        .unwrap()
-        .not_older_than(180)
-        .unwrap();
-    let price = crypto::sign(params.multipool_address, price, 1, &signer);
-    HttpResponse::Ok().json(price)
+    cache
+        .get_signed_price(&params.multipool_address)
+        .map(|price| HttpResponse::Ok().json(price))
+        .unwrap_or(HttpResponse::NotFound().json("Price not found"))
 }
 
 #[get("/asset_list")]
 async fn get_asset_list(
     params: web::Query<MultipoolId>,
-    storage: web::Data<MultipoolStorage>,
+    storage: web::Data<MultipoolStorage<()>>,
 ) -> impl Responder {
     let mp = storage.get_pool(&params.multipool_address).await.unwrap();
     let mp = mp.read().await.clone();
@@ -86,7 +84,7 @@ async fn get_asset_list(
 #[get("/assets")]
 async fn get_assets(
     params: web::Query<MultipoolId>,
-    storage: web::Data<MultipoolStorage>,
+    storage: web::Data<MultipoolStorage<()>>,
 ) -> impl Responder {
     let mp = storage.get_pool(&params.multipool_address).await.unwrap();
     let mp = mp.read().await.clone();
@@ -100,28 +98,63 @@ async fn main() -> std::io::Result<()> {
     let args = Args::parse();
     let key = env::var("KEY").expect("KEY must be set");
 
+    let rpc = RpcRobber::read(args.rpc_config.unwrap().into());
+
+    let cache = Arc::new(CachedMultipoolData::default());
+
+    let hook = if let Some(path) = args.uniswap_config {
+        let uniswap = Arc::new(Uniswap::try_from_file(path.into()));
+        let weth: Address = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+            .parse()
+            .unwrap();
+        let trader_hook = TraderHook {
+            uniswap,
+            cache: cache.clone(),
+            rpc: rpc.clone(),
+            handle: Handle::current(),
+            weth,
+        };
+        Some(trader_hook)
+    } else {
+        None
+    };
+
     let storage = MultipoolStorageBuilder::default()
         .ledger(
             DiscLedger::at(args.ledger.into())
                 .await
                 .expect("Failed to set up ledger"),
         )
-        .rpc(RpcRobber::read(args.rpc_config.unwrap().into()))
+        .rpc(rpc.clone())
         .target_share_interval(args.share_fetch_interval)
         .price_interval(args.price_fetch_interval)
         .ledger_sync_interval(args.sync_interval)
         .quantity_interval(args.quantity_fetch_interval)
+        .monitoring_interval(args.monitoring_interval)
+        .set_hook(hook)
         .build()
         .await
         .expect("Failed to build storage");
 
+    {
+        let cache = cache.clone();
+        let storage = storage.clone();
+        tokio::spawn(async move {
+            cache
+                .clone()
+                .refresh(storage, 5000, 180, rpc.chain_id.into(), key.clone())
+                .await
+        });
+    }
+
     HttpServer::new(move || {
         let cors = Cors::permissive();
-        let key = key.clone();
+        //let key = key.clone();
         let storage = storage.clone();
+        let cache = cache.clone();
         App::new()
             .wrap(cors)
-            .app_data(web::Data::new(key))
+            .app_data(web::Data::new(cache))
             .app_data(web::Data::new(storage))
             .service(health)
             .service(get_signed_price)
