@@ -3,6 +3,7 @@ members = [
     "core/*",
     "utils/*",
     "cli",
+    "trader",
     "node",
     "trading-view-api",
 ]

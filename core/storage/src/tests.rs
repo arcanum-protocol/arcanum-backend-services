@@ -33,12 +33,13 @@ async fn storage_happy_path() -> Result<()> {
         .output()
         .await?;
     println!("{}", String::from_utf8(out.stdout).unwrap());
+    println!("{}", String::from_utf8(out.stderr).unwrap());
 
     let rpc = RpcRobber::from_anvil_mock(
         anvil.endpoint(),
         anvil.chain_id(),
         Some(
-            "0x340f0BCD1310306eD33eF881fEABB18d788D6328"
+            "0x4368d13BD0D8B42062D4655Ca04607E60BB73F7b"
                 .parse()
                 .unwrap(),
         ),
@@ -48,23 +49,23 @@ async fn storage_happy_path() -> Result<()> {
         .add_pool(
             MultipoolWithMeta::fill(
                 ExternalMultipool {
-                    contract_address: "0xA7Da2C3C2e2CCbF69dE3F9b089A7c4a6A74156Bf"
+                    contract_address: "0xb9F6151B58C127145FCB4Fd720dCAd3C10113638"
                         .parse()
                         .unwrap(),
                     assets: vec![
-                        "0x501E089d6343dd5f5afC7cf522F026C0Bf6aaBa2"
+                        "0x3a822B7099a4D43099D26A2A5de655692F854fc0"
                             .parse()
                             .unwrap(),
-                        "0xE08568d896e1F4bd589f0D62Cf1e5eC28eD03512"
+                        "0x65177a42ce789f8111C879Bd53e96DEBED63c685"
                             .parse()
                             .unwrap(),
-                        "0xeb3136343921DFB2771F64fd3F07153513F8e347"
+                        "0x9d9330483B898343Ef68aF2700076B5d610e210c"
                             .parse()
                             .unwrap(),
-                        "0xe392c9E817B2237a5AA192228aEAEfDA2F2c035F"
+                        "0xFE8028Ba8EcB69c02fce2c47F3162E1150C5DDBa"
                             .parse()
                             .unwrap(),
-                        "0x882BCE1C2045657E167E2dc5e897635770Ea2582"
+                        "0xC09dD591C3C0C8f762378065649f98a02F512dA4"
                             .parse()
                             .unwrap(),
                     ],
@@ -76,7 +77,7 @@ async fn storage_happy_path() -> Result<()> {
         )
         .unwrap()
         .add_factory(ExternalFactory {
-            factory_address: "0x6fab5332a5F677613C1Eba902d82B1BE15DE4D07"
+            factory_address: "0xAfef20a6b3e05d6bc9b9541d9BF692E7914406F0"
                 .parse()
                 .unwrap(),
             block_number: 0,
@@ -92,13 +93,14 @@ async fn storage_happy_path() -> Result<()> {
         .price_interval(100)
         .ledger_sync_interval(100)
         .quantity_interval(100)
+        .set_hook(Some(()))
         .build()
         .await
         .expect("Failed to build storage");
 
     sleep(Duration::from_millis(500)).await;
 
-    let address = "0x195ADA83492986766C34f3e97bC1CA5454Aa2D46"
+    let address = "0xb9F6151B58C127145FCB4Fd720dCAd3C10113638"
         .parse()
         .unwrap();
     let pool = storage.get_pool(&address).await;

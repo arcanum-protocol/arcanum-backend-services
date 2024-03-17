@@ -16,16 +16,33 @@ use multipool_with_meta::MultipoolWithMeta;
 use rpc_controller::RpcRobber;
 use tokio::{sync::RwLock, task::JoinHandle};
 
-#[derive(Debug, Default, Clone)]
-pub struct MultipoolStorage {
-    inner: Arc<RwLock<MultipoolStorageInner>>,
+pub trait MultipoolStorageHook: Send + Sync {
+    fn new_pool(&self, pool: Arc<RwLock<MultipoolWithMeta>>);
 }
 
 #[derive(Debug, Default)]
-pub struct MultipoolStorageInner {
+pub struct MultipoolStorage<H: MultipoolStorageHook> {
+    inner: Arc<RwLock<MultipoolStorageInner<H>>>,
+}
+
+impl MultipoolStorageHook for () {
+    fn new_pool(&self, _pool: Arc<RwLock<MultipoolWithMeta>>) {}
+}
+
+impl<H: MultipoolStorageHook> Clone for MultipoolStorage<H> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MultipoolStorageInner<H: MultipoolStorageHook> {
     pub pools: Vec<StorageEntry>,
     pub factories: Vec<Arc<FactoryWatcher>>,
     pub handles: Vec<JoinHandle<Result<()>>>,
+    pub hook: Option<H>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +61,7 @@ impl StorageEntry {
     }
 }
 
-impl MultipoolStorage {
+impl<H: MultipoolStorageHook + Send + Sync + 'static> MultipoolStorage<H> {
     pub async fn insert_new_pools(
         &self,
         pools: &[(Address, U64)],
@@ -56,10 +73,13 @@ impl MultipoolStorage {
             let mp = Arc::new(RwLock::new(MultipoolWithMeta::new(*address, *block_number)));
             new_pools.push(mp.clone());
             let entry = StorageEntry {
-                multipool: mp,
+                multipool: mp.clone(),
                 address: *address,
             };
             self.inner.write().await.pools.push(entry);
+            if let Some(ref h) = self.inner.read().await.hook {
+                h.new_pool(mp);
+            }
         }
         self.run_multipool_tasks(new_pools.as_slice(), rpc, intervals)
             .await;
@@ -88,7 +108,7 @@ impl MultipoolStorage {
         for factory in factories {
             let factory_handle = FactoryWatcher::spawn_new_multipool_monitoring_task(
                 factory.clone(),
-                self.clone(),
+                (*self).clone(),
                 rpc.clone(),
                 monitor_interval,
                 intervals.clone(),

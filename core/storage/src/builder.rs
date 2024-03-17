@@ -6,11 +6,11 @@ use rpc_controller::RpcRobber;
 use anyhow::Result;
 use tokio::task::JoinHandle;
 
-use crate::MultipoolStorage;
+use crate::{MultipoolStorage, MultipoolStorageHook};
 
 use crate::factory_watcher::IntervalParams;
 
-pub struct MultipoolStorageBuilder<L: Ledger> {
+pub struct MultipoolStorageBuilder<L: Ledger, H: MultipoolStorageHook> {
     ledger: Option<L>,
     rpc: Option<RpcRobber>,
     target_share_interval: Option<u64>,
@@ -18,9 +18,10 @@ pub struct MultipoolStorageBuilder<L: Ledger> {
     sync_interval: Option<u64>,
     price_interval: Option<u64>,
     monitoring_interval: Option<u64>,
+    hook: Option<H>,
 }
 
-impl<L: Ledger> Default for MultipoolStorageBuilder<L> {
+impl<L: Ledger, H: MultipoolStorageHook> Default for MultipoolStorageBuilder<L, H> {
     fn default() -> Self {
         Self {
             ledger: None,
@@ -30,11 +31,14 @@ impl<L: Ledger> Default for MultipoolStorageBuilder<L> {
             sync_interval: None,
             price_interval: None,
             monitoring_interval: None,
+            hook: None,
         }
     }
 }
 
-impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
+impl<L: Ledger + Send + 'static, H: MultipoolStorageHook + Send + Sync + 'static>
+    MultipoolStorageBuilder<L, H>
+{
     pub fn ledger(mut self, ledger: L) -> Self {
         self.ledger = Some(ledger);
         self
@@ -55,6 +59,11 @@ impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
         self
     }
 
+    pub fn set_hook(mut self, hook: Option<H>) -> Self {
+        self.hook = hook;
+        self
+    }
+
     pub fn monitoring_interval(mut self, interval: u64) -> Self {
         self.monitoring_interval = Some(interval);
         self
@@ -70,7 +79,7 @@ impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
         self
     }
 
-    pub async fn build(self) -> Result<MultipoolStorage> {
+    pub async fn build(self) -> Result<MultipoolStorage<H>> {
         let ledger = self.ledger.expect("Ledger is not set");
         let storage = MultipoolStorage::from_ir(ledger.read().await?);
 
@@ -122,9 +131,12 @@ impl<L: Ledger + Send + 'static> MultipoolStorageBuilder<L> {
     }
 }
 
-pub fn spawn_syncing_task<L: Ledger + Send + 'static>(
+pub fn spawn_syncing_task<
+    L: Ledger + Send + 'static,
+    H: MultipoolStorageHook + Send + Sync + 'static,
+>(
     ledger: L,
-    storage: MultipoolStorage,
+    storage: MultipoolStorage<H>,
     sync_interval: u64,
 ) -> JoinHandle<Result<()>> {
     tokio::task::spawn(async move {
