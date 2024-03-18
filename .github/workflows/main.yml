@@ -45,6 +45,7 @@ jobs:
         run: |
           cargo build --bin multipool-node --release --target=x86_64-unknown-linux-musl
           cargo build --bin multipool-cli --release --target=x86_64-unknown-linux-musl
+          cargo build --bin trading-view-api --release --target=x86_64-unknown-linux-musl
 
       - name: 🔎 Test
         id: cargo-testing
@@ -68,6 +69,12 @@ jobs:
         continue-on-error: true
 
       - run: du -sh target/x86_64-unknown-linux-musl/release/multipool-node
+        continue-on-error: true
+
+      - run: chmod ugo+x target/x86_64-unknown-linux-musl/release/multipool-node
+        continue-on-error: true
+
+      - run: chmod ugo+x target/x86_64-unknown-linux-musl/release/multipool-cli
         continue-on-error: true
 
       - name: Delete Previous Cache
@@ -100,8 +107,9 @@ jobs:
       # build container
       - name: Build the Docker image
         run: |
-          docker build --build-arg BIN=multipool-node --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} .
-          docker build --build-arg BIN=multipool-cli --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} .
+          docker build --build-arg="BIN=multipool-node" --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} .
+          docker build --build-arg="BIN=multipool-cli" --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} .
+          docker build --build-arg="BIN=trading-view-api" --tag badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} .
 
       - name: Login to dockerhub
         run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
@@ -110,4 +118,5 @@ jobs:
         run: |
           docker push badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }}
           docker push badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} 
+          docker push badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} 
 
