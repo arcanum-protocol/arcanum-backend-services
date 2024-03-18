@@ -21,19 +21,19 @@ struct Args {
     uniswap_config: Option<String>,
 
     #[arg(long)]
-    price_fetch_interval: u64,
+    price_fetch_interval: Option<u64>,
 
     #[arg(long)]
-    quantity_fetch_interval: u64,
+    quantity_fetch_interval: Option<u64>,
 
     #[arg(long)]
-    share_fetch_interval: u64,
+    share_fetch_interval: Option<u64>,
 
     #[arg(long)]
-    sync_interval: u64,
+    sync_interval: Option<u64>,
 
     #[arg(long)]
-    monitoring_interval: u64,
+    monitoring_interval: Option<u64>,
 
     /// Path to config file
     #[arg(short, long, default_value_t = 8080)]
@@ -50,7 +50,7 @@ use multipool_trader::{trade::Uniswap, TraderHook};
 use rpc_controller::RpcRobber;
 
 use ethers::types::Address;
-use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage, MultipoolStorageHook};
+use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage};
 use serde::Deserialize;
 use tokio::runtime::Handle;
 
@@ -126,11 +126,11 @@ async fn main() -> std::io::Result<()> {
                 .expect("Failed to set up ledger"),
         )
         .rpc(rpc.clone())
-        .target_share_interval(args.share_fetch_interval)
-        .price_interval(args.price_fetch_interval)
-        .ledger_sync_interval(args.sync_interval)
-        .quantity_interval(args.quantity_fetch_interval)
-        .monitoring_interval(args.monitoring_interval)
+        .target_share_interval(args.share_fetch_interval.unwrap_or(10000))
+        .price_interval(args.price_fetch_interval.unwrap_or(1000))
+        .ledger_sync_interval(args.sync_interval.unwrap_or(500))
+        .quantity_interval(args.quantity_fetch_interval.unwrap_or(1000))
+        .monitoring_interval(args.monitoring_interval.unwrap_or(1000))
         .set_hook(hook)
         .build()
         .await
