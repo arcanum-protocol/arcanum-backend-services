@@ -141,7 +141,7 @@ impl RpcRobber {
     }
 
     pub async fn aquire<
-        E,
+        E: std::fmt::Debug,
         R,
         T: Future<Output = core::result::Result<R, E>> + Send,
         F: (Fn(Arc<providers::Provider<providers::Http>>, Option<Address>) -> T) + Send + Sync,
@@ -154,10 +154,12 @@ impl RpcRobber {
         let mut r = self.providers[index].aquire(&action, self.multicall).await;
         let retries = retries.unwrap_or(1);
         for _ in iter::repeat(()).take(retries) {
-            if r.is_ok() {
-                break;
-            } else {
-                r = self.providers[index].aquire(&action, self.multicall).await;
+            match r {
+                Ok(_) => break,
+                Err(e) => {
+                    log::warn!("rpc call failed: {:?}", e);
+                    r = self.providers[index].aquire(&action, self.multicall).await;
+                }
             }
         }
         r

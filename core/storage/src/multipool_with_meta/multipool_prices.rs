@@ -14,7 +14,7 @@ use multipool::Price;
 
 use anyhow::Result;
 
-const RETRIES: Option<usize> = Some(3);
+const RETRIES: Option<usize> = Some(1000);
 
 impl MultipoolWithMeta {
     pub async fn spawn_price_fetching_task(

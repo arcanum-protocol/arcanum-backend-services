@@ -2,9 +2,6 @@ name: Cached rust build
 on: 
   push:
 
-env:
-  SOLANA_VERSION: v1.16.15
-
 permissions:
   contents: read
   actions: write # require to delete cache
@@ -107,16 +104,15 @@ jobs:
       # build container
       - name: Build the Docker image
         run: |
-          docker build --build-arg="BIN=multipool-node" --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} .
-          docker build --build-arg="BIN=multipool-cli" --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} .
-          docker build --build-arg="BIN=trading-view-api" --tag badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} .
+          docker build --build-arg="BIN=multipool-node" --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-node:latest .
+          docker build --build-arg="BIN=multipool-cli" --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-cli:latest .
+          docker build --build-arg="BIN=trading-view-api" --tag badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/trading-view-api:latest .
 
       - name: Login to dockerhub
         run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
       - name: push image
         run: |
-          docker push badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }}
-          docker push badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} 
-          docker push badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} 
-
+          docker push --all-tags badconfig/arcanum-node 
+          docker push --all-tags badconfig/arcanum-cli 
+          docker push --all-tags badconfig/trading-view-api 

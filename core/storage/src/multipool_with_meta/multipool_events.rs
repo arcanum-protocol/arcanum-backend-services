@@ -18,7 +18,7 @@ use multipool::{Multipool, QuantityData, Share};
 
 use anyhow::Result;
 
-const RETRIES: Option<usize> = Some(3);
+const RETRIES: Option<usize> = Some(1000);
 
 impl MultipoolWithMeta {
     pub async fn spawn_event_fetching_task(
@@ -131,16 +131,15 @@ pub async fn fetch_quantities(
     loop {
         interval.tick().await;
 
-        let to_block = current_block(&rpc).await?;
-        let quantity_updates =
-            get_quantities_updates(&rpc, contract_address, from_block, to_block).await?;
+        let (quantity_updates, to_block) =
+            get_quantities_updates(&rpc, contract_address, from_block).await?;
         {
             let mut mp = multipool_storage.write().await;
             mp.multipool.update_quantities(&quantity_updates, true);
             mp.quantity_time = Time::new(to_block);
             drop(mp);
         }
-        from_block = to_block + 1;
+        from_block = to_block;
     }
 }
 
@@ -156,16 +155,15 @@ pub async fn fetch_target_shares(
     loop {
         interval.tick().await;
 
-        let to_block = current_block(&rpc).await?;
-        let target_shares_updates =
-            get_target_shares_updates(&rpc, contract_address, from_block, to_block).await?;
+        let (target_shares_updates, to_block) =
+            get_target_shares_updates(&rpc, contract_address, from_block).await?;
         {
             let mut mp = multipool_storage.write().await;
             mp.multipool.update_shares(&target_shares_updates, true);
             mp.share_time = Time::new(to_block);
             drop(mp);
         }
-        from_block = to_block + 1;
+        from_block = to_block;
     }
 }
 
@@ -251,23 +249,25 @@ pub async fn get_quantities_updates(
     rpc: &RpcRobber,
     contract_address: Address,
     from_block: U64,
-    to_block: U64,
-) -> Result<Vec<(Address, QuantityData)>> {
+) -> Result<(Vec<(Address, QuantityData)>, U64)> {
     rpc.aquire(
         move |provider, _| async move {
-            multipool_at(contract_address, provider.clone())
+            //TODO: change to declarative
+            let to_block = provider.get_block_number().await?;
+            let events = multipool_at(contract_address, provider.clone())
                 .asset_change_filter()
                 .from_block(from_block)
-                .to_block(to_block)
+                .to_block(to_block - 1)
                 .query()
-                .await
-                .map_err(Into::into)
+                .await?;
+            Ok((events, to_block))
         },
         RETRIES,
     )
     .await
-    .map(|logs| {
-        logs.into_iter()
+    .map(|(logs, block)| {
+        let logs = logs
+            .into_iter()
             .map(|log| {
                 (
                     log.asset,
@@ -277,7 +277,8 @@ pub async fn get_quantities_updates(
                     },
                 )
             })
-            .collect()
+            .collect();
+        (logs, block)
     })
 }
 
@@ -285,24 +286,27 @@ pub async fn get_target_shares_updates(
     rpc: &RpcRobber,
     contract_address: Address,
     from_block: U64,
-    to_block: U64,
-) -> Result<Vec<(Address, Share)>> {
+) -> Result<(Vec<(Address, Share)>, U64)> {
     rpc.aquire(
         move |provider, _| async move {
-            multipool_at(contract_address, provider.clone())
+            //TODO: change to declarative
+            let to_block = provider.get_block_number().await?;
+            let events = multipool_at(contract_address, provider.clone())
                 .target_share_change_filter()
                 .from_block(from_block)
-                .to_block(to_block)
+                .to_block(to_block - 1)
                 .query()
-                .await
-                .map_err(Into::into)
+                .await?;
+            Ok((events, to_block))
         },
         RETRIES,
     )
     .await
-    .map(|logs| {
-        logs.into_iter()
+    .map(|(logs, to_block)| {
+        let logs = logs
+            .into_iter()
             .map(|log| (log.asset, log.new_target_share))
-            .collect()
+            .collect();
+        (logs, to_block)
     })
 }

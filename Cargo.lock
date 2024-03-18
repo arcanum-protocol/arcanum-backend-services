@@ -2408,6 +2408,7 @@ dependencies = [
  "ethers",
  "futures",
  "log",
+ "multipool",
  "multipool-storage",
  "primitive-types",
  "rand",
@@ -4262,7 +4263,9 @@ dependencies = [
 name = "trading-view-api"
 version = "0.1.0"
 dependencies = [
+ "actix-cors",
  "actix-web",
+ "ethers",
  "log",
  "postgres",
  "serde",

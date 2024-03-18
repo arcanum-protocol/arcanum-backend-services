@@ -35,7 +35,7 @@ impl Multipool {
             .map(|asset| -> Result<_, MultipoolErrors> { asset.quoted_quantity() })
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
         merged_prices.iter().try_fold(
-            merged_prices[0].clone(),
+            MayBeExpired::new(Default::default()),
             |a, b| -> Result<MayBeExpired<U256>, MultipoolErrors> {
                 (a, b.clone())
                     .merge(|(a, b)| a.checked_add(b))
