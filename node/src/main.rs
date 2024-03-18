@@ -51,7 +51,7 @@ use multipool_ledger::DiscLedger;
 use multipool_trader::{trade::Uniswap, TraderHook};
 use rpc_controller::RpcRobber;
 
-use ethers::types::Address;
+use ethers::{abi::AbiEncode, types::Address};
 use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage, StorageEntry};
 use serde::Deserialize;
 use tokio::{runtime::Handle, time::sleep};
@@ -206,8 +206,7 @@ async fn main() -> std::io::Result<()> {
                                             ($2::TEXT::NUMERIC*$3::TEXT::NUMERIC/power(2::NUMERIC,96))\
                                         )",
                                         &[
-                                            &serde_json::to_string(&address)
-                                                .expect("Failed to serialize address"),
+                                            &address.encode_hex(),
                                             &price.to_string(),
                                             &eth_price.to_string(),
                                         ],
