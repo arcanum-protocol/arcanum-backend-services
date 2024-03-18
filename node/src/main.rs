@@ -1,9 +1,11 @@
-use std::{env, sync::Arc};
+use std::{env, iter::repeat, sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
+use anyhow::anyhow;
 use clap::Parser;
+use futures::{future::join_all, FutureExt};
 use multipool_cache::cache::CachedMultipoolData;
 
 #[derive(Parser, Debug)]
@@ -50,9 +52,10 @@ use multipool_trader::{trade::Uniswap, TraderHook};
 use rpc_controller::RpcRobber;
 
 use ethers::types::Address;
-use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage};
+use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage, StorageEntry};
 use serde::Deserialize;
-use tokio::runtime::Handle;
+use tokio::{runtime::Handle, time::sleep};
+use tokio_postgres::NoTls;
 
 #[derive(Deserialize)]
 struct MultipoolId {
@@ -97,6 +100,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     let args = Args::parse();
     let key = env::var("KEY").expect("KEY must be set");
+    let database_url = env::var("DATABASE_URL");
 
     let rpc = RpcRobber::read(args.rpc_config.unwrap().into());
 
@@ -145,6 +149,85 @@ async fn main() -> std::io::Result<()> {
                 .refresh(storage, 5000, 180, rpc.chain_id.into(), key.clone())
                 .await
         });
+    }
+
+    if let Ok(database_url) = database_url {
+        let (client, connection) = tokio_postgres::connect(&database_url, NoTls)
+            .await
+            .expect("Postres connect should be valid");
+        let client = Arc::new(client);
+
+        // The connection object performs the actual communication with the database,
+        // so spawn it off to run on its own.
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+                std::process::exit(0x0700);
+            }
+        });
+
+        {
+            let storage = storage.clone();
+            tokio::spawn(async move {
+                sleep(Duration::from_millis(500)).await;
+                loop {
+                    let eth_price = reqwest::get(
+                        "https://token-rates-aggregator.1inch.io/v1.0/native-token-rate?vs=USD",
+                    )
+                    .await
+                    .unwrap()
+                    .json::<serde_json::Value>()
+                    .await
+                    .unwrap()
+                    .get("1")
+                    .expect("KEY \"1\" should present")
+                    .get("USD")
+                    .expect("KEY \"USD\" should present")
+                    .as_f64()
+                    .expect("Value should be a valid float");
+                    let client = client.clone();
+                    storage
+                    .pools()
+                    .then(move |p| {
+                        join_all(p.into_iter().zip(repeat(client.clone())).map(
+                            move |(StorageEntry { multipool, address }, client)| async move {
+                                let price = multipool
+                                    .read()
+                                    .await
+                                    .multipool
+                                    .get_price(&address)
+                                    .map_err(|e| anyhow!("{e:?}"))?
+                                    .not_older_than(180)
+                                    .ok_or(anyhow!("Price expired"))?;
+                                client
+                                    .execute(
+                                        "call assemble_stats(\
+                                            $1::TEXT,\
+                                            ($2::TEXT::NUMERIC*$3::TEXT::NUMERIC/power(2::NUMERIC,96))\
+                                        )",
+                                        &[
+                                            &serde_json::to_string(&address)
+                                                .expect("Failed to serialize address"),
+                                            &price.to_string(),
+                                            &eth_price.to_string(),
+                                        ],
+                                    )
+                                    .await
+                                    .unwrap();
+                                anyhow::Ok(())
+                            },
+                        ))
+                    })
+                    .then(|res| {
+                        println!("executed {res:?}");
+                        sleep(Duration::from_millis(100))
+                    })
+                    .await;
+                }
+            });
+        }
+    } else {
+        println!("Running without database");
     }
 
     HttpServer::new(move || {
