@@ -27,6 +27,8 @@ multipool-storage = { path = "../storage" }
 dashmap = "5.5.3"
 async-process = "2.1.0"
 
+multipool = { path = "../multipool" }
+
 url = "2.5.0"
 
 sorts = "0.6.1"

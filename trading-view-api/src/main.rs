@@ -1,15 +1,15 @@
-use std::{collections::HashMap, env};
+use std::env;
+use std::sync::Arc;
 
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-use serde_json::Value;
 use tokio_postgres::{Client, NoTls};
 
-enum ApiErrors {
-    ResolutionOverflow,
-}
+use actix_cors::Cors;
+
+use ethers::prelude::*;
 
 #[derive(Deserialize)]
 pub struct SymbolRequest {
@@ -18,18 +18,18 @@ pub struct SymbolRequest {
 
 #[derive(Deserialize)]
 pub struct HistoryRequest {
-    to: String,
-    countback: u128,
+    to: i64,
+    countback: i64,
     resolution: String,
-    symbol: String,
+    symbol: Address,
 }
 
 #[derive(Deserialize)]
 pub struct StatsRequest {
-    multipool_id: String,
+    multipool_id: Address,
 }
 
-#[get("/api/tv/config")]
+#[get("/config")]
 async fn config() -> impl Responder {
     HttpResponse::Ok().json(json!({
         "supported_resolutions": ["1", "3", "5", "15", "30", "60", "720", "1D"],
@@ -41,17 +41,17 @@ async fn config() -> impl Responder {
     }))
 }
 
-#[get("/api/tv/symbols")]
+#[get("/symbols")]
 async fn symbols(query_params: web::Query<SymbolRequest>) -> impl Responder {
     let symbol = &query_params.symbol;
     HttpResponse::Ok().json(json!({
-        "description": "Description",
+        "description": " ",
         "supported_resolutions": ["1", "3", "5", "15", "30", "60", "720", "1D"],
         "exchange": "no",
-        "full_name": symbol,
-        "name": symbol,
-        "symbol": symbol,
-        "ticker": symbol,
+        "full_name": symbol.to_string(),
+        "name": symbol.to_string(),
+        "symbol": symbol.to_string(),
+        "ticker": symbol.to_string(),
         "type": "Spot",
         "session": "24x7",
         "listed_exchange": "no",
@@ -67,37 +67,49 @@ async fn hello() -> impl Responder {
     HttpResponse::Ok().body("Hello world!")
 }
 
-#[get("/api/tv/history")]
+#[get("/history")]
 async fn history(
     query_params: web::Query<HistoryRequest>,
-    client: web::Data<Client>,
+    client: web::Data<Arc<Client>>,
 ) -> HttpResponse {
     let to = &query_params.to;
     let symbol = &query_params.symbol;
     let countback = query_params.countback;
-    let resolution: i64;
+    let resolution: i32;
     if query_params.resolution == "1D" {
         resolution = 1440 * 60
     } else {
-        let parsed_number: Result<i64, _> = query_params.resolution.parse();
+        let parsed_number: Result<i32, _> = query_params.resolution.parse();
         resolution = match parsed_number {
             Ok(num) => num * 60,
             Err(err) => return HttpResponse::Ok().json(json!({"err":err.to_string()})),
         };
     }
     let query = format!(
-        "SELECT open as o, close as c, low as l, high as h, ts as t
-            FROM candles
-            WHERE ts <= $1
+        "SELECT 
+            open::TEXT as o, 
+            close::TEXT as c, 
+            low::TEXT as l, 
+            high::TEXT as h, 
+            ts::TEXT as t
+        FROM 
+            candles
+        WHERE 
+            ts <= $1
             AND resolution = $2
             AND multipool_id = $3
-            ORDER BY ts DESC
-            LIMIT $4;"
+        ORDER BY ts DESC
+        LIMIT $4;"
     );
     let result = client
         .query(
             query.as_str(),
-            &[&to, &resolution, &symbol, &(countback as i64)],
+            &[
+                &to,
+                &resolution,
+                &serde_json::to_string(&symbol).unwrap().trim_matches('\"'),
+                &countback,
+            ],
         )
         .await;
     match result {
@@ -105,20 +117,14 @@ async fn history(
             if rows.len() == 0 {
                 return HttpResponse::Ok().json(json!({"s": "no_data"}));
             }
-            let mut o_vec: Vec<u32> = vec![];
-            let mut c_vec: Vec<f64> = vec![];
-            let mut l_vec: Vec<f64> = vec![];
-            let mut h_vec: Vec<f64> = vec![];
-            let mut t_vec: Vec<f64> = vec![];
-            rows.iter().for_each(|row| {
-                o_vec.push(row.get("o"));
-                c_vec.push(row.get("c"));
-                l_vec.push(row.get("l"));
-                h_vec.push(row.get("h"));
-                t_vec.push(row.get("t"));
-            });
-            HttpResponse::Ok()
-                .json(json!({"s":"ok", "t": t_vec,"o": o_vec, "c": c_vec, "l": l_vec, "h": h_vec }))
+            HttpResponse::Ok().json(json!({
+                "s":"ok",
+                "t": rows.iter().rev().map(|r| r.get("t") ).collect::<Vec<String>>(),
+                "o": rows.iter().rev().map(|r| r.get("o") ).collect::<Vec<String>>(),
+                "c": rows.iter().rev().map(|r| r.get("c") ).collect::<Vec<String>>(),
+                "l": rows.iter().rev().map(|r| r.get("l") ).collect::<Vec<String>>(),
+                "h": rows.iter().rev().map(|r| r.get("h") ).collect::<Vec<String>>(),
+            }))
         }
         Err(err) => {
             println!("{:?}", err);
@@ -127,15 +133,30 @@ async fn history(
     }
 }
 
-#[get("/api/stats")]
-async fn stats(query_params: web::Query<StatsRequest>, client: web::Data<Client>) -> HttpResponse {
+#[get("/stats")]
+async fn stats(
+    query_params: web::Query<StatsRequest>,
+    client: web::Data<Arc<Client>>,
+) -> HttpResponse {
     let multipool_id = &query_params.multipool_id;
     let query = "
-                SELECT *
+                SELECT 
+                    multipool_id,
+                    change_24h::TEXT,
+                    low_24h::TEXT,
+                    high_24h::TEXT,
+                    current_price::TEXT
                 FROM multipools
                 WHERE multipool_id = $1;
             ";
-    let result = client.query(query, &[&multipool_id.to_lowercase()]).await;
+    let result = client
+        .query(
+            query,
+            &[&serde_json::to_string(&multipool_id)
+                .unwrap()
+                .trim_matches('\"')],
+        )
+        .await;
     match result {
         Ok(rows) => {
             if let Some(row) = rows.first() {
@@ -157,18 +178,22 @@ async fn stats(query_params: web::Query<StatsRequest>, client: web::Data<Client>
 async fn main() -> std::io::Result<()> {
     let bind_address = env::var("BIND_ADDRESS").unwrap_or("0.0.0.0:8080".into());
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    println!("{:?},{:?}", database_url, bind_address);
     let (client, connection) = tokio_postgres::connect(&database_url, NoTls)
         .await
         .expect("Postres connect should be valid");
     tokio::spawn(async move {
         if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
+            println!("connection error: {}", e);
             std::process::exit(0x0700);
         }
     });
-    HttpServer::new(|| {
+    let client = Arc::new(client);
+    HttpServer::new(move || {
+        let cors = Cors::permissive();
+        let client = client.clone();
         App::new()
+            .wrap(cors)
+            .app_data(web::Data::new(client))
             .service(config)
             .service(symbols)
             .service(history)

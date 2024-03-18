@@ -51,8 +51,8 @@ use multipool_ledger::DiscLedger;
 use multipool_trader::{trade::Uniswap, TraderHook};
 use rpc_controller::RpcRobber;
 
-use ethers::{abi::AbiEncode, types::Address};
-use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage, StorageEntry};
+use ethers::types::Address;
+use multipool_storage::{builder::MultipoolStorageBuilder, StorageEntry};
 use serde::Deserialize;
 use tokio::{runtime::Handle, time::sleep};
 use tokio_postgres::NoTls;
@@ -76,23 +76,29 @@ async fn get_signed_price(
 #[get("/asset_list")]
 async fn get_asset_list(
     params: web::Query<MultipoolId>,
-    storage: web::Data<MultipoolStorage<()>>,
+    cache: web::Data<Arc<CachedMultipoolData>>,
 ) -> impl Responder {
-    let mp = storage.get_pool(&params.multipool_address).await.unwrap();
-    let mp = mp.read().await.clone();
-    let assets = mp.multipool.asset_list();
+    let assets = cache
+        .get_pool(&params.multipool_address)
+        .unwrap()
+        .asset_list();
     HttpResponse::Ok().json(assets)
 }
 
 #[get("/assets")]
-async fn get_assets(
-    params: web::Query<MultipoolId>,
-    storage: web::Data<MultipoolStorage<()>>,
-) -> impl Responder {
-    let mp = storage.get_pool(&params.multipool_address).await.unwrap();
-    let mp = mp.read().await.clone();
-    let assets = mp.multipool.asset_list();
-    HttpResponse::Ok().json(assets)
+async fn get_assets(cache: web::Data<Arc<CachedMultipoolData>>) -> impl Responder {
+    let pools = cache.get_pools();
+    HttpResponse::Ok().json(
+        pools
+            .into_iter()
+            .map(|p| {
+                serde_json::json!({
+                    "pool": p,
+                    "cap": p.cap().ok(),
+                })
+            })
+            .collect::<Vec<serde_json::Value>>(),
+    )
 }
 
 #[actix_web::main]
@@ -131,10 +137,10 @@ async fn main() -> std::io::Result<()> {
         )
         .rpc(rpc.clone())
         .target_share_interval(args.share_fetch_interval.unwrap_or(10000))
-        .price_interval(args.price_fetch_interval.unwrap_or(1000))
+        .price_interval(args.price_fetch_interval.unwrap_or(5000))
         .ledger_sync_interval(args.sync_interval.unwrap_or(500))
-        .quantity_interval(args.quantity_fetch_interval.unwrap_or(1000))
-        .monitoring_interval(args.monitoring_interval.unwrap_or(1000))
+        .quantity_interval(args.quantity_fetch_interval.unwrap_or(5000))
+        .monitoring_interval(args.monitoring_interval.unwrap_or(5000))
         .set_hook(hook)
         .build()
         .await
@@ -206,7 +212,8 @@ async fn main() -> std::io::Result<()> {
                                             ($2::TEXT::NUMERIC*$3::TEXT::NUMERIC/power(2::NUMERIC,96))\
                                         )",
                                         &[
-                                            &address.encode_hex(),
+                                            &serde_json::to_string(&address)
+                                            .expect("Addres serialization should be correct").trim_matches('\"'),
                                             &price.to_string(),
                                             &eth_price.to_string(),
                                         ],
@@ -217,8 +224,8 @@ async fn main() -> std::io::Result<()> {
                             },
                         ))
                     })
-                    .then(|res| {
-                        println!("executed {res:?}");
+                    .then(|_res| {
+                        //println!("executed {res:?}");
                         sleep(Duration::from_millis(100))
                     })
                     .await;
