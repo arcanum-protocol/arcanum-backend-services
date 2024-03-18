@@ -5,6 +5,7 @@ members = [
     "cli",
     "trader",
     "node",
+    "postgres-worker",
     "trading-view-api",
 ]
 resolver = "2"
