@@ -12,7 +12,7 @@ use multipool_cache::cache::CachedMultipoolData;
 #[command(version, about, long_about = None)]
 struct Args {
     /// Path to ledger storage
-    #[arg(short, long, default_value_t = String::from("./ledger"))]
+    #[arg(short, long, default_value_t = String::from("./ledger/"))]
     ledger: String,
 
     /// Path to config file
