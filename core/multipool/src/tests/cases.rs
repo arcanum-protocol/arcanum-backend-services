@@ -1,4 +1,4 @@
-use super::multipool_builder::{read_method_fixture, MultipoolMockBuilder};
+use super::multipool_builder::{multipool_fixture, read_method_fixture, MultipoolMockBuilder};
 use super::*;
 use ethers::prelude::*;
 use lazy_static::lazy_static;
@@ -12,27 +12,6 @@ lazy_static! {
         H160::from_low_u64_le(4),
         H160::from_low_u64_le(5),
     ];
-}
-
-#[test]
-fn check_base() {
-    let contract_address = H160::from_low_u64_be(0x10);
-    let expected = MultipoolMockBuilder::new(contract_address).multipool_fixture(
-        contract_address,
-        ADDRESSES.to_vec(),
-        U256::from(10) << 96,
-    );
-    let multipool = MultipoolMockBuilder::new(contract_address)
-        .insert_assets(ADDRESSES.to_vec())
-        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::from(10) << 96)
-        .fill_updated_shares_with_value(ADDRESSES.to_vec(), U256::from(10) << 96)
-        .fill_updated_quantities_with_value(
-            ADDRESSES.to_vec(),
-            U256::from(10) << 96,
-            Some(contract_address),
-        )
-        .build();
-    assert_eq!(expected, multipool)
 }
 
 //NOTE check write methods
@@ -131,76 +110,68 @@ fn check_update_quantities() {
     assert_eq!(expected, multipool);
 }
 
-//NOTE happy_path_read
 #[test]
-//build new instance of multipool with read methods
-fn happy_path_read() {
+fn check_multipool_initialization() {
     let contract_address = H160::from_low_u64_be(0x10);
-    let expected = MultipoolMockBuilder::new(contract_address)
+    let expected = multipool_fixture(contract_address, ADDRESSES.to_vec(), U256::from(10) << 96);
+    let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
-        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::from(10))
-        .fill_updated_shares_with_value(ADDRESSES.to_vec(), U256::from(10))
+        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::from(10) << 96)
+        .fill_updated_shares_with_value(ADDRESSES.to_vec(), U256::from(10) << 96)
         .fill_updated_quantities_with_value(
             ADDRESSES.to_vec(),
-            U256::from(10),
+            U256::from(10) << 96,
             Some(contract_address),
         )
         .build();
-    let mut multipool = MultipoolMockBuilder::new(contract_address).build();
-
-    // fill multipool with values
-    let addresses = expected.asset_list();
-    let mut total_shares: MayBeExpired<U256> = MayBeExpired::new(U256::zero());
-    let mut total_supply: MayBeExpired<U256> = MayBeExpired::new(U256::zero());
-    let mut assets: Vec<MultipoolAsset> = vec![];
-    for address in addresses.iter() {
-        let price = Some(expected.get_price(address).unwrap());
-        let expected_asset = expected.asset(address).unwrap();
-        let share = expected_asset.share;
-        let quantity_slot = expected_asset.quantity_slot;
-        let asset = MultipoolAsset {
-            address: *address,
-            price,
-            share: share.clone(),
-            quantity_slot: quantity_slot.clone(),
-        };
-        assets.push(asset);
-
-        total_shares = (total_shares, share.unwrap()).merge(|(ts, s)| ts + s);
-        total_supply = (
-            total_supply,
-            MayBeExpired::new(quantity_slot.unwrap().any_age().quantity),
-        )
-            .merge(|(ts, q)| ts + q);
-    }
-    multipool.assets = assets;
-    multipool.total_shares = Some(total_shares);
-    multipool.total_supply = Some(total_supply);
-    assert_eq!(expected, multipool);
-    todo!("think about diffrent pathes and checks");
+    assert_eq!(expected, multipool)
 }
 
-//NOTE
+//NOTE READ METHODS
+
+#[test]
+fn check_get_price() {
+    let contract_address = H160::from_low_u64_be(0x10);
+    let multipool = read_method_fixture(contract_address);
+    let price = multipool.get_price(&ADDRESSES[2].clone());
+    assert_eq!(
+        price.unwrap().any_age(),
+        U256::from_dec_str("4278320775770274230051373318144").unwrap()
+    );
+    let price = multipool.get_price(&contract_address);
+    assert_eq!(
+        price.unwrap().any_age(),
+        U256::from_dec_str("4201854926370611818649680345474").unwrap()
+    )
+}
 
 #[test]
 fn check_deviation() {
     let contract_address = H160::from_low_u64_be(0x10);
     let multipool = read_method_fixture(contract_address);
     let deviation = multipool.deviation(&ADDRESSES[2].clone());
-    assert_eq!(
-        deviation.unwrap().any_age(),
-        I256::from_dec_str("-205548970").unwrap()
-    )
+    assert_eq!(deviation.unwrap().any_age(), I256::from(-205507736))
 }
 
 #[test]
-fn quantity_to_deviation() {
+fn quantity_to_deviation_positive() {
     let contract_address = H160::from_low_u64_be(0x10);
     let multipool = read_method_fixture(contract_address);
     let quantity_to_deviation = multipool.quantity_to_deviation(&ADDRESSES[1], I256::from(10));
     assert_eq!(
         quantity_to_deviation.unwrap().any_age(),
-        I256::from_dec_str("-633825300114114700748351602448").unwrap()
+        I256::from_dec_str("-633825300114114700748351602449").unwrap()
+    )
+}
+
+#[test]
+fn quantity_to_deviation_negative() {
+    let contract_address = H160::from_low_u64_be(0x10);
+    let multipool = read_method_fixture(contract_address);
+    let quantity_to_deviation = multipool.quantity_to_deviation(&ADDRESSES[2], I256::from(-20));
+    assert_eq!(
+        quantity_to_deviation.unwrap().any_age(),
+        I256::from_dec_str("-316912650057057350374175801252").unwrap()
     )
 }
 
@@ -211,7 +182,7 @@ fn check_current_share() {
     let current_share = multipool.current_share(&ADDRESSES[4].clone());
     assert_eq!(
         current_share.unwrap().any_age(),
-        U256::from_dec_str("3579245887").unwrap()
+        U256::from_dec_str("3595289123").unwrap()
     )
 }
 
@@ -220,15 +191,10 @@ fn check_target_share() {
     let contract_address = H160::from_low_u64_be(0x10);
     let multipool = read_method_fixture(contract_address);
     let target_share = multipool.target_share(&ADDRESSES[4].clone());
-    println!("{:?}", target_share);
-    assert_eq!(
-        target_share.unwrap().any_age(),
-        U256::from_dec_str("1717986918").unwrap()
-    )
+    assert_eq!(target_share.unwrap().any_age(), U256::from(1717986918))
 }
 
 //NOTE ERRORS
-
 //MULTIPOOL ASSET ERRORS
 #[test]
 fn check_asset_missing() {
@@ -244,25 +210,28 @@ fn check_asset_missing() {
 //MULTIPOOL CAP ERRORS
 
 #[test]
-fn check_cap_fields_missing() {
+fn check_cap_quantity_slot_missing() {
     let contract_address = H160::from_low_u64_be(0x10);
-    let mut multipool = MultipoolMockBuilder::new(contract_address)
+    let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
         .build();
 
     // check quantity slot missing
     let expected_error = MultipoolErrors::QuantitySlotMissing(ADDRESSES[0].clone());
     assert_eq!(Err(expected_error), multipool.cap());
+}
 
-    // modify data for next error
-    multipool.assets.iter_mut().for_each(|asset| {
-        asset.quantity_slot = Some(MayBeExpired::new(QuantityData {
-            cashback: U256::from(10),
-            quantity: U256::from(10),
-        }))
-    });
-
-    // check price missing
+#[test]
+fn check_cap_price_missing() {
+    let contract_address = H160::from_low_u64_be(0x10);
+    let multipool = MultipoolMockBuilder::new(contract_address)
+        .insert_assets(ADDRESSES.to_vec())
+        .fill_updated_quantities_with_value(
+            ADDRESSES.to_vec(),
+            U256::from(10),
+            Some(contract_address),
+        )
+        .build();
     let expected_error = MultipoolErrors::PriceMissing(ADDRESSES[0].clone());
     assert_eq!(Err(expected_error), multipool.cap());
 }
@@ -274,14 +243,15 @@ fn check_cap_overflow() {
         .insert_assets(ADDRESSES.to_vec())
         .fill_updated_quantities_with_value(
             ADDRESSES.to_vec(),
-            U256::from(10),
-            Some(contract_address),
+            U256::MAX, //U256::from(100000000) << 96,
+            None,
         )
-        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::from(2))
+        .set_quantity(contract_address, U256::MAX)
+        .fill_updated_prices_with_value(ADDRESSES.to_vec(), U256::one())
         .build();
-
     let expected_error =
         MultipoolErrors::Overflow(errors::MultipoolOverflowErrors::QuotedQuantityOverflow);
+    println!("in check");
     assert_eq!(Err(expected_error), multipool.cap());
 }
 

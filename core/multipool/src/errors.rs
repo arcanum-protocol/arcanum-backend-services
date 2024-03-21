@@ -5,6 +5,7 @@ pub enum MultipoolErrors {
     Overflow(MultipoolOverflowErrors),
     QuotedQuantityMissing(Address),
     QuantitySlotMissing(Address),
+    QuantitySlotQuantitySlotMissing(Address),
     AssetMissing(Address),
     PriceMissing(Address),
     TotalSupplyMissing(Address),
@@ -15,7 +16,6 @@ pub enum MultipoolErrors {
 #[derive(Debug, Clone, PartialEq)]
 pub enum MultipoolOverflowErrors {
     QuotedQuantityOverflow,
-    TargetShareOverflow,
     TargetDeviationOverflow,
     PriceCapOverflow,
     TotalSupplyOverflow,

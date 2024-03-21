@@ -40,11 +40,9 @@ impl Multipool {
                 (a, b.clone())
                     .merge(|(a, b)| a.checked_add(b))
                     .transpose()
-                    .ok_or(MultipoolErrors::Overflow(
-                        MultipoolOverflowErrors::PriceCapOverflow,
-                    ))
+                    .expect("should never be error, overflow will be earlier")
             },
-        )
+        ))
     }
 
     /// Returns optional price that may be expired, returns None if there is no such asset
