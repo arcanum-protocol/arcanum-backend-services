@@ -127,16 +127,13 @@ impl RpcRobber {
         Self {
             providers: Provider::providers_from_iter(params.providers),
             chain_id: params.chain_id,
-            multicall: params
-                .multicall_address
-                .map(|v| Some(v))
-                .unwrap_or_else(|| {
-                    if MULTICALL_SUPPORTED_CHAIN_IDS.contains(&params.chain_id) {
-                        Some(MULTICALL_ADDRESS)
-                    } else {
-                        None
-                    }
-                }),
+            multicall: params.multicall_address.map(Some).unwrap_or_else(|| {
+                if MULTICALL_SUPPORTED_CHAIN_IDS.contains(&params.chain_id) {
+                    Some(MULTICALL_ADDRESS)
+                } else {
+                    None
+                }
+            }),
         }
     }
 

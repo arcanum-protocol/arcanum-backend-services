@@ -28,7 +28,7 @@ impl Ledger for DiscLedger {
         let packed_data = data.try_pack()?;
         Ok(async move {
             let mut file = fs::File::create(tmp_path.clone()).await?;
-            file.write(&packed_data).await?;
+            file.write_all(&packed_data).await?;
             fs::rename(tmp_path, state_path).await?;
             Ok(())
         })

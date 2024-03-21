@@ -53,7 +53,7 @@ impl MultipoolStorageHook for TraderHook {
                         share_price: signed_price.share_price.parse().unwrap(),
                         signatures: vec![signed_price.signature.parse().unwrap()],
                     },
-                    weth: hook_data.weth.clone(),
+                    weth: hook_data.weth,
                     uniswap: hook_data.uniswap.clone(),
                 };
                 for asset1 in asset_list.iter() {

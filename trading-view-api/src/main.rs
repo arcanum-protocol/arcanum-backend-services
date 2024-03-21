@@ -75,18 +75,17 @@ async fn history(
     let to = &query_params.to;
     let symbol = &query_params.symbol;
     let countback = query_params.countback;
-    let resolution: i32;
-    if query_params.resolution == "1D" {
-        resolution = 1440 * 60
+    let resolution: i32 = if query_params.resolution == "1D" {
+        1440 * 60
     } else {
         let parsed_number: Result<i32, _> = query_params.resolution.parse();
-        resolution = match parsed_number {
+        match parsed_number {
             Ok(num) => num * 60,
             Err(err) => return HttpResponse::Ok().json(json!({"err":err.to_string()})),
-        };
-    }
-    let query = format!(
-        "SELECT 
+        }
+    };
+    let query = "
+        SELECT 
             open::TEXT as o, 
             close::TEXT as c, 
             low::TEXT as l, 
@@ -98,9 +97,10 @@ async fn history(
             ts <= $1
             AND resolution = $2
             AND multipool_id = $3
-        ORDER BY ts DESC
+        ORDER BY 
+            ts DESC
         LIMIT $4;"
-    );
+        .to_string();
     let result = client
         .query(
             query.as_str(),
@@ -114,17 +114,18 @@ async fn history(
         .await;
     match result {
         Ok(rows) => {
-            if rows.len() == 0 {
-                return HttpResponse::Ok().json(json!({"s": "no_data"}));
+            if rows.is_empty() {
+                HttpResponse::Ok().json(json!({"s": "no_data"}))
+            } else {
+                HttpResponse::Ok().json(json!({
+                    "s":"ok",
+                    "t": rows.iter().rev().map(|r| r.get("t") ).collect::<Vec<String>>(),
+                    "o": rows.iter().rev().map(|r| r.get("o") ).collect::<Vec<String>>(),
+                    "c": rows.iter().rev().map(|r| r.get("c") ).collect::<Vec<String>>(),
+                    "l": rows.iter().rev().map(|r| r.get("l") ).collect::<Vec<String>>(),
+                    "h": rows.iter().rev().map(|r| r.get("h") ).collect::<Vec<String>>(),
+                }))
             }
-            HttpResponse::Ok().json(json!({
-                "s":"ok",
-                "t": rows.iter().rev().map(|r| r.get("t") ).collect::<Vec<String>>(),
-                "o": rows.iter().rev().map(|r| r.get("o") ).collect::<Vec<String>>(),
-                "c": rows.iter().rev().map(|r| r.get("c") ).collect::<Vec<String>>(),
-                "l": rows.iter().rev().map(|r| r.get("l") ).collect::<Vec<String>>(),
-                "h": rows.iter().rev().map(|r| r.get("h") ).collect::<Vec<String>>(),
-            }))
         }
         Err(err) => {
             println!("{:?}", err);
@@ -165,12 +166,12 @@ async fn stats(
                 let low_24h: String = row.get("low_24h");
                 let high_24h: String = row.get("high_24h");
                 let current_price: String = row.get("current_price");
-                return HttpResponse::Ok().json(json!({"multipool_id":mp_id,"change_24h":change_24h,"low_24h":low_24h,"high_24h":high_24h,"current_price":current_price}));
+                HttpResponse::Ok().json(json!({"multipool_id":mp_id,"change_24h":change_24h,"low_24h":low_24h,"high_24h":high_24h,"current_price":current_price}))
             } else {
-                return HttpResponse::Ok().json(json!({"err":"no_data"}));
+                HttpResponse::Ok().json(json!({"err":"no_data"}))
             }
         }
-        Err(err) => return HttpResponse::Ok().json(json!({"err":err.to_string()})),
+        Err(err) => HttpResponse::Ok().json(json!({"err":err.to_string()})),
     }
 }
 

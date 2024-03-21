@@ -54,10 +54,10 @@ jobs:
         continue-on-error: true
         run: cargo fmt --all --check
 
-          # - name: 🔎 Clippy check
-          #   id: cargo-clippy
-          #   continue-on-error: true
-          #   run: cargo clippy --all-targets --all-features --tests -- -D warnings
+      - name: 🔎 Clippy check
+        id: cargo-clippy
+        continue-on-error: true
+        run: cargo clippy --all-targets --all-features --tests -- -D warnings
 
       - run: du -sh target
         continue-on-error: true
@@ -93,8 +93,7 @@ jobs:
           key: ${{ runner.os }}-rust-cache
 
       - name: Check on failures
-        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' 
-          # || steps.cargo-clippy.outcome != 'success' 
+        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' || steps.cargo-clippy.outcome != 'success' 
         run: exit 1
 
       - name: Find commit short sha

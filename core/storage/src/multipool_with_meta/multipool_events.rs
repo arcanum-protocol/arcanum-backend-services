@@ -70,9 +70,9 @@ impl MultipoolWithMeta {
 
     pub async fn fill(external_multipool: ExternalMultipool, rpc: &RpcRobber) -> Result<Self> {
         let contract_address = external_multipool.contract_address;
-        let from_block = current_block(&rpc).await?;
-        let total_supply = total_supply(&rpc, contract_address).await?;
-        let assets = get_assets(&rpc, contract_address, external_multipool.assets, 4).await?;
+        let from_block = current_block(rpc).await?;
+        let total_supply = total_supply(rpc, contract_address).await?;
+        let assets = get_assets(rpc, contract_address, external_multipool.assets, 4).await?;
 
         let mut storage = MultipoolWithMeta {
             multipool: Multipool::new(contract_address),
@@ -87,7 +87,7 @@ impl MultipoolWithMeta {
                 .iter()
                 .map(|(asset_address, quantity_data)| {
                     (
-                        asset_address.clone(),
+                        *asset_address,
                         QuantityData {
                             cashback: quantity_data.collected_cashbacks.into(),
                             quantity: quantity_data.quantity,
@@ -109,7 +109,7 @@ impl MultipoolWithMeta {
                 &assets
                     .iter()
                     .map(|(asset_address, quantity_data)| {
-                        (asset_address.clone(), quantity_data.target_share.into())
+                        (*asset_address, quantity_data.target_share.into())
                     })
                     .collect::<Vec<_>>(),
                 false,
@@ -214,17 +214,14 @@ pub async fn get_assets(
     assets: Vec<Address>,
     multicall_chunks: usize,
 ) -> Result<Vec<(Address, MpAsset)>> {
-    join_all(assets.chunks(multicall_chunks).into_iter().map(|assets| {
+    join_all(assets.chunks(multicall_chunks).map(|assets| {
         rpc.aquire(
             move |provider, multicall_address| async move {
                 let mp = multipool_at(contract_address, provider.clone());
                 Multicall::new(provider, multicall_address)
                     .await
                     .unwrap()
-                    .add_calls(
-                        true,
-                        assets.into_iter().map(|asset| mp.get_asset(asset.clone())),
-                    )
+                    .add_calls(true, assets.iter().map(|asset| mp.get_asset(*asset)))
                     .call_array()
                     .await
                     .map_err(Into::into)
@@ -233,7 +230,7 @@ pub async fn get_assets(
         )
         .map_ok(|data| {
             assets
-                .into_iter()
+                .iter()
                 .cloned()
                 .zip(data)
                 .collect::<Vec<(Address, MpAsset)>>()
@@ -289,7 +286,6 @@ pub async fn get_target_shares_updates(
 ) -> Result<(Vec<(Address, Share)>, U64)> {
     rpc.aquire(
         move |provider, _| async move {
-            //TODO: change to declarative
             let to_block = provider.get_block_number().await?;
             let events = multipool_at(contract_address, provider.clone())
                 .target_share_change_filter()

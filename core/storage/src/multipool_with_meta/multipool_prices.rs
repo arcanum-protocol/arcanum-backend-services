@@ -67,17 +67,14 @@ pub async fn get_prices(
     assets: Vec<Address>,
     multicall_chunks: usize,
 ) -> Result<Vec<(Address, Price)>> {
-    join_all(assets.chunks(multicall_chunks).into_iter().map(|assets| {
+    join_all(assets.chunks(multicall_chunks).map(|assets| {
         rpc.aquire(
             move |provider, multicall_address| async move {
                 let mp = multipool_at(contract_address, provider.clone());
                 Multicall::new(provider, multicall_address)
                     .await
                     .unwrap()
-                    .add_calls(
-                        true,
-                        assets.into_iter().map(|asset| mp.get_price(asset.clone())),
-                    )
+                    .add_calls(true, assets.iter().map(|asset| mp.get_price(*asset)))
                     .call_array()
                     .await
                     .map_err(Into::into)
@@ -86,7 +83,7 @@ pub async fn get_prices(
         )
         .map_ok(|data| {
             assets
-                .into_iter()
+                .iter()
                 .cloned()
                 .zip(data)
                 .collect::<Vec<(Address, Price)>>()

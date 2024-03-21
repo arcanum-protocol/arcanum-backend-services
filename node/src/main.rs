@@ -44,7 +44,7 @@ struct Args {
 
 #[get("/health")]
 async fn health() -> impl Responder {
-    format!("ok")
+    "ok"
 }
 
 use multipool_ledger::DiscLedger;
