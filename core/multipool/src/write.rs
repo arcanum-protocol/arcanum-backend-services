@@ -1,21 +1,20 @@
 use std::collections::HashMap;
 
-use super::{
-    errors::MultipoolErrors, expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData,
-    Share,
-};
+use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
 use ethers::prelude::*;
 
 impl Multipool {
     /// Prices are updated if these assets present in pool. Otherwhise there is no effect
     pub fn update_prices(&mut self, prices: &[(Address, Price)], update_expiry: bool) {
         //TODO: replase with 0(max(len(prices), len(self.assets)))
-        let prices_set: HashMap<Address, Price> = prices.into_iter().cloned().collect();
+        let prices_set: HashMap<Address, Price> = prices.iter().cloned().collect();
         for asset in self.assets.iter_mut() {
             if let Some(new_price) = prices_set.get(&asset.address).cloned() {
                 asset.price = Some(MayBeExpired::new(new_price));
             } else if update_expiry {
-                asset.price.as_mut().map(|v| v.refresh());
+                if let Some(price) = asset.price.as_mut() {
+                    price.refresh();
+                }
             }
         }
     }
@@ -27,7 +26,7 @@ impl Multipool {
     ) {
         //TODO: replase with 0(max(len(quantities), len(self.assets)))
         let mut quantities_set: HashMap<Address, QuantityData> =
-            quantities.into_iter().cloned().collect();
+            quantities.iter().cloned().collect();
 
         if let Some(QuantityData {
             quantity: total_supply,
@@ -36,7 +35,9 @@ impl Multipool {
         {
             self.total_supply = Some(MayBeExpired::new(total_supply));
         } else if update_expiry {
-            self.total_supply.as_mut().map(|v| v.refresh());
+            if let Some(total_supply) = self.total_supply.as_mut() {
+                total_supply.refresh();
+            }
         }
 
         self.assets = self
@@ -53,7 +54,9 @@ impl Multipool {
                         asset.quantity_slot = Some(MayBeExpired::new(new_quantity_data));
                     }
                 } else if update_expiry {
-                    asset.quantity_slot.as_mut().map(|v| v.refresh());
+                    if let Some(quantity_slot) = asset.quantity_slot.as_mut() {
+                        quantity_slot.refresh();
+                    }
                 }
                 Some(asset)
             })
@@ -72,7 +75,7 @@ impl Multipool {
 
     pub fn update_shares(&mut self, shares: &[(Address, Share)], update_expiry: bool) {
         //TODO: replase with 0(max(len(quantities), len(self.assets)))
-        let mut shares_set: HashMap<Address, Share> = shares.into_iter().cloned().collect();
+        let mut shares_set: HashMap<Address, Share> = shares.iter().cloned().collect();
         let mut total_shares = self
             .total_shares
             .clone()
@@ -100,7 +103,9 @@ impl Multipool {
                         total_shares += new_share;
                     }
                 } else if update_expiry {
-                    asset.share.as_mut().map(|v| v.refresh());
+                    if let Some(share) = asset.share.as_mut() {
+                        share.refresh();
+                    }
                 }
                 Some(asset)
             })

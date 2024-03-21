@@ -53,7 +53,7 @@ impl<V> MayBeExpired<Option<V>> {
 
 impl<V, E> MayBeExpired<Result<V, E>> {
     pub fn transpose(self) -> Result<MayBeExpired<V>, E> {
-        self.0.and_then(|value| Ok(MayBeExpired(value, self.1)))
+        self.0.map(|value| MayBeExpired(value, self.1))
     }
 }
 

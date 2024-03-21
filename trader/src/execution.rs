@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Result};
 use colored::Colorize;
 use rpc_controller::RpcRobber;
-use tokio_postgres::Client;
 
 use std::{sync::Arc, time::Duration};
 
@@ -106,16 +105,6 @@ pub async fn check_and_send(
     args: Args,
     wallet: LocalWallet,
 ) -> Result<Execution, String> {
-    // let client = SignerMiddleware::new(multipool.provider.clone(), wallet);
-    // let client = Arc::new(client);
-    // let trader = TraderContract::new(
-    //     "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
-    //         .parse::<Address>()
-    //         .unwrap(),
-    //     client,
-    // );
-    //
-
     let simulate = rpc
         .aquire(
             |provider, _| async {

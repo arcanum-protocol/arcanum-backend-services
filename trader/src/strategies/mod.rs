@@ -41,8 +41,8 @@ impl<'a> AssetsChoise<'a> {
             .not_older_than(180)
             .ok_or(anyhow!("price too old"))?;
 
-        let quoted_amount1: I256 = amount1 * I256::from_raw(price1) >> 96;
-        let quoted_amount2: I256 = amount2 * I256::from_raw(price2) >> 96;
+        let quoted_amount1: I256 = (amount1 * I256::from_raw(price1)) >> 96;
+        let quoted_amount2: I256 = (amount2 * I256::from_raw(price2)) >> 96;
 
         let quote_to_use = quoted_amount1.abs().min(quoted_amount2.abs());
 

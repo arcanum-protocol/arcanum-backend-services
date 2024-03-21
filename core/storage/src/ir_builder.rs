@@ -54,8 +54,7 @@ impl MultipoolStorageIRBuilder for MultipoolStorageIR {
         if self
             .pools
             .iter()
-            .find(|p| p.contract_address.eq(&pool.multipool.contract_address))
-            .is_some()
+            .any(|p| p.contract_address.eq(&pool.multipool.contract_address))
         {
             return None;
         }
@@ -67,8 +66,7 @@ impl MultipoolStorageIRBuilder for MultipoolStorageIR {
         if self
             .factories
             .iter()
-            .find(|f| f.factory_address.eq(&factory.factory_address))
-            .is_some()
+            .any(|f| f.factory_address.eq(&factory.factory_address))
         {
             return None;
         }

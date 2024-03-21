@@ -30,7 +30,7 @@ pub fn sign(
         Token::Address(contract_address),
         Token::FixedArray(vec![
             Token::Uint(U256::from(current_ts)),
-            Token::Uint(U256::from(price)),
+            Token::Uint(price),
             Token::Uint(U256::from(chain_id)),
         ]),
     ])

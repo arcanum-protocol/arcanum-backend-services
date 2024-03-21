@@ -2,17 +2,12 @@ use std::{fs, path::PathBuf, sync::Arc};
 
 use ethers::prelude::*;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use multipool::Multipool;
 use rpc_controller::RpcRobber;
 use serde::{Deserialize, Serialize};
-use tokio::sync::watch;
 
-use crate::{
-    contracts::multipool::{AssetArgs, MultipoolContract},
-    execution::ForcePushArgs,
-    uniswap::RETRIES,
-};
+use crate::execution::ForcePushArgs;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PoolInfo {
