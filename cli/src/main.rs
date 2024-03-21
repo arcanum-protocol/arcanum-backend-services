@@ -1,8 +1,8 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use clap::{Parser, Subcommand};
 
 use ethers::prelude::*;
-use multipool_ledger::{DiscLedger, Ledger};
+use multipool_ledger::{ir::MultipoolStorageIR, DiscLedger, Ledger};
 use multipool_storage::{
     ir_builder::{ExternalFactory, ExternalMultipool, MultipoolStorageIRBuilder},
     multipool_with_meta::MultipoolWithMeta,
@@ -86,8 +86,12 @@ async fn main() -> anyhow::Result<()> {
 
     if let Some(sub_command) = args.command {
         match sub_command {
-            Commands::Bootstrap { source_url: _ } => {
-                todo!("Bootstrapping from other nodes is not yet supported")
+            Commands::Bootstrap { source_url } => {
+                let ir: MultipoolStorageIR = reqwest::get(source_url).await?.json().await?;
+                if !ir.pools.is_empty() || !ir.factories.is_empty() {
+                    bail!(anyhow!("Can't bootstrap a non empty ledger"));
+                }
+                ledger.write(ir)?.await?;
             }
             Commands::AddPool {
                 address,

@@ -52,7 +52,7 @@ use multipool_trader::{trade::Uniswap, TraderHook};
 use rpc_controller::RpcRobber;
 
 use ethers::types::Address;
-use multipool_storage::{builder::MultipoolStorageBuilder, StorageEntry};
+use multipool_storage::{builder::MultipoolStorageBuilder, MultipoolStorage, StorageEntry};
 use serde::Deserialize;
 use tokio::{runtime::Handle, time::sleep};
 use tokio_postgres::NoTls;
@@ -99,6 +99,11 @@ async fn get_assets(cache: web::Data<Arc<CachedMultipoolData>>) -> impl Responde
             })
             .collect::<Vec<serde_json::Value>>(),
     )
+}
+
+#[get("/bootstrap")]
+async fn bootstrap(storage: web::Data<MultipoolStorage<TraderHook>>) -> impl Responder {
+    HttpResponse::Ok().json(storage.build_ir().await)
 }
 
 #[actix_web::main]
@@ -238,7 +243,6 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         let cors = Cors::permissive();
-        //let key = key.clone();
         let storage = storage.clone();
         let cache = cache.clone();
         App::new()
@@ -247,6 +251,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(storage))
             .service(health)
             .service(get_signed_price)
+            .service(bootstrap)
             .service(get_asset_list)
             .service(get_assets)
     })
