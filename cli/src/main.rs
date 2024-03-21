@@ -14,7 +14,7 @@ use std::{env, path::PathBuf};
 
 fn default_ledger_path() -> PathBuf {
     let mut path = env::current_dir().unwrap();
-    path.push("ledger");
+    path.push("ledger/");
     path
 }
 
