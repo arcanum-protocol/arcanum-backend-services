@@ -82,6 +82,7 @@ impl<L: Ledger + Send + 'static, H: MultipoolStorageHook + Send + Sync + 'static
     pub async fn build(self) -> Result<MultipoolStorage<H>> {
         let ledger = self.ledger.expect("Ledger is not set");
         let storage = MultipoolStorage::from_ir(ledger.read().await?);
+        storage.inner.write().await.hook = self.hook;
 
         let rpc = self.rpc.expect("Rpc was not set");
 

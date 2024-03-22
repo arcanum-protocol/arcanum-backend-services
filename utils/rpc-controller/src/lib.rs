@@ -159,10 +159,6 @@ impl RpcRobber {
                 }
             }
         }
-        if r.is_err() {
-            log::error!("Retry limit exceeded");
-            std::process::exit(0x69);
-        }
         r
     }
 }

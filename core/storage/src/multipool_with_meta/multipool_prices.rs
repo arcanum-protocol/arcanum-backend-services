@@ -23,12 +23,14 @@ impl MultipoolWithMeta {
         fetch_interval: u64,
     ) -> JoinHandle<Result<()>> {
         let contract_address = { multipool.read().await.multipool.contract_address() };
-        tokio::spawn(fetch_price(
-            rpc,
-            fetch_interval,
-            contract_address,
-            multipool,
-        ))
+        tokio::spawn(async move {
+            if let Err(e) = fetch_price(rpc, fetch_interval, contract_address, multipool).await {
+                log::error!("Retry limit exceeded for prices, error: {:?}", e);
+                std::process::exit(0x69);
+            }
+            //TODO: remove
+            Ok(())
+        })
     }
 }
 

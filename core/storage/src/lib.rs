@@ -139,6 +139,9 @@ impl<H: MultipoolStorageHook + Send + Sync + 'static> MultipoolStorage<H> {
                     intervals.target_share_fetch_interval,
                 )
                 .await;
+            if let Some(ref h) = self.inner.read().await.hook {
+                h.new_pool(pool.clone());
+            }
             self.inner.write().await.handles.extend([
                 price_handle,
                 quantity_handle,

@@ -34,25 +34,45 @@ impl MultipoolWithMeta {
         drop(mp);
 
         let quantity_fetching_future = if let Some(interval) = quantity_fetch_interval {
-            tokio::spawn(fetch_quantities(
-                rpc.clone(),
-                interval,
-                contract_address,
-                quantity_from_block,
-                multipool.clone(),
-            ))
+            let rpc = rpc.clone();
+            let multipool = multipool.clone();
+            tokio::spawn(async move {
+                if let Err(e) = fetch_quantities(
+                    rpc,
+                    interval,
+                    contract_address,
+                    quantity_from_block,
+                    multipool,
+                )
+                .await
+                {
+                    log::error!("Retry limit exceeded for quantities, error: {:?}", e);
+                    std::process::exit(0x69);
+                }
+                //TODO: remove
+                Ok(())
+            })
         } else {
             tokio::spawn(futures::future::pending())
         };
 
         let target_share_fetching_future = if let Some(interval) = target_share_fetch_interval {
-            tokio::spawn(fetch_target_shares(
-                rpc,
-                interval,
-                contract_address,
-                share_from_block,
-                multipool,
-            ))
+            tokio::spawn(async move {
+                if let Err(e) = fetch_target_shares(
+                    rpc,
+                    interval,
+                    contract_address,
+                    share_from_block,
+                    multipool,
+                )
+                .await
+                {
+                    log::error!("Retry limit exceeded for target shares, error: {:?}", e);
+                    std::process::exit(0x69);
+                }
+                //TODO: remove
+                Ok(())
+            })
         } else {
             tokio::spawn(futures::future::pending())
         };
