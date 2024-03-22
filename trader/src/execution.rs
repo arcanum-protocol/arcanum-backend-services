@@ -127,6 +127,7 @@ pub async fn check_and_send(
         )
         .await;
 
+    log::info!("{:?}", args);
     match simulate {
         Ok((profit, gas_used)) => {
             println!("Simlulation SUCCESS, profit: {}, gas: {}", profit, gas_used);

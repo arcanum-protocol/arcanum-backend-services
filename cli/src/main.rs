@@ -87,10 +87,11 @@ async fn main() -> anyhow::Result<()> {
     if let Some(sub_command) = args.command {
         match sub_command {
             Commands::Bootstrap { source_url } => {
-                let ir: MultipoolStorageIR = reqwest::get(source_url).await?.json().await?;
-                if !ir.pools.is_empty() || !ir.factories.is_empty() {
+                let old_ir = ledger.read().await?;
+                if !old_ir.pools.is_empty() || !old_ir.factories.is_empty() {
                     bail!(anyhow!("Can't bootstrap a non empty ledger"));
                 }
+                let ir: MultipoolStorageIR = reqwest::get(source_url).await?.json().await?;
                 ledger.write(ir)?.await?;
             }
             Commands::AddPool {

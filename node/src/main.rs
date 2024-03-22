@@ -178,6 +178,7 @@ async fn main() -> std::io::Result<()> {
         });
 
         {
+            // Add retry here
             let storage = storage.clone();
             tokio::spawn(async move {
                 sleep(Duration::from_millis(500)).await;
@@ -189,13 +190,20 @@ async fn main() -> std::io::Result<()> {
                     .unwrap()
                     .json::<serde_json::Value>()
                     .await
-                    .unwrap()
-                    .get("1")
-                    .expect("KEY \"1\" should present")
-                    .get("USD")
-                    .expect("KEY \"USD\" should present")
-                    .as_f64()
-                    .expect("Value should be a valid float");
+                    .as_ref()
+                    .map_err(|e| anyhow!("{e}"))
+                    .and_then(|v| v.get("1").ok_or(anyhow!("KEY \"1\" should present")))
+                    .and_then(|v| v.get("USD").ok_or(anyhow!("KEY \"USD\" should present")))
+                    .and_then(|v| v.as_f64().ok_or(anyhow!("Value should be a valid float")));
+
+                    let eth_price = match eth_price {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::error!("Eth price fetching error occurred {e:?}");
+                            std::process::exit(0x69);
+                        }
+                    };
+
                     let client = client.clone();
                     storage
                     .pools()
