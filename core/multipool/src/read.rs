@@ -162,16 +162,13 @@ impl Multipool {
         .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::CurrentShareTooBig))?
             * total_shares)
             >> 32;
-        let amount = if target_deviation.gt(&I256::from(0)) {
-            I256::from_raw((share + share_bound).min(total_shares) * usd_cap / price / total_shares)
-                - I256::from_raw(quantity)
+        let result_share = if target_deviation.ge(&I256::from(0)) {
+            (share + share_bound).min(total_shares)
         } else {
-            I256::from_raw(
-                (share.checked_sub(share_bound).unwrap_or(U256::zero())) * usd_cap
-                    / price
-                    / total_shares,
-            ) - I256::from_raw(quantity)
+            share.checked_sub(share_bound).unwrap_or(U256::zero())
         };
+        let amount = I256::from_raw(result_share * (usd_cap << 96) / price / total_shares)
+            - I256::from_raw(quantity);
         Ok(MayBeExpired::new(amount))
     }
 }

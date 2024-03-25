@@ -18,7 +18,7 @@ use multipool::{Multipool, QuantityData, Share};
 
 use anyhow::Result;
 
-const RETRIES: Option<usize> = Some(1000);
+const RETRIES: Option<usize> = Some(4);
 
 impl MultipoolWithMeta {
     pub async fn spawn_event_fetching_task(
