@@ -37,8 +37,24 @@ impl<'a> UniswapChoise<'a> {
         if I256::from_raw(self.output.estimated) - self.trading_data.fee
             < I256::from_raw(self.input.estimated)
         {
+            println!("Unprofitable");
+            println!("out {}", self.output.estimated);
+            println!("in {}", self.input.estimated);
+            println!("fee {}", self.trading_data.fee);
+            println!(
+                "profit {}",
+                I256::from_raw(self.output.estimated)
+                    - self.trading_data.fee
+                    - I256::from_raw(self.input.estimated)
+            );
             return Ok(());
         }
+        println!(
+            "PROFITABLE {}",
+            I256::from_raw(self.output.estimated)
+                - self.trading_data.fee
+                - I256::from_raw(self.input.estimated)
+        );
 
         let multipool = &self
             .trading_data
@@ -53,7 +69,7 @@ impl<'a> UniswapChoise<'a> {
             zero_for_one_out: self.output.zero_for_one,
 
             multipool_amount_in: self.trading_data.amount_in,
-            multipool_amount_out: self.trading_data.amount_out * 9 / 10,
+            multipool_amount_out: self.trading_data.amount_out * 8 / 10,
             multipool_fee: 1000000000000000u128.into(),
 
             pool_in: self.input.best_pool,

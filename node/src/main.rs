@@ -8,6 +8,13 @@ use clap::Parser;
 use futures::{future::join_all, FutureExt};
 use multipool_cache::cache::CachedMultipoolData;
 
+use log::Level;
+use opentelemetry::KeyValue;
+use opentelemetry_appender_log::OpenTelemetryLogBridge;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::logs::Config;
+use opentelemetry_sdk::Resource;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -36,6 +43,12 @@ struct Args {
 
     #[arg(long)]
     monitoring_interval: Option<u64>,
+
+    #[arg(long)]
+    otel_endpoint: String,
+
+    #[arg(long)]
+    otel_sync_interval: Option<u64>,
 
     /// Path to config file
     #[arg(short, long, default_value_t = 8080)]
@@ -108,8 +121,32 @@ async fn bootstrap(storage: web::Data<MultipoolStorage<TraderHook>>) -> impl Res
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
     let args = Args::parse();
+
+    let p = opentelemetry_otlp::new_pipeline()
+        .logging()
+        .with_log_config(
+            Config::default().with_resource(Resource::new(vec![KeyValue::new(
+                "service.name",
+                "arcanum-node",
+            )])),
+        )
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .http()
+                .with_http_client(reqwest::Client::new())
+                .with_endpoint(args.otel_endpoint)
+                .with_timeout(Duration::from_millis(
+                    args.otel_sync_interval.unwrap_or(1000),
+                )),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .expect("Failed to bootstrap otel");
+
+    let otel_log_appender = OpenTelemetryLogBridge::new(p.provider());
+    log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
+    log::set_max_level(Level::Info.to_level_filter());
+
     let key = env::var("KEY").expect("KEY must be set");
     let database_url = env::var("DATABASE_URL");
 
@@ -183,18 +220,26 @@ async fn main() -> std::io::Result<()> {
             tokio::spawn(async move {
                 sleep(Duration::from_millis(500)).await;
                 loop {
-                    let eth_price = reqwest::get(
+                    let request = reqwest::get(
                         "https://token-rates-aggregator.1inch.io/v1.0/native-token-rate?vs=USD",
                     )
-                    .await
-                    .unwrap()
-                    .json::<serde_json::Value>()
-                    .await
-                    .as_ref()
-                    .map_err(|e| anyhow!("{e}"))
-                    .and_then(|v| v.get("1").ok_or(anyhow!("KEY \"1\" should present")))
-                    .and_then(|v| v.get("USD").ok_or(anyhow!("KEY \"USD\" should present")))
-                    .and_then(|v| v.as_f64().ok_or(anyhow!("Value should be a valid float")));
+                    .await;
+                    let request = match request {
+                        Ok(v) => v,
+                        Err(e) => {
+                            log::error!("Eth price fetching error occurred {e:?}");
+                            std::process::exit(0x69);
+                        }
+                    };
+
+                    let eth_price = request
+                        .json::<serde_json::Value>()
+                        .await
+                        .as_ref()
+                        .map_err(|e| anyhow!("{e}"))
+                        .and_then(|v| v.get("1").ok_or(anyhow!("KEY \"1\" should present")))
+                        .and_then(|v| v.get("USD").ok_or(anyhow!("KEY \"USD\" should present")))
+                        .and_then(|v| v.as_f64().ok_or(anyhow!("Value should be a valid float")));
 
                     let eth_price = match eth_price {
                         Ok(v) => v,
@@ -238,7 +283,6 @@ async fn main() -> std::io::Result<()> {
                         ))
                     })
                     .then(|_res| {
-                        //println!("executed {res:?}");
                         sleep(Duration::from_millis(100))
                     })
                     .await;
