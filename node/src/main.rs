@@ -8,6 +8,13 @@ use clap::Parser;
 use futures::{future::join_all, FutureExt};
 use multipool_cache::cache::CachedMultipoolData;
 
+use log::{error, Level};
+use opentelemetry::{global, KeyValue};
+use opentelemetry_appender_log::OpenTelemetryLogBridge;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::logs::{BatchConfig, Config, LoggerProvider};
+use opentelemetry_sdk::Resource;
+
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
@@ -108,7 +115,28 @@ async fn bootstrap(storage: web::Data<MultipoolStorage<TraderHook>>) -> impl Res
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
+    let p = opentelemetry_otlp::new_pipeline()
+        .logging()
+        .with_log_config(
+            Config::default().with_resource(Resource::new(vec![KeyValue::new(
+                "service.name",
+                "arcanum-node",
+            )])),
+        )
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .http()
+                .with_http_client(reqwest::Client::new())
+                .with_endpoint("http://81.163.22.190:4318")
+                .with_timeout(Duration::from_millis(500)),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)
+        .expect("Failed to bootstrap otel");
+
+    let otel_log_appender = OpenTelemetryLogBridge::new(p.provider());
+    log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
+    log::set_max_level(Level::Info.to_level_filter());
+
     let args = Args::parse();
     let key = env::var("KEY").expect("KEY must be set");
     let database_url = env::var("DATABASE_URL");
