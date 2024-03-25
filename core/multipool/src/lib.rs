@@ -15,6 +15,8 @@ use std::ops::Shr;
 
 use self::expiry::{MayBeExpired, Merge};
 use errors::MultipoolErrors;
+use errors::MultipoolErrors::*;
+use errors::MultipoolOverflowErrors::*;
 
 use serde::{Deserialize, Serialize};
 
@@ -82,23 +84,22 @@ impl<T: TimeExtractor> MultipoolAsset<T> {
         let slot = self
             .quantity_slot
             .clone()
-            .unwrap_or(MayBeExpired::new(QuantityData {
-                quantity: U256::zero(),
-                cashback: U256::zero(),
-            }));
-        let price = self
-            .price
-            .clone()
-            .ok_or(MultipoolErrors::PriceMissing(self.address))?;
+            //       .unwrap_or(MayBeExpired::new(QuantityData {
+            //           quantity: U256::zero(),
+            //           cashback: U256::zero(),
+            //       }));
+            //   let price = self
+            //       .price
+            //       .clone()
+            //       .ok_or(MultipoolErrors::PriceMissing(self.address))?;
+            .ok_or(QuantitySlotMissing(self.address))?;
+        let price = self.price.clone().ok_or(PriceMissing(self.address))?;
         (slot, price)
             .merge(|(slot, price)| -> Option<U256> {
-                let mul_result = slot.quantity.checked_mul(price)?;
-                Some(mul_result.shr(X96))
+                slot.quantity.checked_mul(price).map(|v| v.shr(X96))
             })
             .transpose()
-            .ok_or(MultipoolErrors::Overflow(
-                errors::MultipoolOverflowErrors::QuotedQuantityOverflow,
-            ))
+            .ok_or(Overflow(QuotedQuantityOverflow))
     }
 }
 
