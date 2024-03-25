@@ -103,7 +103,7 @@ impl<T: TimeExtractor> Multipool<T> {
                     .map(MayBeExpired::any_age)
                     .unwrap_or(U256::zero());
                 if let Some(new_share) = shares_set.remove(&asset.address) {
-                    total_shares -= old_share;
+                    total_shares = total_shares.checked_sub(old_share).unwrap_or(U256::zero());
                     if new_share.is_zero() && asset.quantity_slot.is_none() {
                         return None;
                     } else if new_share.is_zero() {

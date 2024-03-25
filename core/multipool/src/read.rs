@@ -1,11 +1,12 @@
-use std::ops::Shl;
+use std::ops::{Shl, Shr};
 
-use crate::{expiry::TimeExtractor, QuantityData};
+use crate::expiry::TimeExtractor;
 
 use super::{
     errors::MultipoolErrors, errors::MultipoolOverflowErrors, expiry::MayBeExpired, Merge,
     Multipool, MultipoolAsset, Price, Share, X32, X96,
 };
+
 use ethers::prelude::*;
 
 impl<T: TimeExtractor> Multipool<T> {
@@ -38,7 +39,7 @@ impl<T: TimeExtractor> Multipool<T> {
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
         Ok(merged_prices.iter().fold(
             MayBeExpired::new(Default::default()),
-            |a, b| -> Result<MayBeExpired<U256, T>, MultipoolErrors> {
+            |a, b| -> MayBeExpired<U256, T> {
                 (a, b.clone())
                     .merge(|(a, b)| a.checked_add(b))
                     .transpose()
@@ -152,26 +153,36 @@ impl<T: TimeExtractor> Multipool<T> {
             .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
             .any_age();
         let usd_cap = U512::from(self.cap()?.any_age());
-        let share_bound = (U256::try_from(target_deviation.checked_abs().ok_or(
+        let share_bound = U256::try_from(target_deviation.checked_abs().ok_or(
             MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow),
         )?)
+        .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow))?
+        .checked_mul(total_shares)
+        .ok_or(MultipoolErrors::Overflow(
+            MultipoolOverflowErrors::TotalSharesOverflow(self.contract_address),
+        ))
         .map_err(|_| {
-            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow)
-        })? * total_shares)
-            >> 32;
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TotalSharesOverflow(
+                self.contract_address,
+            ))
+        })?
+        .shr(32);
+
         let result_share = if target_deviation.ge(&I256::from(0)) {
-            U512::from((share + share_bound).min(total_shares))
+            U512::from((share.checked_add(share_bound).unwrap_or(U256::zero())).min(total_shares))
         } else {
             U512::from(share.checked_sub(share_bound).unwrap_or(U256::zero()))
         };
         let amount: I256 = I256::from_raw(
-            (result_share * (usd_cap << 96))
-                .checked_div(U512::from(price))
-                .expect("should never overflow")
-                .checked_div(U512::from(total_shares))
-                .expect("should never overflow")
-                .try_into()
-                .expect("should never overflow"),
+            (result_share
+                .checked_mul(usd_cap.shl(96))
+                .expect("multiply shouldn't overflow"))
+            .checked_div(U512::from(price))
+            .expect("price division shouldn't overflow")
+            .checked_div(U512::from(total_shares))
+            .expect("total shares division shouldn't overflow")
+            .try_into()
+            .expect("into shouldn't overflow"),
         );
         let amount = amount - I256::from_raw(quantity);
         Ok(MayBeExpired::new(amount))
