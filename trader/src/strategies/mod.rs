@@ -72,7 +72,7 @@ impl<'a> AssetsChoise<'a> {
             },
             AssetArgs {
                 asset_address: self.asset2,
-                amount: I256::from(-10000i128),
+                amount: I256::from(-1i128),
             },
         ];
 

@@ -273,6 +273,7 @@ pub async fn get_quantities_updates(
             let to_block = provider.get_block_number().await?;
             let events = multipool_at(contract_address, provider.clone())
                 .asset_change_filter()
+                .address(contract_address.into())
                 .from_block(from_block)
                 .to_block(to_block - 1)
                 .query()
@@ -309,6 +310,7 @@ pub async fn get_target_shares_updates(
             let to_block = provider.get_block_number().await?;
             let events = multipool_at(contract_address, provider.clone())
                 .target_share_change_filter()
+                .address(contract_address.into())
                 .from_block(from_block)
                 .to_block(to_block - 1)
                 .query()
