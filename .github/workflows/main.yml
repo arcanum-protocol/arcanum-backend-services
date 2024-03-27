@@ -1,46 +1,117 @@
-name: Docker Image CI
-
-on:
+name: Cached rust build
+on: 
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+
+permissions:
+  contents: read
+  actions: write # require to delete cache
 
 jobs:
-  build-multipool-tracker:
-
+  build-and-check-binaries:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          # this also does foundry install as it use submodules
+          submodules: recursive
 
-    - name: Build price-oracle image
-      run: docker build multipool-tracker --target price-oracle --tag badconfig/arcanum-price-oracle
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: musl-dev musl-tools musl-gcc
+          version: 1.0
 
-    - name: Build trader image
-      run: docker build multipool-tracker --target trader --tag badconfig/arcanum-trader
+      - run: rustup target add x86_64-unknown-linux-musl
 
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
 
-    - name: push price-oracle image
-      run: docker push badconfig/arcanum-price-oracle
+      # Building project stuff
+      - name: ⚡Restore Build Cache
+        uses: actions/cache/restore@v4
+        id: build-cache
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-cache
 
-    - name: push trader image
-      run: docker push badconfig/arcanum-trader
+      - name: 🔨 Build
+        id: cargo-building
+        continue-on-error: true
+        run: |
+          cargo build --bin multipool-node --release --target=x86_64-unknown-linux-musl
+          cargo build --bin multipool-cli --release --target=x86_64-unknown-linux-musl
+          cargo build --bin trading-view-api --release --target=x86_64-unknown-linux-musl
 
-  build-backend-api:
+      - name: 🔎 Test
+        id: cargo-testing
+        continue-on-error: true
+        run: cargo test -- --nocapture
 
-    runs-on: ubuntu-latest
+      - name: 🔎 Formatting check
+        id: cargo-formatting
+        continue-on-error: true
+        run: cargo fmt --all --check
 
-    steps:
-    - uses: actions/checkout@v3
+      - name: 🔎 Clippy check
+        id: cargo-clippy
+        continue-on-error: true
+        run: cargo clippy --all-targets --all-features --tests -- -D warnings
 
-    - name: Build the Docker image
-      run: docker build api --tag badconfig/backend-api
+      - run: du -sh target
+        continue-on-error: true
 
-    - name: Login to dockerhub
-      run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+      - run: du -sh ~/.cargo/registry
+        continue-on-error: true
 
-    - name: push image
-      run: docker push badconfig/backend-api 
+      - run: du -sh target/x86_64-unknown-linux-musl/release/multipool-node
+        continue-on-error: true
+
+      - run: chmod ugo+x target/x86_64-unknown-linux-musl/release/multipool-node
+        continue-on-error: true
+
+      - run: chmod ugo+x target/x86_64-unknown-linux-musl/release/multipool-cli
+        continue-on-error: true
+
+      - name: Delete Previous Cache
+        if: ${{ steps.build-cache.outputs.cache-hit }} # github.ref == 'refs/heads/master' 
+        continue-on-error: true
+        run: |
+          gh extension install actions/gh-actions-cache
+          gh actions-cache delete "${{ runner.os }}-rust-cache" --confirm
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ⚡Store Build Cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-rust-cache
+
+      - name: Check on failures
+        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' || steps.cargo-clippy.outcome != 'success' 
+        run: exit 1
+
+      - name: Find commit short sha
+        id: commitsha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # build container
+      - name: Build the Docker image
+        run: |
+          docker build --build-arg="BIN=multipool-node" --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-node:latest .
+          docker build --build-arg="BIN=multipool-cli" --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-cli:latest .
+          docker build --build-arg="BIN=trading-view-api" --tag badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/trading-view-api:latest .
+
+      - name: Login to dockerhub
+        run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
+
+      - name: push image
+        run: |
+          docker push --all-tags badconfig/arcanum-node 
+          docker push --all-tags badconfig/arcanum-cli 
+          docker push --all-tags badconfig/trading-view-api 
