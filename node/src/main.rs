@@ -45,7 +45,7 @@ struct Args {
     monitoring_interval: Option<u64>,
 
     #[arg(long)]
-    otel_endpoint: String,
+    otel_endpoint: Option<String>,
 
     #[arg(long)]
     otel_sync_interval: Option<u64>,
@@ -123,29 +123,32 @@ async fn bootstrap(storage: web::Data<MultipoolStorage<TraderHook>>) -> impl Res
 async fn main() -> std::io::Result<()> {
     let args = Args::parse();
 
-    let p = opentelemetry_otlp::new_pipeline()
-        .logging()
-        .with_log_config(
-            Config::default().with_resource(Resource::new(vec![KeyValue::new(
-                "service.name",
-                "arcanum-node",
-            )])),
-        )
-        .with_exporter(
-            opentelemetry_otlp::new_exporter()
-                .http()
-                .with_http_client(reqwest::Client::new())
-                .with_endpoint(args.otel_endpoint)
-                .with_timeout(Duration::from_millis(
-                    args.otel_sync_interval.unwrap_or(1000),
-                )),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)
-        .expect("Failed to bootstrap otel");
+    let _p = if let Some(otel_endpoint) = args.otel_endpoint {
+        let p =
+            opentelemetry_otlp::new_pipeline()
+                .logging()
+                .with_log_config(Config::default().with_resource(Resource::new(vec![
+                    KeyValue::new("service.name", "arcanum-node"),
+                ])))
+                .with_exporter(
+                    opentelemetry_otlp::new_exporter()
+                        .http()
+                        .with_http_client(reqwest::Client::new())
+                        .with_endpoint(otel_endpoint)
+                        .with_timeout(Duration::from_millis(
+                            args.otel_sync_interval.unwrap_or(1000),
+                        )),
+                )
+                .install_batch(opentelemetry_sdk::runtime::Tokio)
+                .expect("Failed to bootstrap otel");
 
-    let otel_log_appender = OpenTelemetryLogBridge::new(p.provider());
-    log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
-    log::set_max_level(Level::Info.to_level_filter());
+        let otel_log_appender = OpenTelemetryLogBridge::new(p.provider());
+        log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
+        log::set_max_level(Level::Info.to_level_filter());
+        Some(p)
+    } else {
+        None
+    };
 
     let key = env::var("KEY").expect("KEY must be set");
     let database_url = env::var("DATABASE_URL");

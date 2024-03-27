@@ -1,32 +1,41 @@
 use anyhow::{anyhow, Result};
 use colored::Colorize;
 use rpc_controller::RpcRobber;
+use serde::{Deserialize, Serialize};
 
 use std::{sync::Arc, time::Duration};
 
-use ethers::{prelude::*, utils::hex::decode};
+use ethers::{
+    prelude::*,
+    utils::hex::{decode, ToHexExt},
+};
 use tokio::time::sleep;
 
 use crate::{trade::UniswapChoise, uniswap::RETRIES};
 
 abigen!(TraderContract, "../core/storage/src/abi/trader.json");
 
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Stats {
-    pub profit_ratio: f64,
-    pub strategy_input: U256,
-    pub strategy_output: U256,
-    pub multipool_fee: I256,
-    pub asset_in_address: Address,
-    pub asset_out_address: Address,
-    pub pool_in_address: Address,
-    pub pool_out_address: Address,
-    pub multipool_amount_in: U256,
-    pub multipool_amount_out: U256,
-    pub strategy: String,
-    pub timestamp: u128,
+    pub trade_input: String,
+    pub trade_output: String,
 
-    pub multipool_asset_in_price: U256,
-    pub multipool_asset_out_price: U256,
+    pub multipool_fee: String,
+
+    pub asset_in_address: String,
+    pub asset_out_address: String,
+
+    pub pool_in_address: String,
+    pub pool_out_address: String,
+
+    pub multipool_amount_in: String,
+    pub multipool_amount_out: String,
+
+    pub strategy_type: String,
+    pub multipool_address: String,
+
+    pub multipool_asset_in_price: String,
+    pub multipool_asset_out_price: String,
 
     pub pool_in_fee: u32,
     pub pool_out_fee: u32,
@@ -55,6 +64,8 @@ impl<'a> UniswapChoise<'a> {
                 - self.trading_data.fee
                 - I256::from_raw(self.input.estimated)
         );
+        println!("UNI IN {}", self.input.estimated);
+        println!("UNI OUT {}", self.output.estimated);
 
         let multipool = &self
             .trading_data
@@ -62,15 +73,75 @@ impl<'a> UniswapChoise<'a> {
             .trading_data
             .multipool;
 
+        let stats = Stats {
+            trade_input: self.input.estimated.to_string(),
+            trade_output: self.output.estimated.to_string(),
+
+            multipool_fee: self.trading_data.fee.to_string(),
+
+            asset_in_address: self
+                .trading_data
+                .trading_data_with_assets
+                .asset1
+                .0
+                .encode_hex(),
+            asset_out_address: self
+                .trading_data
+                .trading_data_with_assets
+                .asset2
+                .0
+                .encode_hex(),
+
+            pool_in_address: self.input.best_pool.0.encode_hex(),
+            pool_out_address: self.output.best_pool.0.encode_hex(),
+
+            multipool_amount_in: self.trading_data.amount_in.to_string(),
+            multipool_amount_out: self.trading_data.amount_out.to_string(),
+
+            strategy_type: "collectCashbacks".into(),
+
+            multipool_address: self
+                .trading_data
+                .trading_data_with_assets
+                .trading_data
+                .multipool
+                .contract_address()
+                .0
+                .encode_hex(),
+
+            multipool_asset_in_price: U256::zero().to_string(),
+            multipool_asset_out_price: U256::zero().to_string(),
+
+            pool_in_fee: self.input.best_fee,
+            pool_out_fee: self.output.best_fee,
+        };
+
+        println!("stats\n{stats:#?}");
+
+        //let client = clickhouse::Client::default()
+        //    .with_url("http://81.163.22.190:8123")
+        //    .with_user("default")
+        //    .with_password("hardDarh10");
+        //let mut insert = client.insert("some")?;
+        //println!("{}", serde_json::to_string(&stats).unwrap());
+        //client
+        //    .query(&format!(
+        //        "INSERT INTO trades FORMAT JSONEachRow {}",
+        //        serde_json::to_string(&stats).unwrap()
+        //    ))
+        //    .execute()
+        //    .await
+        //    .unwrap();
+
         let args = Args {
             token_in: self.trading_data.trading_data_with_assets.asset1,
-            zero_for_one_in: self.input.zero_for_one,
+            zero_for_one_in: !self.input.zero_for_one,
             token_out: self.trading_data.trading_data_with_assets.asset2,
-            zero_for_one_out: self.output.zero_for_one,
+            zero_for_one_out: !self.output.zero_for_one,
 
             multipool_amount_in: self.trading_data.amount_in,
-            multipool_amount_out: self.trading_data.amount_out * 8 / 10,
-            multipool_fee: 1000000000000000u128.into(),
+            multipool_amount_out: self.trading_data.amount_out / 10,
+            multipool_fee: 10000000000000u128.into(),
 
             pool_in: self.input.best_pool,
             pool_out: self.output.best_pool,
