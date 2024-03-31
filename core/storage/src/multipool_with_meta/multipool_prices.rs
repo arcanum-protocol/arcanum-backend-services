@@ -14,7 +14,7 @@ use multipool::Price;
 
 use anyhow::Result;
 
-const RETRIES: Option<usize> = Some(4);
+const RETRIES: Option<usize> = None;
 
 impl MultipoolWithMeta {
     pub async fn spawn_price_fetching_task(
@@ -25,7 +25,15 @@ impl MultipoolWithMeta {
         let contract_address = { multipool.read().await.multipool.contract_address() };
         tokio::spawn(async move {
             if let Err(e) = fetch_price(rpc, fetch_interval, contract_address, multipool).await {
-                log::error!("Retry limit exceeded for prices, error: {:?}", e);
+                let v = serde_json::json!({
+                    "error": format!("{e:?}"),
+                    "multipool_address": contract_address,
+                });
+                log::error!(
+                    target: "multipool-storage",
+                    v:serde;
+                    "Price fetching failed"
+                );
                 std::process::exit(0x69);
             }
             //TODO: remove
