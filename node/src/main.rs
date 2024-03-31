@@ -124,23 +124,23 @@ async fn main() -> std::io::Result<()> {
     let args = Args::parse();
 
     let _p = if let Some(otel_endpoint) = args.otel_endpoint {
-        let p =
-            opentelemetry_otlp::new_pipeline()
-                .logging()
-                .with_log_config(Config::default().with_resource(Resource::new(vec![
-                    KeyValue::new("service.name", "arcanum-node"),
-                ])))
-                .with_exporter(
-                    opentelemetry_otlp::new_exporter()
-                        .http()
-                        .with_http_client(reqwest::Client::new())
-                        .with_endpoint(otel_endpoint)
-                        .with_timeout(Duration::from_millis(
-                            args.otel_sync_interval.unwrap_or(1000),
-                        )),
-                )
-                .install_batch(opentelemetry_sdk::runtime::Tokio)
-                .expect("Failed to bootstrap otel");
+        let p = opentelemetry_otlp::new_pipeline()
+            .logging()
+            .with_log_config(Config::default().with_resource(Resource::new(vec![
+                KeyValue::new("service.name", "arcanum-node"),
+                KeyValue::new("service.chain", "arbitrum"),
+            ])))
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .http()
+                    .with_http_client(reqwest::Client::new())
+                    .with_endpoint(otel_endpoint)
+                    .with_timeout(Duration::from_millis(
+                        args.otel_sync_interval.unwrap_or(1000),
+                    )),
+            )
+            .install_batch(opentelemetry_sdk::runtime::Tokio)
+            .expect("Failed to bootstrap otel");
 
         let otel_log_appender = OpenTelemetryLogBridge::new(p.provider());
         log::set_boxed_logger(Box::new(otel_log_appender)).unwrap();
@@ -149,6 +149,10 @@ async fn main() -> std::io::Result<()> {
     } else {
         None
     };
+    log::info!(
+        target: "app",
+        "service is starting"
+    );
 
     let key = env::var("KEY").expect("KEY must be set");
     let database_url = env::var("DATABASE_URL");
@@ -212,7 +216,14 @@ async fn main() -> std::io::Result<()> {
         // so spawn it off to run on its own.
         tokio::spawn(async move {
             if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
+                let v = serde_json::json!({
+                    "error": format!("{e:?}"),
+                });
+                log::error!(
+                    target: "postgres-connection",
+                    v:serde;
+                    "connection error"
+                );
                 std::process::exit(0x0700);
             }
         });
@@ -230,7 +241,14 @@ async fn main() -> std::io::Result<()> {
                     let request = match request {
                         Ok(v) => v,
                         Err(e) => {
-                            log::error!("Eth price fetching error occurred {e:?}");
+                            let v = serde_json::json!({
+                                "error": format!("{e:?}"),
+                            });
+                            log::error!(
+                                target: "price-fetcher",
+                                v:serde;
+                                "failed to make eth price request"
+                            );
                             std::process::exit(0x69);
                         }
                     };
@@ -247,7 +265,14 @@ async fn main() -> std::io::Result<()> {
                     let eth_price = match eth_price {
                         Ok(v) => v,
                         Err(e) => {
-                            log::error!("Eth price fetching error occurred {e:?}");
+                            let v = serde_json::json!({
+                                "error": format!("{e:?}"),
+                            });
+                            log::error!(
+                                target: "price-fetcher",
+                                v:serde;
+                                "failed to parse eth price"
+                            );
                             std::process::exit(0x69);
                         }
                     };
@@ -285,7 +310,20 @@ async fn main() -> std::io::Result<()> {
                             },
                         ))
                     })
-                    .then(|_res| {
+                    .then(|res| {
+                        for r in res.iter() {
+                            if let Err(e) = r {
+                                let v = serde_json::json!({
+                                    "error": format!("{e:?}"),
+                                });
+                                log::error!(
+                                    target: "price-fetcher", 
+                                    v:serde;
+                                    "failed to set price"
+                                );
+                            }
+                        }
+
                         sleep(Duration::from_millis(100))
                     })
                     .await;
@@ -293,7 +331,10 @@ async fn main() -> std::io::Result<()> {
             });
         }
     } else {
-        println!("Running without database");
+        log::info!(
+            target: "postgres-connection",
+            "running without database"
+        );
     }
 
     HttpServer::new(move || {

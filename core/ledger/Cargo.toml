@@ -30,6 +30,6 @@ clap = { version = "4.5.0", features = ["derive"] }
 colored = "2.1.0"
 
 env_logger = "0.10.2"
-log = "0.4.20"
+log = { version = "0.4.21", features = ["kv", "kv_serde"] }
 
 atomicwrites = "0.4.3"

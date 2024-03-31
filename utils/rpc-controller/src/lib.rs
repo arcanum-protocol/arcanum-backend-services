@@ -149,12 +149,20 @@ impl RpcRobber {
     ) -> core::result::Result<R, E> {
         let index = rand::thread_rng().gen::<usize>() % self.providers.len();
         let mut r = self.providers[index].aquire(&action, self.multicall).await;
-        let retries = retries.unwrap_or(1);
-        for _ in iter::repeat(()).take(retries) {
+        let retries = retries.unwrap_or(1000);
+        for retry_number in iter::repeat(()).take(retries) {
             match r {
                 Ok(_) => break,
                 Err(e) => {
-                    log::warn!("rpc call failed: {:?}", e);
+                    let v = serde_json::json!({
+                        "error": format!("{e:?}"),
+                        "retry_number": retry_number,
+                    });
+                    log::warn!(
+                        target: "rpc",
+                        v:serde;
+                        "rpc call failed"
+                    );
                     r = self.providers[index].aquire(&action, self.multicall).await;
                 }
             }

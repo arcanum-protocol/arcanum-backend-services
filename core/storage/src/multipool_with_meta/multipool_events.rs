@@ -18,7 +18,7 @@ use multipool::{Multipool, QuantityData, Share};
 
 use anyhow::Result;
 
-const RETRIES: Option<usize> = Some(4);
+const RETRIES: Option<usize> = None;
 
 impl MultipoolWithMeta {
     pub async fn spawn_event_fetching_task(
@@ -46,7 +46,15 @@ impl MultipoolWithMeta {
                 )
                 .await
                 {
-                    log::error!("Retry limit exceeded for quantities, error: {:?}", e);
+                    let v = serde_json::json!({
+                        "error": format!("{e:?}"),
+                        "multipool_address": contract_address,
+                    });
+                    log::error!(
+                        target: "multipool-storage",
+                        v:serde;
+                        "Quantities fetching failed"
+                    );
                     std::process::exit(0x69);
                 }
                 //TODO: remove
@@ -67,7 +75,15 @@ impl MultipoolWithMeta {
                 )
                 .await
                 {
-                    log::error!("Retry limit exceeded for target shares, error: {:?}", e);
+                    let v = serde_json::json!({
+                        "error": format!("{e:?}"),
+                        "multipool_address": contract_address,
+                    });
+                    log::error!(
+                        target: "multipool-storage",
+                        v:serde;
+                        "Target shares fetching failed"
+                    );
                     std::process::exit(0x69);
                 }
                 //TODO: remove

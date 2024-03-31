@@ -51,7 +51,15 @@ impl CachedMultipoolData {
                             .insert(address, crypto::sign(address, price, chain_id, &signer))
                     })
                 }) {
-                    log::warn!("failed to cache {address} with: {e:?}");
+                    let v = serde_json::json!({
+                        "error": format!("{e:?}"),
+                        "address": address,
+                    });
+                    log::warn!(
+                        target: "storage-cache",
+                        v:serde;
+                        "failed to cache"
+                    );
                 }
                 self.cached_pools.insert(address, mp);
             }
