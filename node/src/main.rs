@@ -150,8 +150,12 @@ async fn main() -> std::io::Result<()> {
         None
     };
     log::info!(
-        target: "app",
-        "service is starting"
+        "{}",
+        serde_json::to_string(&serde_json::json!({
+            "target": "app",
+            "message": "Service is starting",
+        }))
+        .unwrap()
     );
 
     let key = env::var("KEY").expect("KEY must be set");
@@ -216,13 +220,14 @@ async fn main() -> std::io::Result<()> {
         // so spawn it off to run on its own.
         tokio::spawn(async move {
             if let Err(e) = connection.await {
-                let v = serde_json::json!({
-                    "error": format!("{e:?}"),
-                });
                 log::error!(
-                    target: "postgres-connection",
-                    v:serde;
-                    "connection error"
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "target": "postgres-connection",
+                        "error": format!("{e:?}"),
+                        "message": "Connection error"
+                    }))
+                    .unwrap()
                 );
                 std::process::exit(0x0700);
             }
@@ -241,13 +246,14 @@ async fn main() -> std::io::Result<()> {
                     let request = match request {
                         Ok(v) => v,
                         Err(e) => {
-                            let v = serde_json::json!({
-                                "error": format!("{e:?}"),
-                            });
                             log::error!(
-                                target: "price-fetcher",
-                                v:serde;
-                                "failed to make eth price request"
+                                "{}",
+                                serde_json::to_string(&serde_json::json!({
+                                    "target": "price-fetcher",
+                                    "error": format!("{e:?}"),
+                                    "message": "Failed to make eth price request"
+                                }))
+                                .unwrap()
                             );
                             std::process::exit(0x69);
                         }
@@ -265,13 +271,14 @@ async fn main() -> std::io::Result<()> {
                     let eth_price = match eth_price {
                         Ok(v) => v,
                         Err(e) => {
-                            let v = serde_json::json!({
-                                "error": format!("{e:?}"),
-                            });
                             log::error!(
-                                target: "price-fetcher",
-                                v:serde;
-                                "failed to parse eth price"
+                                "{}",
+                                serde_json::to_string(&serde_json::json!({
+                                    "target": "price-fetcher",
+                                    "error": format!("{e:?}"),
+                                    "message": "Failed to parse eth price"
+                                }))
+                                .unwrap()
                             );
                             std::process::exit(0x69);
                         }
@@ -313,13 +320,14 @@ async fn main() -> std::io::Result<()> {
                     .then(|res| {
                         for r in res.iter() {
                             if let Err(e) = r {
-                                let v = serde_json::json!({
-                                    "error": format!("{e:?}"),
-                                });
                                 log::error!(
-                                    target: "price-fetcher", 
-                                    v:serde;
-                                    "failed to set price"
+                                    "{}",
+                                    serde_json::to_string(&serde_json::json!({
+                                        "target": "price-fetcher",
+                                        "error": format!("{e:?}"),
+                                        "message": "Failed to set price"
+                                    }))
+                                    .unwrap()
                                 );
                             }
                         }
@@ -332,8 +340,12 @@ async fn main() -> std::io::Result<()> {
         }
     } else {
         log::info!(
-            target: "postgres-connection",
-            "running without database"
+            "{}",
+            serde_json::to_string(&serde_json::json!({
+                "target": "postgres-connection",
+                "message": "Running without database"
+            }))
+            .unwrap()
         );
     }
 

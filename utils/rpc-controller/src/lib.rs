@@ -154,14 +154,15 @@ impl RpcRobber {
             match r {
                 Ok(_) => break,
                 Err(e) => {
-                    let v = serde_json::json!({
-                        "error": format!("{e:?}"),
-                        "retry_number": retry_number,
-                    });
                     log::warn!(
-                        target: "rpc",
-                        v:serde;
-                        "rpc call failed"
+                        "{}",
+                        serde_json::to_string(&serde_json::json!({
+                            "target": "rpc",
+                            "error": format!("{e:?}"),
+                            "retry_number": retry_number,
+                            "message": "Rpc call failed"
+                        }))
+                        .unwrap()
                     );
                     r = self.providers[index].aquire(&action, self.multicall).await;
                 }

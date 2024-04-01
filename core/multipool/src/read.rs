@@ -167,8 +167,14 @@ impl Multipool {
         } else {
             share.checked_sub(share_bound).unwrap_or(U256::zero())
         };
-        let amount = I256::from_raw(result_share * (usd_cap << 96) / price / total_shares)
-            - I256::from_raw(quantity);
+        let amount = I256::from_raw(
+            U256::try_from(
+                U512::from(result_share) * U512::from(usd_cap << 96)
+                    / U512::from(price)
+                    / U512::from(total_shares),
+            )
+            .unwrap(),
+        ) - I256::from_raw(quantity);
         Ok(MayBeExpired::new(amount))
     }
 }

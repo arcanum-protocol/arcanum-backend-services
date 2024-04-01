@@ -98,6 +98,16 @@
             "name": "weth",
             "type": "address",
             "internalType": "contract WETH"
+          },
+          {
+            "name": "cashback",
+            "type": "address",
+            "internalType": "contract ICashbackVault"
+          },
+          {
+            "name": "assets",
+            "type": "address[]",
+            "internalType": "address[]"
           }
         ]
       }
