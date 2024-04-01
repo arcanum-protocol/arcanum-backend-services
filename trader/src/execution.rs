@@ -43,29 +43,31 @@ pub struct Stats {
 
 impl<'a> UniswapChoise<'a> {
     pub async fn execute(&self) -> Result<()> {
-        if I256::from_raw(self.output.estimated) - self.trading_data.fee
-            < I256::from_raw(self.input.estimated)
-        {
-            println!("Unprofitable");
-            println!("out {}", self.output.estimated);
-            println!("in {}", self.input.estimated);
-            println!("fee {}", self.trading_data.fee);
-            println!(
-                "profit {}",
-                I256::from_raw(self.output.estimated)
-                    - self.trading_data.fee
-                    - I256::from_raw(self.input.estimated)
-            );
-            return Ok(());
-        }
-        println!(
-            "PROFITABLE {}",
-            I256::from_raw(self.output.estimated)
-                - self.trading_data.fee
-                - I256::from_raw(self.input.estimated)
-        );
-        println!("UNI IN {}", self.input.estimated);
-        println!("UNI OUT {}", self.output.estimated);
+        // if I256::from_raw(self.output.estimated) - self.trading_data.fee
+        //     < I256::from_raw(self.input.estimated)
+        // {
+        //     //println!("Unprofitable");
+        //     //println!("out {}", self.output.estimated);
+        //     //println!("in {}", self.input.estimated);
+        //     //println!("fee {}", self.trading_data.fee);
+        //     //println!(
+        //     //    "profit {}",
+        //     //    I256::from_raw(self.output.estimated)
+        //     //        - self.trading_data.fee
+        //     //        - I256::from_raw(self.input.estimated)
+        //     //);
+        //     //return Ok(());
+        // } else {
+        //     //println!(
+        //     //    "PROFITABLE {}",
+        //     //    I256::from_raw(self.output.estimated)
+        //     //        - self.trading_data.fee
+        //     //        - I256::from_raw(self.input.estimated)
+        //     //);
+        //     //println!("UNI IN {}", self.input.estimated);
+        //     //println!("UNI OUT {}", self.output.estimated);
+        // }
+        println!("FEE {}", self.trading_data.fee);
 
         let multipool = &self
             .trading_data
@@ -73,7 +75,7 @@ impl<'a> UniswapChoise<'a> {
             .trading_data
             .multipool;
 
-        let stats = Stats {
+        let _stats = Stats {
             trade_input: self.input.estimated.to_string(),
             trade_output: self.output.estimated.to_string(),
 
@@ -116,7 +118,7 @@ impl<'a> UniswapChoise<'a> {
             pool_out_fee: self.output.best_fee,
         };
 
-        println!("stats\n{stats:#?}");
+        //println!("stats\n{stats:#?}");
 
         //let client = clickhouse::Client::default()
         //    .with_url("http://81.163.22.190:8123")
@@ -140,7 +142,7 @@ impl<'a> UniswapChoise<'a> {
             zero_for_one_out: !self.output.zero_for_one,
 
             multipool_amount_in: self.trading_data.amount_in,
-            multipool_amount_out: self.trading_data.amount_out / 10,
+            multipool_amount_out: self.trading_data.amount_out * 9 / 10,
             multipool_fee: 10000000000000u128.into(),
 
             pool_in: self.input.best_pool,
@@ -153,8 +155,16 @@ impl<'a> UniswapChoise<'a> {
                 .trading_data
                 .force_push
                 .clone(),
-            gas_limit: 5000000.into(),
+            gas_limit: 2000000.into(),
             weth: self.trading_data.trading_data_with_assets.trading_data.weth,
+            //cashback: Address::zero(),
+            cashback: "0xB9cb365F599885F6D97106918bbd406FE09b8590"
+                .parse()
+                .unwrap(),
+            assets: vec![
+                self.trading_data.trading_data_with_assets.asset1,
+                self.trading_data.trading_data_with_assets.asset2,
+            ],
         };
         let wallet: LocalWallet = LocalWallet::from_bytes(
             decode(std::env::var("TRADER_KEY").unwrap())
@@ -198,7 +208,7 @@ pub async fn check_and_send(
                 let client = SignerMiddleware::new(provider, wallet.clone());
                 let client = Arc::new(client);
                 TraderContract::new(
-                    "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
+                    "0xD30a475Fbb311C7519Fa0AAd505b74DcD5BF665B"
                         .parse::<Address>()
                         .unwrap(),
                     client,
@@ -219,8 +229,7 @@ pub async fn check_and_send(
         Ok((profit, gas_used)) => {
             println!("Simlulation SUCCESS, profit: {}, gas: {}", profit, gas_used);
             // * 0.1 / 10^9
-            let eth_for_gas = gas_used * U256::from(1_000_000_000_000_000_000u128)
-                / U256::from(10_000_000_000u128);
+            let eth_for_gas = gas_used * U256::from(10_000_000u128);
             println!(
                 "ETH for gas {}",
                 eth_for_gas.as_u128() as f64 / 10f64.powf(18f64)
@@ -231,6 +240,8 @@ pub async fn check_and_send(
                     "Actual profit {}",
                     (profit - eth_for_gas).as_u128() as f64 / 10f64.powf(18f64)
                 );
+
+                //return Err("end".into());
 
                 let broadcast = rpc
                     .aquire(

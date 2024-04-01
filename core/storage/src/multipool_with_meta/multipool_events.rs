@@ -46,14 +46,15 @@ impl MultipoolWithMeta {
                 )
                 .await
                 {
-                    let v = serde_json::json!({
-                        "error": format!("{e:?}"),
-                        "multipool_address": contract_address,
-                    });
                     log::error!(
-                        target: "multipool-storage",
-                        v:serde;
-                        "Quantities fetching failed"
+                        "{}",
+                        serde_json::to_string(&serde_json::json!({
+                            "target": "multipool-storage",
+                            "error": format!("{e:?}"),
+                            "multipool_address": contract_address,
+                            "message": "Quantities fetching failed"
+                        }))
+                        .unwrap()
                     );
                     std::process::exit(0x69);
                 }
@@ -75,14 +76,15 @@ impl MultipoolWithMeta {
                 )
                 .await
                 {
-                    let v = serde_json::json!({
-                        "error": format!("{e:?}"),
-                        "multipool_address": contract_address,
-                    });
                     log::error!(
-                        target: "multipool-storage",
-                        v:serde;
-                        "Target shares fetching failed"
+                        "{}",
+                        serde_json::to_string(&serde_json::json!({
+                            "target": "multipool-storage",
+                            "error": format!("{e:?}"),
+                            "multipool_address": contract_address,
+                            "message": "Target shares fetching failed"
+                        }))
+                        .unwrap()
                     );
                     std::process::exit(0x69);
                 }

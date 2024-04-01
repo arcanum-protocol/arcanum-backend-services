@@ -2,7 +2,7 @@ providers:
   - max_parallel_calls: 1
     max_calls_per_sec: 5
     url: "https://arb-mainnet.g.alchemy.com/v2/6cCoonf598ssGC998fbfma1B0EZ9BZdk"
-      # - max_parallel_calls: 1
-      #   max_calls_per_sec: 5
-      #   url: "https://arbitrum.llamarpc.com"
+      #- max_parallel_calls: 1
+      #  max_calls_per_sec: 5
+      #  url: "https://arbitrum.llamarpc.com"
 chain_id: 42161

@@ -6,7 +6,7 @@ use crate::contracts::Quoter;
 
 use crate::trade::{MultipoolChoise, PoolInfo, SwapOutcome, UniswapChoise};
 
-pub const RETRIES: Option<usize> = None;
+pub const RETRIES: Option<usize> = Some(1);
 
 pub enum AmountWithDirection {
     ExactInput(U256),

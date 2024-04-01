@@ -49,6 +49,11 @@ impl<'a> AssetsChoise<'a> {
             bail!(anyhow!("same signs"));
         }
 
+        //println!("a1 {}", self.asset1);
+        //println!("Q1 {}", amount1);
+        //println!("a2 {}", self.asset2);
+        //println!("Q2 {}", amount2);
+
         let amount1 = U256::try_from(amount1.abs())?;
         let amount2 = U256::try_from(amount2.abs())?;
 
@@ -72,7 +77,7 @@ impl<'a> AssetsChoise<'a> {
             },
             AssetArgs {
                 asset_address: self.asset2,
-                amount: I256::from(-1i128),
+                amount: I256::from(-10i128),
             },
         ];
 
@@ -103,13 +108,14 @@ impl<'a> AssetsChoise<'a> {
             .map_err(|e| anyhow!(e))?;
 
         println!("out {:?}", amounts);
-        let amount_of_in = U256::try_from(amounts[1].max(amounts[0]).abs()).unwrap();
-        let amount_of_out = U256::try_from(amounts[1].min(amounts[0]).abs()).unwrap();
+
+        let amount_of_in = amounts[0].max(amounts[1]);
+        let amount_of_out = amounts[0].min(amounts[1]);
 
         Ok(MultipoolChoise {
             trading_data_with_assets: self,
-            amount_in: amount_of_in,
-            amount_out: amount_of_out,
+            amount_in: U256::try_from(amount_of_in.abs())?,
+            amount_out: U256::try_from(amount_of_out.abs())?,
             fee,
         })
     }
