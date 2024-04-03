@@ -35,16 +35,14 @@ impl MultipoolStorageHook for TraderHook {
             loop {
                 tokio::time::sleep(Duration::from_secs(3)).await;
                 let multipool = { pool.read().await.multipool.clone() };
-                println!("{}", multipool.contract_address());
                 if !multipool
                     .contract_address()
                     .eq(&"0x4810E5A7741ea5fdbb658eDA632ddfAc3b19e3c6"
                         .parse()
                         .unwrap())
                 {
-                    continue;
+                    break;
                 }
-                println!("{}", multipool.contract_address());
                 let signed_price = match hook_data
                     .cache
                     .get_signed_price(&multipool.contract_address())
@@ -86,8 +84,8 @@ impl MultipoolStorageHook for TraderHook {
                                     continue;
                                 }
                             },
-                            Err(_e) => {
-                                //println!("{e:?}");
+                            Err(e) => {
+                                println!("{e:?}");
                                 continue;
                             }
                         }

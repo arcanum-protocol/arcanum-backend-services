@@ -15,6 +15,8 @@ use crate::{trade::UniswapChoise, uniswap::RETRIES};
 
 abigen!(TraderContract, "../core/storage/src/abi/trader.json");
 
+pub const TRADER_ADDRESS: &str = "0xD30a475Fbb311C7519Fa0AAd505b74DcD5BF665B";
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Stats {
     pub trade_input: String,
@@ -43,30 +45,6 @@ pub struct Stats {
 
 impl<'a> UniswapChoise<'a> {
     pub async fn execute(&self) -> Result<()> {
-        // if I256::from_raw(self.output.estimated) - self.trading_data.fee
-        //     < I256::from_raw(self.input.estimated)
-        // {
-        //     //println!("Unprofitable");
-        //     //println!("out {}", self.output.estimated);
-        //     //println!("in {}", self.input.estimated);
-        //     //println!("fee {}", self.trading_data.fee);
-        //     //println!(
-        //     //    "profit {}",
-        //     //    I256::from_raw(self.output.estimated)
-        //     //        - self.trading_data.fee
-        //     //        - I256::from_raw(self.input.estimated)
-        //     //);
-        //     //return Ok(());
-        // } else {
-        //     //println!(
-        //     //    "PROFITABLE {}",
-        //     //    I256::from_raw(self.output.estimated)
-        //     //        - self.trading_data.fee
-        //     //        - I256::from_raw(self.input.estimated)
-        //     //);
-        //     //println!("UNI IN {}", self.input.estimated);
-        //     //println!("UNI OUT {}", self.output.estimated);
-        // }
         println!("FEE {}", self.trading_data.fee);
 
         let multipool = &self
@@ -142,7 +120,7 @@ impl<'a> UniswapChoise<'a> {
             zero_for_one_out: !self.output.zero_for_one,
 
             multipool_amount_in: self.trading_data.amount_in,
-            multipool_amount_out: self.trading_data.amount_out * 9 / 10,
+            multipool_amount_out: self.trading_data.amount_out / 10,
             multipool_fee: 10000000000000u128.into(),
 
             pool_in: self.input.best_pool,
@@ -155,9 +133,8 @@ impl<'a> UniswapChoise<'a> {
                 .trading_data
                 .force_push
                 .clone(),
-            gas_limit: 2000000.into(),
+            gas_limit: 4000000.into(),
             weth: self.trading_data.trading_data_with_assets.trading_data.weth,
-            //cashback: Address::zero(),
             cashback: "0xB9cb365F599885F6D97106918bbd406FE09b8590"
                 .parse()
                 .unwrap(),
@@ -207,18 +184,14 @@ pub async fn check_and_send(
             |provider, _| async {
                 let client = SignerMiddleware::new(provider, wallet.clone());
                 let client = Arc::new(client);
-                TraderContract::new(
-                    "0xD30a475Fbb311C7519Fa0AAd505b74DcD5BF665B"
-                        .parse::<Address>()
-                        .unwrap(),
-                    client,
-                )
-                .trade(args.clone())
-                .gas(args.gas_limit)
-                // 0.02
-                .value(20000000000000000u128)
-                .call()
-                .await
+                TraderContract::new(TRADER_ADDRESS.parse::<Address>().unwrap(), client)
+                    .trade(args.clone())
+                    .gas(args.gas_limit)
+                    .gas_price(10000000)
+                    // 0.02
+                    .value(30000000000000000u128)
+                    .call()
+                    .await
             },
             RETRIES,
         )
@@ -248,19 +221,15 @@ pub async fn check_and_send(
                         |provider, _| async {
                             let client = SignerMiddleware::new(provider, wallet.clone());
                             let client = Arc::new(client);
-                            TraderContract::new(
-                                "0x8B651f5a87DE6f496a725B9F0143F88e99D15bB0"
-                                    .parse::<Address>()
-                                    .unwrap(),
-                                client,
-                            )
-                            .trade(args.clone())
-                            .gas(args.gas_limit)
-                            // 0.02
-                            .value(20000000000000000u128)
-                            .send()
-                            .await
-                            .map(|v| v.to_owned())
+                            TraderContract::new(TRADER_ADDRESS.parse::<Address>().unwrap(), client)
+                                .trade(args.clone())
+                                .gas(args.gas_limit)
+                                // 0.02
+                                .gas_price(10000000)
+                                .value(30000000000000000u128)
+                                .send()
+                                .await
+                                .map(|v| v.to_owned())
                         },
                         RETRIES,
                     )
@@ -314,12 +283,23 @@ pub async fn check_and_send(
                 000000000000000000000000".parse::<Bytes>().unwrap()) {
                 println!("Simulation FAILED, uniswap STF");
             } else if e.as_revert() == Some(
+                &"0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000\
+                000000000000000000000000000000000000000000000000096e6f2070726f6669740000000000000000000000\
+                000000000000000000000000".parse::<Bytes>().unwrap()) {
+                println!("No profit");
+            } else if e.as_revert() == Some(
                 &"0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000\
                 00000000000000000000000000000000000000000000002645524332303a207472616e7366657220616d6f756e74\
                 20657863656564732062616c616e63650000000000000000000000000000000000000000000000000000"
                 .parse::<Bytes>().unwrap()) {
                 println!("Simulation FAILED, ERC20: transfer amount exceeds balance");
 
+            } else if e.as_revert() == Some(
+                &"0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000\
+                000000000000000000000000000000000000000000002645524332303a207472616e7366657220616d6f756e7420657\
+                863656564732062616c616e63650000000000000000000000000000000000000000000000000000"
+                .parse::<Bytes>().unwrap()) {
+                println!("ERC20: transfer amount exceeds balance");
             } else if e.as_revert() == Some(&"0x3fb8e961".parse::<Bytes>().unwrap()) {
                 println!("Simulation FAILED, deviation exceeds limit");
             } else if e.as_revert() == Some(&"0x7cb71f89".parse::<Bytes>().unwrap()) {
@@ -327,7 +307,7 @@ pub async fn check_and_send(
             } else {
                 println!("Simulation FAILED, error: {:?}", e);
             }
-            Err(e.to_string())
+            Err("".into())
         }
     }
 }

@@ -49,10 +49,9 @@ impl<'a> AssetsChoise<'a> {
             bail!(anyhow!("same signs"));
         }
 
-        //println!("a1 {}", self.asset1);
-        //println!("Q1 {}", amount1);
-        //println!("a2 {}", self.asset2);
-        //println!("Q2 {}", amount2);
+        if amount1.is_negative() {
+            bail!(anyhow!("amount1 is neg"));
+        }
 
         let amount1 = U256::try_from(amount1.abs())?;
         let amount2 = U256::try_from(amount2.abs())?;
@@ -77,9 +76,12 @@ impl<'a> AssetsChoise<'a> {
             },
             AssetArgs {
                 asset_address: self.asset2,
-                amount: I256::from(-10i128),
+                amount: I256::from(-1000000i128),
             },
         ];
+
+        println!("{} -> {}", self.asset1, self.asset2);
+        println!("{} -> {}", amount1, amount2);
 
         swap_args.sort_by_key(|v| v.asset_address);
 
