@@ -47,7 +47,10 @@ impl MultipoolAsset {
         let slot = self
             .quantity_slot
             .clone()
-            .ok_or(MultipoolErrors::QuantitySlotMissing(self.address))?;
+            .unwrap_or(MayBeExpired::new(QuantityData {
+                quantity: U256::zero(),
+                cashback: U256::zero(),
+            }));
         let price = self
             .price
             .clone()
