@@ -16,8 +16,8 @@ pub enum AmountWithDirection {
 impl<'a> MultipoolChoise<'a> {
     pub async fn estimate_uniswap(&self) -> Result<UniswapChoise> {
         let uniswap = &self.trading_data_with_assets.trading_data.uniswap;
-        let asset1 = self.trading_data_with_assets.asset1;
-        let asset2 = self.trading_data_with_assets.asset2;
+        let asset1 = self.swap_asset_in;
+        let asset2 = self.swap_asset_out;
         let rpc = &self.trading_data_with_assets.trading_data.rpc;
 
         let input_uniswap_pool = uniswap.get_pool_fee(&asset1).map_err(|e| anyhow!(e))?;
@@ -54,7 +54,7 @@ impl<'a> MultipoolChoise<'a> {
                                         self.trading_data_with_assets.trading_data.weth,
                                         asset1,
                                         *fee,
-                                        self.amount_in,
+                                        self.unwrapped_amount_in,
                                         U256::zero(),
                                     )
                                 }),
@@ -69,7 +69,7 @@ impl<'a> MultipoolChoise<'a> {
                                         asset2,
                                         self.trading_data_with_assets.trading_data.weth,
                                         *fee,
-                                        self.amount_out,
+                                        self.unwrapped_amount_out,
                                         U256::zero(),
                                     )
                                 }),

@@ -20,3 +20,27 @@ abigen!(
         function quoteExactOutputSingle(address tokenIn,address tokenOut,uint24 fee,uint256 amountOut,uint160 sqrtPriceLimitX96) external returns (uint256 amountIn)
     ]"#,
 );
+
+abigen!(
+    SiloPool,
+    r#"[
+        function deposit(address _asset, uint256 _amount, bool _collateralOnly) external returns (uint256 collateralAmount, uint256 collateralShare)
+        function withdraw(address _asset, uint256 _amount, bool _collateralOnly) external returns (uint256 withdrawnAmount, uint256 withdrawnShare)
+    ]"#,
+);
+
+abigen!(
+    SiloLens,
+    r#"[
+        function totalDepositsWithInterest(address _silo,address _asset) external view returns (uint256 _totalDeposits)
+    ]"#,
+);
+
+abigen!(
+    ERC20,
+    r#"[
+        function totalSupply() external view returns (uint256 value)
+        function approve(address recepient,uint256 amount) external
+        function transfer(address recepient,uint256 amount) external
+    ]"#,
+);

@@ -35,7 +35,7 @@ impl MultipoolWithMeta {
                     }))
                     .unwrap()
                 );
-                std::process::exit(0x69);
+                std::process::exit(0x70);
             }
             //TODO: remove
             Ok(())

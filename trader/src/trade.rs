@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 
 use ethers::prelude::*;
 
@@ -26,6 +26,7 @@ pub struct AssetPools {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Uniswap {
     pub eth_pools: Vec<AssetPools>,
+    pub silo_assets: HashMap<Address, (Address, Address)>,
 }
 
 impl Uniswap {
@@ -58,10 +59,26 @@ pub struct AssetsChoise<'a> {
     pub deviation_bound: I256,
 }
 
+pub struct WrapperCall {
+    pub wrapper: Address,
+    pub data: Vec<u8>,
+}
+
 pub struct MultipoolChoise<'a> {
     pub trading_data_with_assets: &'a AssetsChoise<'a>,
-    pub amount_in: U256,
-    pub amount_out: U256,
+
+    pub unwrapped_amount_in: U256,
+    pub unwrapped_amount_out: U256,
+
+    pub multipool_amount_in: U256,
+    pub multipool_amount_out: U256,
+
+    pub swap_asset_in: Address,
+    pub swap_asset_out: Address,
+
+    pub wrap_call: WrapperCall,
+    pub unwrap_call: WrapperCall,
+
     pub fee: I256,
 }
 

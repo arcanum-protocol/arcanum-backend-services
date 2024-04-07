@@ -240,7 +240,9 @@ async fn main() -> std::io::Result<()> {
                 sleep(Duration::from_millis(500)).await;
                 loop {
                     let request = reqwest::get(
-                        "https://token-rates-aggregator.1inch.io/v1.0/native-token-rate?vs=USD",
+                        //"https://token-rates-aggregator.1inch.io/v1.0/native-token-rate?vs=USD",
+                        //"https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD",
+                        "https://api.binance.com/api/v3/avgPrice?symbol=ETHFDUSD",
                     )
                     .await;
                     let request = match request {
@@ -255,20 +257,32 @@ async fn main() -> std::io::Result<()> {
                                 }))
                                 .unwrap()
                             );
-                            std::process::exit(0x69);
+                            std::process::exit(0x73);
                         }
                     };
+
+                    //let eth_price = request
+                    //    .json::<serde_json::Value>()
+                    //    .await
+                    //    .as_ref()
+                    //    .map_err(|e| anyhow!("{e}"))
+                    //    .and_then(|v| v.get("1").ok_or(anyhow!("KEY \"1\" should present")))
+                    //    .and_then(|v| v.get("USD").ok_or(anyhow!("KEY \"USD\" should present")))
+                    //    .and_then(|v| v.as_f64().ok_or(anyhow!("Value should be a valid float")));
 
                     let eth_price = request
                         .json::<serde_json::Value>()
                         .await
                         .as_ref()
                         .map_err(|e| anyhow!("{e}"))
-                        .and_then(|v| v.get("1").ok_or(anyhow!("KEY \"1\" should present")))
-                        .and_then(|v| v.get("USD").ok_or(anyhow!("KEY \"USD\" should present")))
-                        .and_then(|v| v.as_f64().ok_or(anyhow!("Value should be a valid float")));
+                        .and_then(|v| v.get("price").ok_or(anyhow!("KEY \"USD\" should present")))
+                        .and_then(|v| v.as_str().ok_or(anyhow!("Value should be a valid float")))
+                        .and_then(|v| {
+                            v.parse()
+                                .map_err(|_| anyhow!("Failed to parse price to float"))
+                        });
 
-                    let eth_price = match eth_price {
+                    let eth_price: f64 = match eth_price {
                         Ok(v) => v,
                         Err(e) => {
                             log::error!(
@@ -280,7 +294,7 @@ async fn main() -> std::io::Result<()> {
                                 }))
                                 .unwrap()
                             );
-                            std::process::exit(0x69);
+                            std::process::exit(0x74);
                         }
                     };
 
@@ -332,7 +346,7 @@ async fn main() -> std::io::Result<()> {
                             }
                         }
 
-                        sleep(Duration::from_millis(100))
+                        sleep(Duration::from_millis(1000))
                     })
                     .await;
                 }
