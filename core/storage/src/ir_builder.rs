@@ -154,6 +154,8 @@ impl<H: MultipoolStorageHook> MultipoolStorage<H> {
                         multipool: Arc::new(RwLock::new(MultipoolWithMeta {
                             multipool: Multipool {
                                 contract_address: pool.contract_address,
+                                // Fees are not tracked in ir state yet
+                                fees: Default::default(),
                                 assets: pool
                                     .assets
                                     .into_iter()
