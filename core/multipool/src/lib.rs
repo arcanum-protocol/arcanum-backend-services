@@ -29,6 +29,17 @@ pub struct Multipool {
     pub assets: Vec<MultipoolAsset>,
     pub total_supply: Option<MayBeExpired<Quantity>>,
     pub total_shares: Option<MayBeExpired<Share>>,
+    pub fees: Option<MayBeExpired<MultipoolFees>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct MultipoolFees {
+    pub deviation_limit: U64,
+    pub deviation_param: U64,
+    pub depeg_base_fee: U64,
+    pub base_fee: U64,
+    pub developer_base_fee: U64,
+    pub developer_address: Address,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -83,6 +94,7 @@ impl Multipool {
             assets: Default::default(),
             total_supply: Default::default(),
             total_shares: Default::default(),
+            fees: Default::default(),
         }
     }
 }

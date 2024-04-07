@@ -1,9 +1,21 @@
 use std::collections::HashMap;
 
+use crate::MultipoolFees;
+
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
 use ethers::prelude::*;
 
 impl Multipool {
+    pub fn update_fees(&mut self, fees: Option<MultipoolFees>, update_expiry: bool) {
+        if let Some(fees) = fees {
+            self.fees = Some(MayBeExpired::new(fees))
+        } else if update_expiry {
+            if let Some(fees) = self.fees.as_mut() {
+                fees.refresh();
+            }
+        }
+    }
+
     /// Prices are updated if these assets present in pool. Otherwhise there is no effect
     pub fn update_prices(&mut self, prices: &[(Address, Price)], update_expiry: bool) {
         //TODO: replase with 0(max(len(prices), len(self.assets)))
