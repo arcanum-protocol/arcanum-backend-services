@@ -10,6 +10,13 @@ eth_pools:
       - fee: 100
         address: "0x03a3be7ab4aa263d42d63b6cc594f4fb3d3f3951"
 
+  - address: "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"
+    asset_symbol: "USDCE"
+    base_is_token0: false
+    pools:
+      - fee: 500
+        address: "0xC31E54c7a869B9FcBEcc14363CF510d1c41fa443"
+
   - address: "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9"
     asset_symbol: "USDT"
     base_is_token0: false
@@ -80,3 +87,17 @@ eth_pools:
         address: "0xe8629b6a488f366d27dad801d1b5b445199e2ada"
       - fee: 3000
         address: "0xdbaeb7f0dfe3a0aafd798ccecb5b22e708f7852c"
+silo_assets:
+  "0x96E1301bd2536A3C56EBff8335FD892dD9bD02dC":
+    - "0xDe998E5EeF06dD09fF467086610B175F179A66A0"
+    - "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"
+  "0xE9B35c753b6Ec9b5a4bBd8c385d16cDb19517185":
+    - "0x19d3F8D09773065867e9fD11716229e73481c55A"
+    - "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"
+  "0xAf06C6106D3a202AD53a4584189e3Dd37E4D2735":
+    - "0xaee935408b94bae1Ce4eA15d22b3cA33c91eFe81"
+    - "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"
+  "0x51DdFa50752782089d032DD293e4650dAf16F151":
+    - "0x5C2B80214c1961dB06f69DD4128BcfFc6423d44F"
+    - "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8"
+

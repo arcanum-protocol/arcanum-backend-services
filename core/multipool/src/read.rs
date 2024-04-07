@@ -1,5 +1,7 @@
 use std::ops::Shl;
 
+use crate::QuantityData;
+
 use super::{
     errors::MultipoolErrors, errors::MultipoolOverflowErrors, expiry::MayBeExpired, Merge,
     Multipool, MultipoolAsset, Price, Share, X32, X96,
@@ -139,7 +141,10 @@ impl Multipool {
         let asset = self.asset(asset_address)?;
         let quantity = asset
             .quantity_slot
-            .ok_or(MultipoolErrors::PriceMissing(*asset_address))?
+            .unwrap_or(MayBeExpired::new(QuantityData {
+                quantity: U256::zero(),
+                cashback: U256::zero(),
+            }))
             .any_age()
             .quantity;
         let price = asset

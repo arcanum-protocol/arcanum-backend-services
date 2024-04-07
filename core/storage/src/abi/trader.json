@@ -18,19 +18,58 @@
             "internalType": "contract IERC20"
           },
           {
-            "name": "zeroForOneIn",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
             "name": "tokenOut",
             "type": "address",
             "internalType": "contract IERC20"
           },
           {
-            "name": "zeroForOneOut",
-            "type": "bool",
-            "internalType": "bool"
+            "name": "multipoolTokenIn",
+            "type": "address",
+            "internalType": "contract IERC20"
+          },
+          {
+            "name": "multipoolTokenOut",
+            "type": "address",
+            "internalType": "contract IERC20"
+          },
+          {
+            "name": "firstCall",
+            "type": "tuple",
+            "internalType": "struct Trader.Call",
+            "components": [
+              {
+                "name": "wrapper",
+                "type": "address",
+                "internalType": "contract IWrapper"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "secondCall",
+            "type": "tuple",
+            "internalType": "struct Trader.Call",
+            "components": [
+              {
+                "name": "wrapper",
+                "type": "address",
+                "internalType": "contract IWrapper"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "tmpAmount",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
             "name": "poolIn",
@@ -38,17 +77,22 @@
             "internalType": "contract IUniswapV3Pool"
           },
           {
+            "name": "zeroForOneIn",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
             "name": "poolOut",
             "type": "address",
             "internalType": "contract IUniswapV3Pool"
           },
           {
-            "name": "multipoolAmountIn",
-            "type": "uint256",
-            "internalType": "uint256"
+            "name": "zeroForOneOut",
+            "type": "bool",
+            "internalType": "bool"
           },
           {
-            "name": "multipoolAmountOut",
+            "name": "multipoolSleepage",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -148,5 +192,16 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "error",
+    "name": "Reverted",
+    "inputs": [
+      {
+        "name": "data",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ]
   }
 ]

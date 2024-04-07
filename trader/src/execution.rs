@@ -15,7 +15,7 @@ use crate::{trade::UniswapChoise, uniswap::RETRIES};
 
 abigen!(TraderContract, "../core/storage/src/abi/trader.json");
 
-pub const TRADER_ADDRESS: &str = "0xD30a475Fbb311C7519Fa0AAd505b74DcD5BF665B";
+pub const TRADER_ADDRESS: &str = "0x955aDe421294B9D9C49b09bd64a92a4138EA6C56";
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Stats {
@@ -75,8 +75,8 @@ impl<'a> UniswapChoise<'a> {
             pool_in_address: self.input.best_pool.0.encode_hex(),
             pool_out_address: self.output.best_pool.0.encode_hex(),
 
-            multipool_amount_in: self.trading_data.amount_in.to_string(),
-            multipool_amount_out: self.trading_data.amount_out.to_string(),
+            multipool_amount_in: self.trading_data.multipool_amount_in.to_string(),
+            multipool_amount_out: self.trading_data.multipool_amount_out.to_string(),
 
             strategy_type: "collectCashbacks".into(),
 
@@ -114,13 +114,15 @@ impl<'a> UniswapChoise<'a> {
         //    .unwrap();
 
         let args = Args {
-            token_in: self.trading_data.trading_data_with_assets.asset1,
+            token_in: self.trading_data.swap_asset_in,
+            multipool_token_in: self.trading_data.trading_data_with_assets.asset1,
             zero_for_one_in: !self.input.zero_for_one,
-            token_out: self.trading_data.trading_data_with_assets.asset2,
+            token_out: self.trading_data.swap_asset_out,
+            multipool_token_out: self.trading_data.trading_data_with_assets.asset2,
             zero_for_one_out: !self.output.zero_for_one,
 
-            multipool_amount_in: self.trading_data.amount_in,
-            multipool_amount_out: self.trading_data.amount_out / 10,
+            tmp_amount: self.trading_data.unwrapped_amount_in,
+            multipool_sleepage: self.trading_data.multipool_amount_out / 10,
             multipool_fee: 10000000000000u128.into(),
 
             pool_in: self.input.best_pool,
@@ -142,6 +144,16 @@ impl<'a> UniswapChoise<'a> {
                 self.trading_data.trading_data_with_assets.asset1,
                 self.trading_data.trading_data_with_assets.asset2,
             ],
+
+            first_call: trader_contract::Call {
+                wrapper: self.trading_data.wrap_call.wrapper,
+                data: self.trading_data.wrap_call.data.clone().into(),
+            },
+
+            second_call: trader_contract::Call {
+                wrapper: self.trading_data.unwrap_call.wrapper,
+                data: self.trading_data.unwrap_call.data.clone().into(),
+            },
         };
         let wallet: LocalWallet = LocalWallet::from_bytes(
             decode(std::env::var("TRADER_KEY").unwrap())
