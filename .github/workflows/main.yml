@@ -42,7 +42,7 @@ jobs:
         run: |
           cargo build --bin multipool-node --release --target=x86_64-unknown-linux-musl
           cargo build --bin multipool-cli --release --target=x86_64-unknown-linux-musl
-          cargo build --bin trading-view-api --release --target=x86_64-unknown-linux-musl
+          cargo build --bin gateway --release --target=x86_64-unknown-linux-musl
 
       - name: 🔎 Test
         id: cargo-testing
@@ -105,7 +105,7 @@ jobs:
         run: |
           docker build --build-arg="BIN=multipool-node" --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-node:latest .
           docker build --build-arg="BIN=multipool-cli" --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-cli:latest .
-          docker build --build-arg="BIN=trading-view-api" --tag badconfig/trading-view-api:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/trading-view-api:latest .
+          docker build --build-arg="BIN=gateway" --tag badconfig/gateway:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/gateway:latest .
 
       - name: Login to dockerhub
         run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
@@ -114,4 +114,4 @@ jobs:
         run: |
           docker push --all-tags badconfig/arcanum-node 
           docker push --all-tags badconfig/arcanum-cli 
-          docker push --all-tags badconfig/trading-view-api 
+          docker push --all-tags badconfig/gateway

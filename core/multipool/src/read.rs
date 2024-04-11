@@ -1,6 +1,6 @@
 use std::ops::Shl;
 
-use crate::QuantityData;
+use crate::{expiry::TimeExtractor, QuantityData};
 
 use super::{
     errors::MultipoolErrors, errors::MultipoolOverflowErrors, expiry::MayBeExpired, Merge,
@@ -8,8 +8,8 @@ use super::{
 };
 use ethers::prelude::*;
 
-impl Multipool {
-    pub fn asset(&self, asset_address: &Address) -> Result<MultipoolAsset, MultipoolErrors> {
+impl<T: TimeExtractor> Multipool<T> {
+    pub fn asset(&self, asset_address: &Address) -> Result<MultipoolAsset<T>, MultipoolErrors> {
         self.assets
             .iter()
             .find(|asset| asset.address.eq(asset_address))
@@ -30,7 +30,7 @@ impl Multipool {
     }
 
     /// Returns optional price that may be expired, returns None if there is no such asset
-    pub fn cap(&self) -> Result<MayBeExpired<Price>, MultipoolErrors> {
+    pub fn cap(&self) -> Result<MayBeExpired<Price, T>, MultipoolErrors> {
         let merged_prices = self
             .assets
             .iter()
@@ -38,7 +38,7 @@ impl Multipool {
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
         merged_prices.iter().try_fold(
             MayBeExpired::new(Default::default()),
-            |a, b| -> Result<MayBeExpired<U256>, MultipoolErrors> {
+            |a, b| -> Result<MayBeExpired<U256, T>, MultipoolErrors> {
                 (a, b.clone())
                     .merge(|(a, b)| a.checked_add(b))
                     .transpose()
@@ -53,7 +53,7 @@ impl Multipool {
     pub fn get_price(
         &self,
         asset_address: &Address,
-    ) -> Result<MayBeExpired<Price>, MultipoolErrors> {
+    ) -> Result<MayBeExpired<Price, T>, MultipoolErrors> {
         if self.contract_address.eq(asset_address) {
             let total_supply = self
                 .total_supply
@@ -77,7 +77,7 @@ impl Multipool {
     pub fn current_share(
         &self,
         asset_address: &Address,
-    ) -> Result<MayBeExpired<Share>, MultipoolErrors> {
+    ) -> Result<MayBeExpired<Share, T>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
         (asset.quoted_quantity()?, self.cap()?)
             .merge(|(q, c)| q.shl(X32).checked_div(c))
@@ -90,7 +90,7 @@ impl Multipool {
     pub fn target_share(
         &self,
         asset_address: &Address,
-    ) -> Result<MayBeExpired<Share>, MultipoolErrors> {
+    ) -> Result<MayBeExpired<Share, T>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
         let share = asset
             .share
@@ -111,7 +111,7 @@ impl Multipool {
     pub fn deviation(
         &self,
         asset_address: &Address,
-    ) -> Result<MayBeExpired<I256>, MultipoolErrors> {
+    ) -> Result<MayBeExpired<I256, T>, MultipoolErrors> {
         (
             self.target_share(asset_address)?,
             self.current_share(asset_address)?,
@@ -137,7 +137,7 @@ impl Multipool {
         &self,
         asset_address: &Address,
         target_deviation: I256,
-    ) -> Result<MayBeExpired<I256>, MultipoolErrors> {
+    ) -> Result<MayBeExpired<I256, T>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
         let quantity = asset
             .quantity_slot

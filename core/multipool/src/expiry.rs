@@ -1,30 +1,67 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    ops::Add,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct MayBeExpired<V>(V, u64);
+pub trait TimeExtractor {
+    type TimeMeasure: Ord
+        + Add<Output = Self::TimeMeasure>
+        + Clone
+        + Copy
+        + DeserializeOwned
+        + Serialize
+        + PartialEq
+        + std::fmt::Debug;
+    fn now() -> Self::TimeMeasure;
+}
 
-impl<V> MayBeExpired<V> {
+#[cfg(not(target_arch = "wasm32-unknown-unknown"))]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct StdTimeExtractor;
+
+#[cfg(not(target_arch = "wasm32-unknown-unknown"))]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct WasmTimeExtractor;
+
+impl TimeExtractor for WasmTimeExtractor {
+    type TimeMeasure = u64;
+    fn now() -> u64 {
+        0
+    }
+}
+
+impl TimeExtractor for StdTimeExtractor {
+    type TimeMeasure = u64;
+    fn now() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Shold be always after epoch start")
+            .as_secs()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct MayBeExpired<V, T: TimeExtractor>(V, T::TimeMeasure);
+
+impl<V: Clone, T: TimeExtractor> Clone for MayBeExpired<V, T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone(), self.1)
+    }
+}
+
+impl<V, T: TimeExtractor> MayBeExpired<V, T> {
     pub fn new(value: V) -> Self {
-        MayBeExpired(
-            value,
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Shold be always after epoch start")
-                .as_secs(),
-        )
+        MayBeExpired(value, T::now())
     }
 
-    pub fn with_time(value: V, timestamp: u64) -> Self {
+    pub fn with_time(value: V, timestamp: T::TimeMeasure) -> Self {
         Self(value, timestamp)
     }
 
-    pub fn not_older_than(self, interval: u64) -> Option<V> {
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Shold be always after epoch start")
-            .as_secs();
+    pub fn not_older_than(self, interval: T::TimeMeasure) -> Option<V> {
+        let current_timestamp = T::now();
         if current_timestamp <= self.1 + interval {
             Some(self.0)
         } else {
@@ -37,40 +74,39 @@ impl<V> MayBeExpired<V> {
     }
 
     pub fn refresh(&mut self) {
-        let current_timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Shold be always after epoch start")
-            .as_secs();
+        let current_timestamp = T::now();
         self.1 = current_timestamp;
     }
 }
 
-impl<V> MayBeExpired<Option<V>> {
-    pub fn transpose(self) -> Option<MayBeExpired<V>> {
+impl<V, T: TimeExtractor> MayBeExpired<Option<V>, T> {
+    pub fn transpose(self) -> Option<MayBeExpired<V, T>> {
         self.0.map(|val| MayBeExpired(val, self.1))
     }
 }
 
-impl<V, E> MayBeExpired<Result<V, E>> {
-    pub fn transpose(self) -> Result<MayBeExpired<V>, E> {
+impl<V, T: TimeExtractor, E> MayBeExpired<Result<V, E>, T> {
+    pub fn transpose(self) -> Result<MayBeExpired<V, T>, E> {
         self.0.map(|value| MayBeExpired(value, self.1))
     }
 }
 
 pub trait Merge: Sized {
     type Item;
-    fn merge<V, F: FnOnce(Self::Item) -> V>(self, operator: F) -> MayBeExpired<V>;
+    type Measure: TimeExtractor;
+    fn merge<V, F: FnOnce(Self::Item) -> V>(self, operator: F) -> MayBeExpired<V, Self::Measure>;
 }
 
 macro_rules! impl_merge {
     ($($type:ident),*) => {
         #[allow(non_snake_case)]
-        impl<$($type),*> Merge for ($(MayBeExpired<$type>),*)
+        impl<$($type),*, T: TimeExtractor> Merge for ($(MayBeExpired<$type, T>),*)
         {
             type Item = ($($type),*);
-            fn merge<V, F:FnOnce(Self::Item) -> V>(self, operator: F) -> MayBeExpired<V> {
+            type Measure = T;
+            fn merge<V, F:FnOnce(Self::Item) -> V>(self, operator: F) -> MayBeExpired<V, T> {
                 let ($($type),*) = self;
-                let temp_vec: Vec<u64> = vec![$($type.1.clone()),*];
+                let temp_vec: Vec<T::TimeMeasure> = vec![$($type.1.clone()),*];
                 let min_timestamp = temp_vec.iter().min().expect("not enought elements");
                 MayBeExpired(operator(($($type.0),*)), *min_timestamp)
             }
@@ -93,11 +129,7 @@ impl_merge!(T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12);
 #[cfg(test)]
 mod tests {
     use super::*;
-    impl<V: PartialEq> PartialEq for MayBeExpired<V> {
-        fn eq(&self, other: &Self) -> bool {
-            self.0 == other.0 && self.1 == other.1
-        }
-    }
+    type MayBeExpiredStd<V> = MayBeExpired<V, StdTimeExtractor>;
 
     #[test]
     fn merge_test() {
@@ -106,22 +138,29 @@ mod tests {
             .expect("Shold be always after epoch start")
             .as_secs();
         let t2 = (
-            MayBeExpired::new("New data"),
+            MayBeExpiredStd::new("New data"),
             MayBeExpired("New data", time),
         );
         let t2_merged = t2.merge(|(a, b)| a.to_owned() + b);
-        assert_eq!(t2_merged, MayBeExpired::new("New dataNew data".to_string()));
-        let t3 = (MayBeExpired(1, 1), MayBeExpired(2, 2), MayBeExpired(3, 3));
+        assert_eq!(
+            t2_merged,
+            MayBeExpiredStd::new("New dataNew data".to_string())
+        );
+        let t3 = (
+            MayBeExpired::<_, StdTimeExtractor>(1, 1),
+            MayBeExpired(2, 2),
+            MayBeExpired(3, 3),
+        );
         let t3_merged = t3.merge(|(a, b, c)| a + b + c);
         let t4 = (
-            MayBeExpired(1, 1),
+            MayBeExpired::<_, StdTimeExtractor>(1, 1),
             MayBeExpired(2, 2),
             MayBeExpired(3, 3),
             MayBeExpired(4, 4),
         );
         let t4_merged = t4.merge(|(a, b, c, d)| a + b + c + d);
         let t5 = (
-            MayBeExpired(1, time - 20),
+            MayBeExpired::<_, StdTimeExtractor>(1, time - 20),
             MayBeExpired(2, time - 11),
             MayBeExpired(3, time + 1113),
             MayBeExpired(4, time - 1),
@@ -129,7 +168,7 @@ mod tests {
         );
         let t5_merged = t5.merge(|(a, b, c, d, _)| a + b + c + d);
         let t6 = (
-            MayBeExpired(1, 1),
+            MayBeExpired::<_, StdTimeExtractor>(1, 1),
             MayBeExpired(2, 2),
             MayBeExpired(3, 3),
             MayBeExpired(4, 4),

@@ -16,9 +16,12 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
+serde="1.0.192"
 anyhow = "1.0.79"
-ethers = { version = "2.0.14", features = ["abigen"] }
+ethers = { version = "2.0.14", features = ["abigen", "ws"] }
 serde-wasm-bindgen = "0.6.0"
+lazy_static = "1.4.0"
+getrandom = { version = "0.2", features = ["js"] }
 futures = "0.3.30"
 wasm-bindgen-futures = "0.4.36"
 wasm-bindgen = { version = "0.2.86", features = ["serde-serialize"] }
