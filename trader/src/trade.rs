@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
 use ethers::prelude::*;
 
 use anyhow::Result;
-use multipool::Multipool;
+use multipool::{expiry::StdTimeExtractor, Multipool};
 use rpc_controller::RpcRobber;
 use serde::{Deserialize, Serialize};
 
@@ -46,7 +46,7 @@ impl Uniswap {
 
 pub struct TradingData {
     pub rpc: RpcRobber,
-    pub multipool: Multipool,
+    pub multipool: Multipool<StdTimeExtractor>,
     pub force_push: ForcePushArgs,
     pub uniswap: Arc<Uniswap>,
     pub weth: Address,

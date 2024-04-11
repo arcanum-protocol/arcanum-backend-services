@@ -6,14 +6,14 @@ use dashmap::DashMap;
 use ethers::prelude::*;
 use multipool_storage::{MultipoolStorage, MultipoolStorageHook, StorageEntry};
 
-use multipool::Multipool;
+use multipool::{expiry::StdTimeExtractor, Multipool};
 
 use crate::crypto::{self, SignedSharePrice};
 
 #[derive(Default)]
 pub struct CachedMultipoolData {
     cached_price: DashMap<Address, SignedSharePrice>,
-    cached_pools: DashMap<Address, Multipool>,
+    cached_pools: DashMap<Address, Multipool<StdTimeExtractor>>,
 }
 
 impl CachedMultipoolData {
@@ -21,11 +21,11 @@ impl CachedMultipoolData {
         self.cached_price.get(etf_address).as_deref().cloned()
     }
 
-    pub fn get_pool(&self, etf_address: &Address) -> Option<Multipool> {
+    pub fn get_pool(&self, etf_address: &Address) -> Option<Multipool<StdTimeExtractor>> {
         self.cached_pools.get(etf_address).as_deref().cloned()
     }
 
-    pub fn get_pools(&self) -> Vec<Multipool> {
+    pub fn get_pools(&self) -> Vec<Multipool<StdTimeExtractor>> {
         self.cached_pools
             .iter()
             .map(|r| r.value().to_owned())

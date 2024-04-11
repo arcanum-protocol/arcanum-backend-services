@@ -9,18 +9,31 @@ use wasm_bindgen_futures::{future_to_promise, js_sys::Promise};
 
 use crate::{contracts::multipool::MpAsset, MultipoolWasmStorage};
 
+lazy_static::lazy_static! {
+    pub static ref MULTICALL: Option<Address> = None;
+}
+
 use anyhow::Result;
+
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 #[wasm_bindgen]
 impl MultipoolWasmStorage {
     #[wasm_bindgen]
-    pub async fn update_price(&self) -> Promise {
+    pub async fn update_price(&self) -> Result<Promise, JsValue> {
         let inner = self.inner.clone();
-        future_to_promise(async move {
+        Ok(future_to_promise(async move {
             let mp = inner.borrow_mut();
             let multipool = &mp.multipool;
             let contract_address = multipool.contract_address();
-            let assets = mp.assets.clone();
+            let assets = mp
+                .assets
+                .clone()
+                .ok_or(JsValue::from_str("assets missing"))?;
             let provider = mp.provider.clone();
             drop(mp);
             match get_prices(&provider, contract_address, assets, 6).await {
@@ -30,16 +43,19 @@ impl MultipoolWasmStorage {
                 }
                 Err(e) => Ok(e.to_string().into()),
             }
-        })
+        }))
     }
 
     #[wasm_bindgen]
-    pub async fn update_assets(&self) -> Promise {
+    pub async fn update_assets(&self) -> Result<Promise, JsValue> {
         let inner = self.inner.clone();
-        future_to_promise(async move {
+        Ok(future_to_promise(async move {
             let mp = inner.borrow_mut();
             let multipool = &mp.multipool;
-            let assets = mp.assets.clone();
+            let assets = mp
+                .assets
+                .clone()
+                .ok_or(JsValue::from_str("assets missing"))?;
             let contract_address = multipool.contract_address();
             let provider = mp.provider.clone();
             drop(mp);
@@ -84,7 +100,7 @@ impl MultipoolWasmStorage {
                 }
                 Err(e) => Ok(e.to_string().into()),
             }
-        })
+        }))
     }
 }
 
@@ -114,7 +130,7 @@ pub async fn get_prices(
     join_all(assets.chunks(multicall_chunks).map(|assets| {
         async {
             let mp = multipool_at(contract_address, rpc.clone());
-            Multicall::new(rpc.clone(), None)
+            Multicall::new(rpc.clone(), *MULTICALL)
                 .await
                 .unwrap()
                 .add_calls(true, assets.iter().map(|asset| mp.get_price(*asset)))
@@ -145,7 +161,7 @@ pub async fn get_assets(
     join_all(assets.chunks(multicall_chunks).map(|assets| {
         async {
             let mp = multipool_at(contract_address, rpc.clone());
-            Multicall::new(rpc.clone(), None)
+            Multicall::new(rpc.clone(), *MULTICALL)
                 .await
                 .unwrap()
                 .add_calls(true, assets.iter().map(|asset| mp.get_asset(*asset)))

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use crate::MultipoolFees;
+use crate::{expiry::TimeExtractor, MultipoolFees};
 
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
 use ethers::prelude::*;
 
-impl Multipool {
+impl<T: TimeExtractor> Multipool<T> {
     pub fn update_fees(&mut self, fees: Option<MultipoolFees>, update_expiry: bool) {
         if let Some(fees) = fees {
             self.fees = Some(MayBeExpired::new(fees))

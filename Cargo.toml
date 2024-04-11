@@ -5,9 +5,8 @@ members = [
     "cli",
     "trader",
     "node",
-    "postgres-worker",
-    "trading-view-api",
-    "wasm_swapper",
+    "gateway",
+    #"wasm_swapper",
 ]
 resolver = "2"
 

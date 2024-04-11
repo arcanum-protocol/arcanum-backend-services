@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use actix_web::{get, web, App, HttpResponse, HttpServer, Responder};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_postgres::{Client, NoTls};
 
@@ -134,6 +134,172 @@ async fn history(
     }
 }
 
+#[derive(Deserialize)]
+pub struct AssetsRequest {
+    chain_id: i32,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Asset {
+    address: Address,
+    symbol: String,
+    name: String,
+    decimals: u8,
+    logo_url: Option<String>,
+    twitter_url: Option<String>,
+    description: Option<String>,
+    website_url: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct UniswapPool {
+    asset_address: Address,
+    pool_address: Address,
+    base_is_asset0: bool,
+    fee: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct SiloPool {
+    asset_address: Address,
+    base_asset_address: Address,
+    pool_address: Address,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct AssetsResponse {
+    assets: Vec<Asset>,
+    uniswap_pools: Vec<UniswapPool>,
+    silo_pools: Vec<SiloPool>,
+}
+
+fn to_http_error<E: ToString>(error: E) -> actix_web::http::Error {
+    panic!("{}", error.to_string());
+}
+
+#[get("/assets")]
+async fn assets(
+    query_params: web::Query<AssetsRequest>,
+    client: web::Data<Arc<Client>>,
+) -> actix_web::Result<HttpResponse> {
+    let chain_id = &query_params.chain_id;
+
+    let assets_query = "
+        select 
+	        address, 
+            chain_id, 
+            name, 
+            symbol, 
+            decimals, 
+            logo_url, 
+            twitter_url, 
+            website_url, 
+            description 
+        from 
+	        assets 
+        where 
+	        chain_id = $1;"
+        .to_string();
+
+    let assets = client
+        .query(assets_query.as_str(), &[chain_id])
+        .await
+        .map_err(to_http_error)?
+        .into_iter()
+        .map(|row| -> actix_web::Result<Asset> {
+            Ok(Asset {
+                address: row
+                    .get::<_, &str>("address")
+                    .parse()
+                    .map_err(to_http_error)?,
+                symbol: row.get("symbol"),
+                name: row.get("name"),
+                decimals: row
+                    .get::<_, i32>("decimals")
+                    .try_into()
+                    .map_err(to_http_error)?,
+                logo_url: row.get("logo_url"),
+                twitter_url: row.get("twitter_url"),
+                website_url: row.get("website_url"),
+                description: row.get("description"),
+            })
+        })
+        .collect::<actix_web::Result<Vec<Asset>>>()?;
+
+    let silo_query = "
+        select 
+            base_asset_address,
+            asset_address,
+            address
+        from 
+	        silo_pools
+        where 
+	        chain_id = $1;
+        "
+    .to_string();
+    let silo_pools = client
+        .query(silo_query.as_str(), &[chain_id])
+        .await
+        .map_err(to_http_error)?
+        .into_iter()
+        .map(|row| -> actix_web::Result<SiloPool> {
+            Ok(SiloPool {
+                pool_address: row
+                    .get::<_, &str>("address")
+                    .parse()
+                    .map_err(to_http_error)?,
+                asset_address: row
+                    .get::<_, &str>("asset_address")
+                    .parse()
+                    .map_err(to_http_error)?,
+                base_asset_address: row
+                    .get::<_, &str>("base_asset_address")
+                    .parse()
+                    .map_err(to_http_error)?,
+            })
+        })
+        .collect::<actix_web::Result<Vec<SiloPool>>>()?;
+
+    let uniswap_query = "
+        select 
+            address,
+            asset_address,
+            fee,
+            base_is_asset0
+        from 
+	        weth_uniswap_pools
+        where 
+	        chain_id = $1;
+        "
+    .to_string();
+    let uniswap_pools = client
+        .query(uniswap_query.as_str(), &[chain_id])
+        .await
+        .map_err(to_http_error)?
+        .into_iter()
+        .map(|row| -> actix_web::Result<UniswapPool> {
+            Ok(UniswapPool {
+                pool_address: row
+                    .get::<_, &str>("address")
+                    .parse()
+                    .map_err(to_http_error)?,
+                asset_address: row
+                    .get::<_, &str>("asset_address")
+                    .parse()
+                    .map_err(to_http_error)?,
+                fee: row.get::<_, i32>("fee").try_into().map_err(to_http_error)?,
+                base_is_asset0: row.get::<_, bool>("base_is_asset0"),
+            })
+        })
+        .collect::<actix_web::Result<Vec<UniswapPool>>>()?;
+
+    Ok(HttpResponse::Ok().json(AssetsResponse {
+        assets,
+        silo_pools,
+        uniswap_pools,
+    }))
+}
+
 #[get("/stats")]
 async fn stats(
     query_params: web::Query<StatsRequest>,
@@ -199,6 +365,7 @@ async fn main() -> std::io::Result<()> {
             .service(symbols)
             .service(history)
             .service(stats)
+            .service(assets)
     })
     .bind(bind_address)?
     .run()
