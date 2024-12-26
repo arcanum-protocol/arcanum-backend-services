@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use serde::Serialize;
-use sqlx::{Database, Pool};
+use sqlx::{Database, Pool, Row};
 
 pub trait RawEventStorage {
     fn insert_event<T: Serialize + Send>(
@@ -10,6 +10,17 @@ pub trait RawEventStorage {
         chain_id: &str,
         block_number: i64,
         event: T,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
+
+    fn last_observed_block_number(
+        &self,
+        chain_id: &str,
+    ) -> impl Future<Output = anyhow::Result<i64>> + Send;
+
+    fn update_last_observed_block_number(
+        &self,
+        chain_id: &str,
+        block_number: i64,
     ) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
@@ -41,7 +52,36 @@ impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
         .bind(chain_id)
         .bind(block_number)
         .bind(serde_json::to_value(&event)?)
-        .fetch_all(&self.pool)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn last_observed_block_number(&self, chain_id: &str) -> anyhow::Result<i64> {
+        let row = sqlx::query("SELECT last_observed_block FROM chains WHERE chain_id = $1")
+            .bind(chain_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(row.get(0))
+    }
+
+    async fn update_last_observed_block_number(
+        &self,
+        chain_id: &str,
+        block_number: i64,
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "
+                UPDATE chains
+                SET last_observed_block = $1
+                WHERE chain_id = $2
+            ",
+        )
+        .bind(block_number)
+        .bind(chain_id)
+        .execute(&self.pool)
         .await?;
 
         Ok(())

@@ -7,3 +7,9 @@ CREATE TABLE raw_events (
     event_data JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE chains (
+    id SERIAL PRIMARY KEY,
+    chain_id TEXT NOT NULL,
+    last_observed_block BIGINT NOT NULL,
+)

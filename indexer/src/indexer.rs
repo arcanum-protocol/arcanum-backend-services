@@ -17,6 +17,7 @@ pub struct MultipoolIndexer<T, P, R: RawEventStorage> {
     chain_id: String,
     from_block: BlockNumberOrTag,
     raw_storage: R,
+    provider: P,
 }
 
 impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + 'static>
@@ -35,31 +36,32 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
             chain_id: provider.get_chain_id().await?.to_string(),
             from_block,
             raw_storage,
+            provider,
         })
     }
 
     pub async fn run(&self) -> anyhow::Result<()> {
-        self.spawn_multipool_creation_event_filter();
-        self.spawn_main_event_filters();
+        self.spawn_multipool_creation_event_filter().await?;
+        self.spawn_main_event_filters().await?;
+        self.spawn_block_watcher().await?;
 
         Ok(())
     }
 
-    pub fn spawn_multipool_creation_event_filter(&self) {
+    pub async fn spawn_multipool_creation_event_filter(&self) -> anyhow::Result<()> {
         let factory_instance = self.factory_instance.clone();
         let from_block = self.from_block.clone();
         let chain_id = self.chain_id.clone();
         let raw_storage = self.raw_storage.clone();
 
-        tokio::spawn(async move {
-            let mut multipool_creation_filter = factory_instance
-                .MultipoolSpawned_filter()
-                .from_block(from_block)
-                .watch()
-                .await
-                .unwrap()
-                .into_stream();
+        let mut multipool_creation_filter = factory_instance
+            .MultipoolSpawned_filter()
+            .from_block(from_block)
+            .watch()
+            .await?
+            .into_stream();
 
+        tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(Ok((event, log))) = multipool_creation_filter.next() => {
@@ -81,30 +83,30 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                 }
             }
         });
+
+        Ok(())
     }
 
-    pub fn spawn_main_event_filters(&self) {
+    pub async fn spawn_main_event_filters(&self) -> anyhow::Result<()> {
         let contract_instance = self.contract_instance.clone();
         let from_block = self.from_block.clone();
         let chain_id = self.chain_id.clone();
         let raw_storage = self.raw_storage.clone();
 
-        tokio::spawn(async move {
-            let mut asset_change_filter = contract_instance
-                .AssetChange_filter()
-                .from_block(from_block)
-                .watch()
-                .await
-                .unwrap()
-                .into_stream();
-            let mut target_share_change_filter = contract_instance
-                .TargetShareChange_filter()
-                .from_block(from_block)
-                .watch()
-                .await
-                .unwrap()
-                .into_stream();
+        let mut asset_change_filter = contract_instance
+            .AssetChange_filter()
+            .from_block(from_block)
+            .watch()
+            .await?
+            .into_stream();
+        let mut target_share_change_filter = contract_instance
+            .TargetShareChange_filter()
+            .from_block(from_block)
+            .watch()
+            .await?
+            .into_stream();
 
+        tokio::spawn(async move {
             loop {
                 tokio::select! {
                     Some(Ok((event, log))) = asset_change_filter.next() => {
@@ -141,5 +143,29 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                 }
             }
         });
+
+        Ok(())
+    }
+
+    pub async fn spawn_block_watcher(&self) -> anyhow::Result<()> {
+        let provider = self.provider.clone();
+        let chain_id = self.chain_id.clone();
+        let raw_storage = self.raw_storage.clone();
+
+        let mut block_watcher = provider.subscribe_blocks().await?.into_stream();
+
+        tokio::spawn(async move {
+            while let Some(new_block_header) = block_watcher.next().await {
+                raw_storage
+                    .update_last_observed_block_number(
+                        &chain_id,
+                        new_block_header.number.try_into().unwrap(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        });
+
+        Ok(())
     }
 }
