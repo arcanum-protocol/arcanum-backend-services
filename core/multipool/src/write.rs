@@ -1,7 +1,8 @@
+use alloy::primitives::{Address, U256};
+
 use crate::{expiry::TimeExtractor, MultipoolFees};
 
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, Share};
-use ethers::prelude::*;
 use std::collections::HashMap;
 
 impl<T: TimeExtractor> Multipool<T> {
@@ -91,7 +92,7 @@ impl<T: TimeExtractor> Multipool<T> {
             .total_shares
             .clone()
             .map(MayBeExpired::any_age)
-            .unwrap_or(U256::zero());
+            .unwrap_or(U256::default());
         self.assets = self
             .assets
             .clone()
@@ -101,9 +102,11 @@ impl<T: TimeExtractor> Multipool<T> {
                     .share
                     .clone()
                     .map(MayBeExpired::any_age)
-                    .unwrap_or(U256::zero());
+                    .unwrap_or(U256::default());
                 if let Some(new_share) = shares_set.remove(&asset.address) {
-                    total_shares = total_shares.checked_sub(old_share).unwrap_or(U256::zero());
+                    total_shares = total_shares
+                        .checked_sub(old_share)
+                        .unwrap_or(U256::default());
                     if new_share.is_zero() && asset.quantity_slot.is_none() {
                         return None;
                     } else if new_share.is_zero() {

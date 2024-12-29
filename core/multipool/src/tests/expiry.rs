@@ -8,16 +8,16 @@ use std::time::Duration;
 #[test]
 #[cfg(feature = "expiry")]
 fn check_update_expiry_quantities() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
 
     multipool.update_quantities(&inserted_data, false);
@@ -39,16 +39,16 @@ fn check_update_expiry_quantities() {
 #[test]
 #[cfg(feature = "expiry")]
 fn check_update_expiry_quantities_with_1_sec_delay() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = MultipoolMockBuilder::new(contract_address).build();
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -72,19 +72,19 @@ fn check_update_expiry_quantities_with_1_sec_delay() {
 #[test]
 #[cfg(feature = "expiry")]
 fn check_update_expiry_quantities_with_supply() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = MultipoolMockBuilder::new(contract_address).build();
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
         (
             contract_address,
-            QuantityData::new(U256::from(50) << 96, 0.into()),
+            QuantityData::new(U256::from(50) << 96, U256::default()),
         ),
     ];
     multipool.update_quantities(&inserted_data, false);
@@ -110,7 +110,7 @@ fn check_update_expiry_quantities_with_supply() {
 #[test]
 #[cfg(feature = "expiry")]
 fn check_update_expiry_prices() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     let inserted_data = [
@@ -141,7 +141,7 @@ fn check_update_expiry_prices() {
 #[test]
 #[cfg(feature = "expiry")]
 fn check_update_expiry_shares() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     let inserted_data = [

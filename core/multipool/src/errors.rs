@@ -1,4 +1,4 @@
-use ethers::types::Address;
+use alloy::primitives::Address;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MultipoolErrors {

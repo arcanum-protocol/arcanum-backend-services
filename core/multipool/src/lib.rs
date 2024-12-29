@@ -6,10 +6,10 @@ pub mod expiry;
 pub mod tests;
 pub mod write;
 
-use ethers::types::Address;
-use ethers::types::U64;
+use alloy::primitives::Address;
+use alloy::primitives::U256;
+use alloy::primitives::U64;
 use expiry::TimeExtractor;
-use primitive_types::U256;
 
 use std::ops::Shr;
 
@@ -76,8 +76,8 @@ impl<T: TimeExtractor> Clone for MultipoolAsset<T> {
     }
 }
 
-const X96: u128 = 96;
-const X32: u128 = 32;
+const X96: u64 = 96;
+const X32: u64 = 32;
 
 impl<T: TimeExtractor> MultipoolAsset<T> {
     fn quoted_quantity(&self) -> Result<MayBeExpired<Price, T>, MultipoolErrors> {
@@ -85,8 +85,8 @@ impl<T: TimeExtractor> MultipoolAsset<T> {
             .quantity_slot
             .clone()
             //       .unwrap_or(MayBeExpired::new(QuantityData {
-            //           quantity: U256::zero(),
-            //           cashback: U256::zero(),
+            //           quantity: U256::default(),
+            //           cashback: U256::default(),
             //       }));
             //   let price = self
             //       .price

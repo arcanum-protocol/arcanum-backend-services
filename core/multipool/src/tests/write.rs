@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 
 #[test]
 fn check_multipool_initialization() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let expected = multipool_fixture(contract_address, ADDRESSES.to_vec(), U256::from(10) << 96);
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
@@ -24,17 +24,17 @@ fn check_multipool_initialization() {
 //UPDATE PRICE
 #[test]
 fn check_update_prices() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     // for asset_initializing
-    let quantity = U256::zero();
+    let quantity = U256::default();
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -60,17 +60,17 @@ fn check_update_prices() {
 
 #[test]
 fn check_update_prices_with_not_existing_asset() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     // for asset_initializing
-    let quantity = U256::zero();
+    let quantity = U256::default();
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -91,7 +91,7 @@ fn check_update_prices_with_not_existing_asset() {
         (ADDRESSES[2], U256::from(10) << 96),
         (ADDRESSES[3], U256::from(10) << 96),
         (ADDRESSES[4], U256::from(10) << 96),
-        (Address::random(), U256::from(10) << 96), // not exists
+        (Address::new([0u8; 20]), U256::from(10) << 96), // not exists
     ];
     multipool.update_prices(&inserted_data, false);
 
@@ -108,17 +108,17 @@ fn check_update_prices_with_not_existing_asset() {
 
 #[test]
 fn check_update_prices_with_custom_logic() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     // for asset_initializing
-    let quantity = U256::zero();
+    let quantity = U256::default();
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -132,17 +132,17 @@ fn check_update_prices_with_custom_logic() {
     multipool.update_prices(&inserted_data, false);
 
     let inserted_data = [
-        (ADDRESSES[0], U256::zero()),
+        (ADDRESSES[0], U256::default()),
         //skipped second asset
         (ADDRESSES[2], U256::from(15) << 96),
         (ADDRESSES[3], U256::from(20) << 96),
         (ADDRESSES[4], U256::from(25) << 96),
-        (Address::random(), U256::from(10) << 96), // not exists
+        (Address::new([0u8; 20]), U256::from(10) << 96), // not exists
     ];
     multipool.update_prices(&inserted_data, false);
 
     let expected = MultipoolMockBuilder::new(contract_address)
-        .set_price(ADDRESSES[0], U256::zero())
+        .set_price(ADDRESSES[0], U256::default())
         .set_price(ADDRESSES[1], U256::from(10) << 96)
         .set_price(ADDRESSES[2], U256::from(15) << 96)
         .set_price(ADDRESSES[3], U256::from(20) << 96)
@@ -155,17 +155,17 @@ fn check_update_prices_with_custom_logic() {
 //UPDATE SHARES
 #[test]
 fn check_update_shares() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     // for asset_initializing, to set total_shares
-    let quantity = U256::zero();
+    let quantity = U256::default();
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -193,9 +193,9 @@ fn check_update_shares() {
 
 #[test]
 fn check_update_shares_with_not_existing_asset() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
-    let random_address = Address::random();
+    let random_address = Address::new([0u8; 20]);
 
     let inserted_data = [
         (ADDRESSES[0], U256::from(10) << 96),
@@ -232,18 +232,18 @@ fn check_update_shares_with_not_existing_asset() {
 
 #[test]
 fn check_update_shares_with_custom_logic() {
-    let random_address = Address::random();
-    let contract_address = H160::from_low_u64_be(0x10);
+    let random_address = Address::new([0u8; 20]);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     // for asset_initializing, to set total_shares
-    let quantity = U256::zero();
+    let quantity = U256::default();
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -258,7 +258,7 @@ fn check_update_shares_with_custom_logic() {
     multipool.update_shares(&inserted_data, false);
 
     let inserted_data = [
-        (ADDRESSES[0], U256::zero()),
+        (ADDRESSES[0], U256::default()),
         //skipped this asset ,
         (ADDRESSES[2], U256::from(15) << 96),
         (ADDRESSES[3], U256::from(20) << 96),
@@ -284,16 +284,16 @@ fn check_update_shares_with_custom_logic() {
 //UPDATE QUANTITY
 #[test]
 fn check_add_quantities() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -306,19 +306,19 @@ fn check_add_quantities() {
 
 #[test]
 fn check_add_quantities_with_total_supply() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = MultipoolMockBuilder::new(contract_address).build();
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
         (
             contract_address,
-            QuantityData::new(U256::from(50) << 96, 0.into()),
+            QuantityData::new(U256::from(50) << 96, U256::default()),
         ),
     ];
     multipool.update_quantities(&inserted_data, false);
@@ -336,26 +336,29 @@ fn check_add_quantities_with_total_supply() {
 
 #[test]
 fn check_delete_quantities() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
     multipool.update_quantities(&inserted_data, false);
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(U256::zero(), 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (
+            ADDRESSES[4],
+            QuantityData::new(U256::default(), U256::default()),
+        ),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -368,19 +371,19 @@ fn check_delete_quantities() {
 
 #[test]
 fn check_delete_quantities_with_total_supply() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = Multipool::new(contract_address);
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
         (
             contract_address,
-            QuantityData::new(U256::from(50) << 96, 0.into()),
+            QuantityData::new(U256::from(50) << 96, U256::default()),
         ),
     ];
     multipool.update_quantities(&inserted_data, false);
@@ -389,21 +392,30 @@ fn check_delete_quantities_with_total_supply() {
     let total_supply = U256::from(40) << 96;
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(U256::zero(), 0.into())),
-        (ADDRESSES[4], QuantityData::new(U256::zero(), 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
         (
-            contract_address,
-            QuantityData::new(U256::from(70) << 96, 0.into()),
+            ADDRESSES[4],
+            QuantityData::new(U256::default(), U256::default()),
+        ),
+        (
+            ADDRESSES[4],
+            QuantityData::new(U256::default(), U256::default()),
         ),
         (
             contract_address,
-            QuantityData::new(U256::from(90) << 96, 0.into()),
+            QuantityData::new(U256::from(70) << 96, U256::default()),
         ),
-        (contract_address, QuantityData::new(total_supply, 0.into())),
+        (
+            contract_address,
+            QuantityData::new(U256::from(90) << 96, U256::default()),
+        ),
+        (
+            contract_address,
+            QuantityData::new(total_supply, U256::default()),
+        ),
     ];
     multipool.update_quantities(&inserted_data, false);
 
@@ -420,16 +432,16 @@ fn check_delete_quantities_with_total_supply() {
 
 #[test]
 fn check_update_quantities_delete_with_zero_shares() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let mut multipool = MultipoolMockBuilder::new(contract_address).build();
 
     let quantity = U256::from(10) << 96;
     let inserted_data = [
-        (ADDRESSES[0], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[1], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[2], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[3], QuantityData::new(quantity, 0.into())),
-        (ADDRESSES[4], QuantityData::new(quantity, 0.into())),
+        (ADDRESSES[0], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[1], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[2], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[3], QuantityData::new(quantity, U256::default())),
+        (ADDRESSES[4], QuantityData::new(quantity, U256::default())),
     ];
 
     multipool.update_quantities(&inserted_data, true);
