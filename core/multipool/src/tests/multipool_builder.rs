@@ -1,7 +1,10 @@
+use alloy::primitives::{Address, U256};
+
 use crate::expiry::StdTimeExtractor;
 
-use super::*;
 use std::cmp::Ordering;
+
+use super::{MayBeExpired, Multipool, MultipoolAsset, Price, QuantityData, ADDRESSES};
 
 pub const POISON_TIME: u64 = 3;
 
@@ -60,7 +63,7 @@ impl PartialEq for MultipoolAsset<StdTimeExtractor> {
 pub struct MultipoolMockBuilder(Multipool<StdTimeExtractor>);
 
 impl MultipoolMockBuilder {
-    pub fn new(contract_address: H160) -> Self {
+    pub fn new(contract_address: Address) -> Self {
         Self(Multipool::new(contract_address))
     }
 
@@ -69,7 +72,7 @@ impl MultipoolMockBuilder {
     }
 
     // insert empty assets
-    pub fn insert_assets(mut self, addresses: Vec<H160>) -> Self {
+    pub fn insert_assets(mut self, addresses: Vec<Address>) -> Self {
         let mut assets: Vec<MultipoolAsset<StdTimeExtractor>> = Vec::new();
         for address in addresses {
             assets.push(MultipoolAsset {
@@ -84,7 +87,7 @@ impl MultipoolMockBuilder {
     }
 
     // fill prices in multipool with certain value
-    pub fn fill_updated_prices_with_value(self, addresses: Vec<H160>, value: U256) -> Self {
+    pub fn fill_updated_prices_with_value(self, addresses: Vec<Address>, value: U256) -> Self {
         let new_prices_info: Vec<(Address, Price)> = (0..addresses.len())
             .map(|i| (addresses[i], value))
             .collect();
@@ -92,13 +95,13 @@ impl MultipoolMockBuilder {
     }
 
     // fill prices in multipool with diffrent values
-    pub fn fill_updated_prices(mut self, values: Vec<(H160, U256)>) -> Self {
+    pub fn fill_updated_prices(mut self, values: Vec<(Address, U256)>) -> Self {
         self.0.update_prices(&values, false);
         self
     }
 
     // fill shares in multipool with certain value
-    pub fn fill_updated_shares_with_value(self, addresses: Vec<H160>, value: U256) -> Self {
+    pub fn fill_updated_shares_with_value(self, addresses: Vec<Address>, value: U256) -> Self {
         let new_shares_info: Vec<(Address, Price)> = (0..addresses.len())
             .map(|i| (addresses[i], value))
             .collect();
@@ -106,7 +109,7 @@ impl MultipoolMockBuilder {
     }
 
     // fill shares in multipool with diffrent values
-    pub fn fill_updated_shares(mut self, values: Vec<(H160, U256)>) -> Self {
+    pub fn fill_updated_shares(mut self, values: Vec<(Address, U256)>) -> Self {
         self.0.update_shares(&values, false);
         self
     }
@@ -114,14 +117,14 @@ impl MultipoolMockBuilder {
     // fill quantity in multipool with certain value
     pub fn fill_updated_quantities_with_value(
         self,
-        addresses: Vec<H160>,
+        addresses: Vec<Address>,
         value: U256,
-        contract_address: Option<H160>,
+        contract_address: Option<Address>,
     ) -> Self {
-        let values: Vec<(H160, QuantityData)> = addresses
+        let values: Vec<(Address, QuantityData)> = addresses
             .clone()
             .into_iter()
-            .map(|address| (address, QuantityData::new(value, U256::zero())))
+            .map(|address| (address, QuantityData::new(value, U256::default())))
             .collect();
         self.fill_updated_quantities(values, contract_address)
     }
@@ -129,24 +132,24 @@ impl MultipoolMockBuilder {
     // fill quantity in multipool with diffrent values
     pub fn fill_updated_quantities(
         mut self,
-        values: Vec<(H160, QuantityData)>,
-        contract_address: Option<H160>,
+        values: Vec<(Address, QuantityData)>,
+        contract_address: Option<Address>,
     ) -> Self {
         let mut values = values;
         if let Some(contract_address) = contract_address {
             let total_supply: U256 = values
                 .iter()
-                .fold(U256::zero(), |acc, (_, value)| acc + value.quantity);
+                .fold(U256::default(), |acc, (_, value)| acc + value.quantity);
             values.extend_from_slice(&[(
                 contract_address,
-                QuantityData::new(total_supply, U256::zero()),
+                QuantityData::new(total_supply, U256::default()),
             )]);
         }
         self.0.update_quantities(&values, false);
         self
     }
 
-    pub fn set_price(mut self, address: H160, value: U256) -> Self {
+    pub fn set_price(mut self, address: Address, value: U256) -> Self {
         if let Some(asset) = self
             .0
             .assets
@@ -165,7 +168,7 @@ impl MultipoolMockBuilder {
         self
     }
 
-    pub fn set_share(mut self, address: H160, value: U256) -> Self {
+    pub fn set_share(mut self, address: Address, value: U256) -> Self {
         if let Some(asset) = self
             .0
             .assets
@@ -190,8 +193,8 @@ impl MultipoolMockBuilder {
         self
     }
 
-    pub fn set_quantity(mut self, address: H160, value: U256) -> Self {
-        let quantity_data = QuantityData::new(value, U256::zero());
+    pub fn set_quantity(mut self, address: Address, value: U256) -> Self {
+        let quantity_data = QuantityData::new(value, U256::default());
         if let Some(asset) = self
             .0
             .assets
@@ -215,17 +218,17 @@ impl MultipoolMockBuilder {
 
 //fill multipool with similar values, but other way
 pub fn multipool_fixture(
-    contract_address: H160,
-    addresses: Vec<H160>,
+    contract_address: Address,
+    addresses: Vec<Address>,
     value: U256,
 ) -> Multipool<StdTimeExtractor> {
     let mut assets: Vec<MultipoolAsset<StdTimeExtractor>> = Vec::new();
-    let mut total_shares = U256::zero();
-    let mut total_supply = U256::zero();
+    let mut total_shares = U256::default();
+    let mut total_supply = U256::default();
     for address in addresses {
         let share_number = value;
         let price_number = value;
-        let quantity_data = QuantityData::new(value, U256::zero());
+        let quantity_data = QuantityData::new(value, U256::default());
         let asset = MultipoolAsset {
             address,
             price: Some(MayBeExpired::new(price_number)),
@@ -245,7 +248,7 @@ pub fn multipool_fixture(
     }
 }
 
-pub fn read_method_fixture(contract_address: H160) -> Multipool<StdTimeExtractor> {
+pub fn read_method_fixture(contract_address: Address) -> Multipool<StdTimeExtractor> {
     //target_shares will be 20% 5% 5% 30% 40% for 5 tokens
     let shares: Vec<U256> = vec![
         U256::from(200) << 96,
@@ -262,21 +265,21 @@ pub fn read_method_fixture(contract_address: H160) -> Multipool<StdTimeExtractor
         U256::from(191) << 96,
     ];
     let quantities: Vec<QuantityData> = vec![
-        QuantityData::new(U256::from(30) << 96, U256::zero()),
-        QuantityData::new(U256::from(10) << 96, U256::zero()),
-        QuantityData::new(U256::from(4) << 96, U256::zero()),
-        QuantityData::new(U256::from(1441) << 96, U256::zero()),
-        QuantityData::new(U256::from(440) << 96, U256::zero()),
+        QuantityData::new(U256::from(30) << 96, U256::default()),
+        QuantityData::new(U256::from(10) << 96, U256::default()),
+        QuantityData::new(U256::from(4) << 96, U256::default()),
+        QuantityData::new(U256::from(1441) << 96, U256::default()),
+        QuantityData::new(U256::from(440) << 96, U256::default()),
     ];
 
-    let new_prices_info: Vec<(H160, U256)> = ADDRESSES.iter().copied().zip(prices).collect();
-    let new_shares_info: Vec<(H160, U256)> = ADDRESSES.iter().copied().zip(shares).collect();
+    let new_prices_info: Vec<(Address, U256)> = ADDRESSES.iter().copied().zip(prices).collect();
+    let new_shares_info: Vec<(Address, U256)> = ADDRESSES.iter().copied().zip(shares).collect();
 
-    let mut new_quantity_info: Vec<(H160, QuantityData)> =
+    let mut new_quantity_info: Vec<(Address, QuantityData)> =
         ADDRESSES.iter().copied().zip(quantities).collect();
     new_quantity_info.extend_from_slice(&[(
         contract_address,
-        QuantityData::new(U256::from(1893) << 96, U256::zero()),
+        QuantityData::new(U256::from(1893) << 96, U256::default()),
     )]);
 
     MultipoolMockBuilder::new(contract_address)

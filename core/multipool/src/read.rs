@@ -1,13 +1,13 @@
 use std::ops::{Shl, Shr};
 
+use alloy::primitives::{Address, I256, U256, U512};
+
 use crate::expiry::TimeExtractor;
 
 use super::{
     errors::MultipoolErrors, errors::MultipoolOverflowErrors, expiry::MayBeExpired, Merge,
     Multipool, MultipoolAsset, Price, Share, X32, X96,
 };
-
-use ethers::prelude::*;
 
 impl<T: TimeExtractor> Multipool<T> {
     pub fn asset(&self, asset_address: &Address) -> Result<MultipoolAsset<T>, MultipoolErrors> {
@@ -133,8 +133,8 @@ impl<T: TimeExtractor> Multipool<T> {
         let quantity = asset
             .quantity_slot
             //.unwrap_or(MayBeExpired::new(QuantityData {
-            //    quantity: U256::zero(),
-            //    cashback: U256::zero(),
+            //    quantity: U256::default(),
+            //    cashback: U256::default(),
             //}))
             .ok_or(MultipoolErrors::QuantitySlotMissing(*asset_address))?
             .any_age()
@@ -168,11 +168,17 @@ impl<T: TimeExtractor> Multipool<T> {
         })?
         .shr(32);
 
-        let result_share = if target_deviation.ge(&I256::from(0)) {
-            U512::from((share.checked_add(share_bound).unwrap_or(U256::zero())).min(total_shares))
+        let result_share = if target_deviation.ge(&I256::default()) {
+            U512::from(
+                share
+                    .checked_add(share_bound)
+                    .unwrap_or_default()
+                    .min(total_shares),
+            )
         } else {
-            U512::from(share.checked_sub(share_bound).unwrap_or(U256::zero()))
+            U512::from(share.checked_sub(share_bound).unwrap_or_default())
         };
+
         let amount: I256 = I256::from_raw(
             (result_share
                 .checked_mul(usd_cap.shl(96))
@@ -181,8 +187,7 @@ impl<T: TimeExtractor> Multipool<T> {
             .expect("price division shouldn't overflow")
             .checked_div(U512::from(total_shares))
             .expect("total shares division shouldn't overflow")
-            .try_into()
-            .expect("into shouldn't overflow"),
+            .to(),
         );
         let amount = amount - I256::from_raw(quantity);
         Ok(MayBeExpired::new(amount))

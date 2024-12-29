@@ -1,13 +1,16 @@
 use super::multipool_builder::MultipoolMockBuilder;
-use super::*;
 use crate::errors::MultipoolErrors::*;
 use crate::errors::MultipoolOverflowErrors::*;
+use crate::tests::ADDRESSES;
+use alloy::primitives::Address;
+use alloy::primitives::I256;
+use alloy::primitives::U256;
 use pretty_assertions::assert_eq;
 
 //MULTIPOOL ASSET ERRORS
 #[test]
 fn check_asset_missing() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(&[0x10; 20]);
     let multipool = MultipoolMockBuilder::new(contract_address);
     let expected_error = AssetMissing(contract_address);
     assert_eq!(
@@ -20,7 +23,7 @@ fn check_asset_missing() {
 
 #[test]
 fn check_cap_quantity_slot_missing() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
 
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
@@ -33,7 +36,7 @@ fn check_cap_quantity_slot_missing() {
 
 #[test]
 fn check_cap_price_missing() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(10_u64.to_be_bytes().as_ref());
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
         .fill_updated_quantities_with_value(
@@ -48,7 +51,7 @@ fn check_cap_price_missing() {
 
 #[test]
 fn check_cap_overflow() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let multipool = MultipoolMockBuilder::new(contract_address)
         .fill_updated_quantities_with_value(ADDRESSES.to_vec(), U256::MAX, None)
         .set_quantity(contract_address, U256::MAX)
@@ -61,7 +64,7 @@ fn check_cap_overflow() {
 // MULTIPOOL TARGET SHARE ERROR
 #[test]
 fn check_target_share_share_missing() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
         .fill_updated_quantities_with_value(
@@ -81,7 +84,7 @@ fn check_target_share_share_missing() {
 // MULTIPOOL CURRENT SHARE ERROR
 #[test]
 fn check_current_share_zero_division() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
 
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
@@ -103,7 +106,7 @@ fn check_current_share_zero_division() {
 // MULTIPOOL QUANTITY TO DEVIATION ERRORS
 #[test]
 fn check_quantity_to_deviation_overflow() {
-    let contract_address = H160::from_low_u64_be(0x10);
+    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let multipool = MultipoolMockBuilder::new(contract_address)
         .insert_assets(ADDRESSES.to_vec())
         .fill_updated_shares_with_value(ADDRESSES.to_vec(), U256::from(10))
