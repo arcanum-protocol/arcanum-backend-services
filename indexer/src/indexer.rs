@@ -7,17 +7,21 @@ use alloy::{
 use futures::StreamExt;
 
 use crate::{
-    contracts::{self, AssetChangeEvent, MultipoolSpawnedEvent, TargetShareChangeEvent},
+    contracts::{
+        self, AssetChangeEvent, MultipoolFactory::MultipoolFactoryInstance, MultipoolSpawnedEvent,
+        TargetShareChangeEvent,
+    },
     raw_storage::RawEventStorage,
 };
 
 pub struct MultipoolIndexer<T, P, R: RawEventStorage> {
     contract_instance: contracts::Multipool::MultipoolInstance<T, P>,
-    factory_instance: contracts::MultipoolFactory::MultipoolFactoryInstance<T, P>,
+    factory_contract_address: Address,
     chain_id: String,
     from_block: BlockNumberOrTag,
     raw_storage: R,
     provider: P,
+    multipool_storage: crate::multipool_storage::MultipoolStorage,
 }
 
 impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + 'static>
@@ -29,14 +33,16 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         provider: P,
         from_block: BlockNumberOrTag,
         raw_storage: R,
+        multipool_storage: crate::multipool_storage::MultipoolStorage,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             contract_instance: contracts::Multipool::new(contract_address, provider.clone()),
-            factory_instance: contracts::MultipoolFactory::new(factory_address, provider.clone()),
+            factory_contract_address: factory_address,
             chain_id: provider.get_chain_id().await?.to_string(),
             from_block,
             raw_storage,
             provider,
+            multipool_storage,
         })
     }
 
@@ -49,19 +55,22 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 
     pub async fn spawn_multipool_creation_event_filter(&self) -> anyhow::Result<()> {
-        let factory_instance = self.factory_instance.clone();
+        let factory_address = self.factory_contract_address.clone();
+        let provider = self.provider.clone();
         let from_block = self.from_block.clone();
         let chain_id = self.chain_id.clone();
         let raw_storage = self.raw_storage.clone();
-
-        let mut multipool_creation_filter = factory_instance
-            .MultipoolSpawned_filter()
-            .from_block(from_block)
-            .watch()
-            .await?
-            .into_stream();
+        let multipool_storage = self.multipool_storage.clone();
 
         tokio::spawn(async move {
+            let factory_instance = MultipoolFactoryInstance::new(factory_address, provider);
+            let mut multipool_creation_filter = factory_instance
+                .MultipoolSpawned_filter()
+                .from_block(from_block)
+                .watch()
+                .await
+                .unwrap()
+                .into_stream();
             loop {
                 tokio::select! {
                     Some(Ok((event, log))) = multipool_creation_filter.next() => {
@@ -76,6 +85,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                         )
                         .await
                         .unwrap();
+                        multipool_storage.insert_multipool(event._0).unwrap();
                     }
                     else => {
                         break;
