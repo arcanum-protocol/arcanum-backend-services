@@ -1,7 +1,8 @@
-use alloy::primitives::Address;
+use alloy::primitives::{Address, U256};
 use multipool::{expiry::TimeExtractor, Multipool};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+#[derive(Clone, Debug)]
 pub struct MultipoolStorage {
     db: sled::Db,
 }
@@ -22,8 +23,8 @@ impl MultipoolStorage {
     pub fn insert_multipool<T: TimeExtractor + Serialize>(
         &self,
         address: Address,
-        multipool: Multipool<T>,
     ) -> anyhow::Result<()> {
+        let multipool = Multipool::new(address);
         self.db
             .insert(address.to_string(), bincode::serialize(&multipool)?)?;
         Ok(())
