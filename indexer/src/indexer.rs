@@ -1,6 +1,6 @@
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::{Address, U256},
+    primitives::{Address, U256, U64},
     providers::Provider,
     transports::BoxTransport,
 };
@@ -85,7 +85,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                         )
                         .await
                         .unwrap();
-                        multipool_storage.insert_multipool(event._0).unwrap();
+                        multipool_storage.insert_multipool(event._0, U64::from(log.block_number.unwrap())).unwrap();
                     }
                     else => {
                         break;

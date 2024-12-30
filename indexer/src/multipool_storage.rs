@@ -1,5 +1,9 @@
-use alloy::primitives::{Address, U256};
+use alloy::{
+    primitives::{Address, U256, U64},
+    signers::k256::elliptic_curve::rand_core::block,
+};
 use multipool::{expiry::TimeExtractor, Multipool};
+use multipool_storage::MultipoolWithMeta;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
@@ -20,13 +24,12 @@ impl MultipoolStorage {
         Ok(val.map(|x| bincode::deserialize(&x).unwrap()))
     }
 
-    pub fn insert_multipool<T: TimeExtractor + Serialize>(
-        &self,
-        address: Address,
-    ) -> anyhow::Result<()> {
-        let multipool = Multipool::new(address);
-        self.db
-            .insert(address.to_string(), bincode::serialize(&multipool)?)?;
+    pub fn insert_multipool(&self, address: Address, block_number: U64) -> anyhow::Result<()> {
+        let multipool = MultipoolWithMeta::new(address, block_number);
+        self.db.insert(
+            address.to_string(),
+            bincode::serialize(&multipool.multipool)?,
+        )?;
         Ok(())
     }
 

@@ -17,20 +17,8 @@ pub trait TimeExtractor {
     fn now() -> Self::TimeMeasure;
 }
 
-#[cfg(not(target_arch = "wasm32-unknown-unknown"))]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct StdTimeExtractor;
-
-#[cfg(not(target_arch = "wasm32-unknown-unknown"))]
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-pub struct WasmTimeExtractor;
-
-impl TimeExtractor for WasmTimeExtractor {
-    type TimeMeasure = u64;
-    fn now() -> u64 {
-        0
-    }
-}
 
 impl TimeExtractor for StdTimeExtractor {
     type TimeMeasure = u64;

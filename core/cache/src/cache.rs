@@ -1,9 +1,9 @@
 use std::{str::FromStr, time::Duration};
 
+use alloy::{network::EthereumWallet, primitives::Address, signers::local::PrivateKeySigner};
 use anyhow::Result;
 use dashmap::DashMap;
 
-use ethers::prelude::*;
 use multipool_storage::{MultipoolStorage, MultipoolStorageHook, StorageEntry};
 
 use multipool::{expiry::StdTimeExtractor, Multipool};
@@ -42,13 +42,15 @@ impl CachedMultipoolData {
     ) -> Result<()> {
         loop {
             let pools = storage.pools().await;
-            let signer = Wallet::from_str(&key).unwrap();
+            let signer = PrivateKeySigner::from_str(&key)?;
             for StorageEntry { multipool, address } in pools {
                 let mp = multipool.read().await.multipool.to_owned();
                 if let Err(e) = mp.get_price(&address).map(|p| {
                     p.not_older_than(price_ttl).map(|price| {
-                        self.cached_price
-                            .insert(address, crypto::sign(address, price, chain_id, &signer))
+                        self.cached_price.insert(
+                            address,
+                            crypto::sign(address, price, chain_id, &signer).unwrap(),
+                        )
                     })
                 }) {
                     log::warn!(
