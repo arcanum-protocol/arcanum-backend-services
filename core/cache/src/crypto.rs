@@ -1,8 +1,9 @@
-use ethers::abi::Token;
-use ethers::prelude::k256::ecdsa::SigningKey;
-use ethers::prelude::*;
-use ethers::utils::{self, hex};
-use primitive_types::{U128, U256};
+use alloy::{
+    dyn_abi::DynSolValue,
+    hex,
+    primitives::{keccak256, Address, U128, U256},
+    signers::{local::PrivateKeySigner, SignerSync},
+};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -19,33 +20,33 @@ pub fn sign(
     contract_address: Address,
     price: U256,
     chain_id: u128,
-    signer: &ethers::signers::Wallet<SigningKey>,
-) -> SignedSharePrice {
-    let current_ts: U128 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        .into();
-    let msg = abi::encode_packed(&[
-        Token::Address(contract_address),
-        Token::FixedArray(vec![
-            Token::Uint(U256::from(current_ts)),
-            Token::Uint(price),
-            Token::Uint(U256::from(chain_id)),
+    signer: &PrivateKeySigner,
+) -> anyhow::Result<SignedSharePrice> {
+    let current_ts = U128::from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    );
+
+    let msg = DynSolValue::Tuple(vec![
+        DynSolValue::Address(contract_address),
+        DynSolValue::Tuple(vec![
+            DynSolValue::Uint(U256::from(current_ts), 256),
+            DynSolValue::Uint(price, 256),
+            DynSolValue::Uint(U256::from(chain_id), 256),
         ]),
     ])
-    .unwrap();
+    .abi_encode();
 
-    let msg = utils::hash_message(utils::keccak256(msg));
-    signer
-        .sign_hash(msg)
-        .map(move |signature| SignedSharePrice {
-            contract_address,
-            timestamp: current_ts.as_u128().to_string(),
-            share_price: price.as_u128().to_string(),
-            signature: hex::encode_prefixed(signature.to_vec()),
-        })
-        .unwrap()
+    let msg = keccak256(msg);
+    let signature = signer.sign_hash_sync(&msg)?;
+    Ok(SignedSharePrice {
+        contract_address,
+        timestamp: current_ts.to_string(),
+        share_price: price.to_string(),
+        signature: hex::encode_prefixed(signature.as_bytes()),
+    })
 }
 
 #[cfg(test)]

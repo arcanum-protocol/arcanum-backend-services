@@ -1,12 +1,8 @@
+use alloy::primitives::Address;
 use anyhow::{anyhow, bail};
 use clap::{Parser, Subcommand};
 
-use ethers::prelude::*;
 use multipool_ledger::{ir::MultipoolStorageIR, DiscLedger, Ledger};
-use multipool_storage::{
-    ir_builder::{ExternalFactory, ExternalMultipool, MultipoolStorageIRBuilder},
-    multipool_with_meta::MultipoolWithMeta,
-};
 use rpc_controller::RpcRobber;
 use url::Url;
 
@@ -99,34 +95,34 @@ async fn main() -> anyhow::Result<()> {
                 assets,
                 rpc_config,
             } => {
-                let rpc = RpcRobber::read(rpc_config);
-                let ir = ledger.read().await?;
-                let ir = ir
-                    .add_pool(
-                        MultipoolWithMeta::fill(
-                            ExternalMultipool {
-                                contract_address: address,
-                                assets,
-                            },
-                            &rpc,
-                        )
-                        .await?,
-                    )
-                    .ok_or(anyhow!("Pool already exist"))?;
-                ledger.write(ir)?.await?;
+                // let rpc = RpcRobber::read(rpc_config);
+                // let ir = ledger.read().await?;
+                // let ir = ir
+                //     .add_pool(
+                //         MultipoolWithMeta::fill(
+                //             ExternalMultipool {
+                //                 contract_address: address,
+                //                 assets,
+                //             },
+                //             &rpc,
+                //         )
+                //         .await?,
+                //     )
+                //     .ok_or(anyhow!("Pool already exist"))?;
+                // ledger.write(ir)?.await?;
             }
             Commands::AddFactory {
                 address,
                 start_block,
             } => {
-                let ir = ledger.read().await?;
-                let ir = ir
-                    .add_factory(ExternalFactory {
-                        factory_address: address,
-                        block_number: start_block,
-                    })
-                    .ok_or(anyhow!("Pool already exist"))?;
-                ledger.write(ir)?.await?;
+                // let ir = ledger.read().await?;
+                // let ir = ir
+                //     .add_factory(ExternalFactory {
+                //         factory_address: address,
+                //         block_number: start_block,
+                //     })
+                //     .ok_or(anyhow!("Pool already exist"))?;
+                // ledger.write(ir)?.await?;
             }
             Commands::RemovePool { address: _ } => {
                 todo!("Remove is not yet implemented");

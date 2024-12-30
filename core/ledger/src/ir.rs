@@ -1,7 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ethers::prelude::*;
-
+use alloy::primitives::{Address, U256, U64};
 use serde::{Deserialize, Serialize};
 
 use anyhow::Result;
