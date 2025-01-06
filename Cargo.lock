@@ -3675,6 +3675,8 @@ dependencies = [
  "alloy",
  "anyhow",
  "bincode",
+ "crossbeam-channel",
+ "dashmap 6.1.0",
  "futures",
  "multipool",
  "multipool-storage",

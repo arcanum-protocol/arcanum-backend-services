@@ -2,6 +2,7 @@ use alloy::{
     primitives::{Address, U256, U64},
     signers::k256::elliptic_curve::rand_core::block,
 };
+use dashmap::DashMap;
 use multipool::{expiry::TimeExtractor, Multipool};
 use multipool_storage::MultipoolWithMeta;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -14,6 +15,18 @@ pub struct MultipoolStorage {
 impl MultipoolStorage {
     pub fn new(db: sled::Db) -> Self {
         Self { db }
+    }
+
+    pub fn get_multipools<T: TimeExtractor + Serialize + DeserializeOwned>(
+        &self,
+    ) -> anyhow::Result<Vec<Multipool<T>>> {
+        let mut multipools = vec![];
+
+        for item in self.db.iter() {
+            let multipool: Multipool<T> = bincode::deserialize(&item?.1)?;
+            multipools.push(multipool);
+        }
+        Ok(multipools)
     }
 
     pub fn get_multipool<T: TimeExtractor + Serialize + DeserializeOwned>(

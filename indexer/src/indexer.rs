@@ -1,23 +1,18 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use alloy::{
-    eips::BlockNumberOrTag,
-    primitives::{Address, U64},
-    providers::Provider,
-    rpc::types::Log,
-};
-use futures::StreamExt;
+use alloy::{eips::BlockNumberOrTag, primitives::Address, providers::Provider, rpc::types::Log};
+use dashmap::DashSet;
+use futures::{future::try_join_all, StreamExt};
 use tokio::{
-    sync::mpsc,
-    time::{self, Interval},
+    sync::{mpsc, RwLock},
+    task::JoinHandle,
+    time::{self},
 };
 use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
 
 use crate::{
     contracts::{
-        AssetChangeEvent,
-        Multipool::{self, MultipoolInstance},
-        MultipoolFactory::{self, MultipoolFactoryInstance},
+        AssetChangeEvent, Multipool::MultipoolInstance, MultipoolFactory::MultipoolFactoryInstance,
         MultipoolSpawnedEvent, TargetShareChangeEvent,
     },
     raw_storage::RawEventStorage,
@@ -40,8 +35,12 @@ impl Ticker {
         }
     }
 
-    pub fn run(&self, new_multipool_fetch_tick_sender: mpsc::Sender<()>) {
-        let mut multipool_creation_ticker_interval_stream = IntervalStream::new(time::interval(
+    pub fn run(
+        &self,
+        new_multipool_fetch_tick_sender: mpsc::Sender<()>,
+        multipool_events_tick_sender: mpsc::Sender<()>,
+    ) {
+        let mut new_multipool_fetch_tick_interval_stream = IntervalStream::new(time::interval(
             Duration::from_millis(self.new_multipool_fetch_tick_interval_millis),
         ));
         let mut multipool_events_ticker_interval_stream = IntervalStream::new(time::interval(
@@ -50,12 +49,20 @@ impl Ticker {
 
         tokio::spawn(async move {
             loop {
-                if let None = multipool_creation_ticker_interval_stream.next().await {
-                    break;
-                }
-
-                if let Err(_) = new_multipool_fetch_tick_sender.send(()).await {
-                    break;
+                tokio::select! {
+                    Some(_) = new_multipool_fetch_tick_interval_stream.next() => {
+                        if let Err(_) = new_multipool_fetch_tick_sender.send(()).await {
+                            break;
+                        }
+                    }
+                    Some(_) = multipool_events_ticker_interval_stream.next() => {
+                        if let Err(_) = multipool_events_tick_sender.send(()).await {
+                            break;
+                        }
+                    }
+                    else => {
+                        break;
+                    }
                 }
             }
         });
@@ -71,12 +78,13 @@ pub struct IntervalConfig {
 pub struct MultipoolIndexer<P, R: RawEventStorage> {
     factory_contract_address: Address,
     chain_id: String,
-    from_block: BlockNumberOrTag,
+    last_observed_block: Arc<RwLock<BlockNumberOrTag>>,
     raw_storage: R,
     provider: P,
     multipool_storage: crate::multipool_storage::MultipoolStorage,
     ticker: Ticker,
     enable_ws: bool,
+    watched_multipools: DashSet<Address>,
 }
 
 impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + 'static>
@@ -99,42 +107,49 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         Ok(Self {
             factory_contract_address: factory_address,
             chain_id: provider.get_chain_id().await?.to_string(),
-            from_block,
+            last_observed_block: Arc::new(RwLock::new(from_block)),
             raw_storage,
             provider,
             multipool_storage,
             ticker,
             enable_ws,
+            watched_multipools: DashSet::new(),
         })
     }
 
     pub async fn run(self) -> anyhow::Result<()> {
-        let (new_multipool_fetch_tick_sender, new_multipool_fetch_tick_receiver) = mpsc::channel(1);
+        let (new_multipool_fetch_tick_sender, new_multipool_fetch_tick_receiver) = mpsc::channel(0);
 
-        self.ticker.run(new_multipool_fetch_tick_sender.clone());
+        let (multipool_events_tick_sender, multipool_events_tick_receiver) = mpsc::channel(0);
+
+        self.ticker.run(
+            new_multipool_fetch_tick_sender.clone(),
+            multipool_events_tick_sender.clone(),
+        );
+
         if self.enable_ws {
-            self.spawn_event_detector(new_multipool_fetch_tick_sender)
+            self.spawn_ws_watcher(new_multipool_fetch_tick_sender)
                 .await?;
         }
-        self.spawn_polling_task(new_multipool_fetch_tick_receiver)
-            .await;
+        self.spawn_interval_polling_task(
+            new_multipool_fetch_tick_receiver,
+            multipool_events_tick_receiver,
+        )
+        .await?;
 
         Ok(())
     }
 
-    pub async fn spawn_event_detector(
+    pub async fn spawn_ws_watcher(
         &self,
         new_multipool_fetch_tick_sender: mpsc::Sender<()>,
     ) -> anyhow::Result<()> {
         let factory_instance =
             MultipoolFactoryInstance::new(self.factory_contract_address, self.provider.clone());
-        // let contract_instance =
-        //     MultipoolInstance::new(self.contract_address, self.provider.clone());
-        let from_block = self.from_block.clone();
 
         let mut multipool_creation_filter = factory_instance
             .MultipoolSpawned_filter()
-            .from_block(from_block)
+            .from_block(self.last_observed_block.read().await.clone())
             .subscribe()
             .await?
             .into_stream();
@@ -142,54 +157,142 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         tokio::spawn(async move {
             loop {
                 if let Some(Ok((_, _))) = multipool_creation_filter.next().await {
-                    new_multipool_fetch_tick_sender.send(()).await.unwrap();
+                    if let Err(_) = new_multipool_fetch_tick_sender.send(()).await {
+                        break;
+                    }
                 }
             }
         });
 
+        // TODO add multipool watching
+
         Ok(())
     }
 
-    pub async fn spawn_polling_task(
-        mut self,
+    pub async fn spawn_interval_polling_task(
+        self,
         new_multipool_fetch_tick_receiver: mpsc::Receiver<()>,
-    ) {
+        multipool_events_tick_receiver: mpsc::Receiver<()>,
+    ) -> anyhow::Result<()> {
         let mut new_mp_fetch_tick_receiver = ReceiverStream::new(new_multipool_fetch_tick_receiver);
+        let mut multipool_events_tick_receiver =
+            ReceiverStream::new(multipool_events_tick_receiver);
 
         loop {
-            if let None = new_mp_fetch_tick_receiver.next().await {
-                break;
-            }
-            let (new_multipools, last_block_number) = fetch_new_multipools(
-                self.factory_contract_address.clone(),
-                self.from_block.clone(),
-                self.provider.clone(),
-            )
-            .await
-            .unwrap();
-            self.from_block = BlockNumberOrTag::Number(last_block_number.into());
-            for (mp_spawned_event, log) in new_multipools {
-                let mp_address = mp_spawned_event.address.clone();
-                self.raw_storage
-                    .insert_event(
-                        &self.factory_contract_address.to_string(),
-                        &self.chain_id,
-                        log.block_number.unwrap().try_into().unwrap(),
-                        mp_spawned_event,
-                    )
-                    .await
-                    .unwrap();
-                self.multipool_storage
-                    .insert_multipool(mp_address, log.block_number.unwrap().try_into().unwrap())
-                    .unwrap();
+            tokio::select! {
+                Some(_) = new_mp_fetch_tick_receiver.next() => {
+                    self.handle_new_multipools_fetch_tick().await?;
+                }
+                Some(_) = multipool_events_tick_receiver.next() => {
+                    self.handle_multipool_events_tick().await?;
+                }
+                else => break,
             }
         }
+
+        Ok(())
+    }
+
+    async fn handle_new_multipools_fetch_tick(&self) -> anyhow::Result<()> {
+        let (new_multipools, last_block_number) = fetch_new_multipools(
+            self.factory_contract_address.clone(),
+            self.last_observed_block.read().await.clone(),
+            self.provider.clone(),
+        )
+        .await?;
+        for (mp_spawned_event, log) in new_multipools {
+            let mp_address = mp_spawned_event.address.clone();
+            self.raw_storage
+                .insert_event(
+                    &self.factory_contract_address.to_string(),
+                    &self.chain_id,
+                    log.block_number.unwrap().try_into().unwrap(),
+                    mp_spawned_event,
+                )
+                .await?;
+            self.multipool_storage
+                .insert_multipool(mp_address, log.block_number.unwrap().try_into().unwrap())?;
+            self.watched_multipools.insert(mp_address);
+        }
+        *self.last_observed_block.write().await =
+            BlockNumberOrTag::Number(last_block_number.into());
+        self.update_last_block_number(last_block_number).await?;
+        Ok(())
     }
 
     async fn update_last_block_number(&self, block_number: u64) -> anyhow::Result<()> {
         self.raw_storage
             .update_last_observed_block_number(&self.chain_id, block_number.try_into().unwrap())
             .await?;
+        Ok(())
+    }
+
+    async fn handle_multipool_events_tick(&self) -> anyhow::Result<()> {
+        let mut tasks: Vec<JoinHandle<anyhow::Result<()>>> = vec![];
+
+        for mp_address in self.watched_multipools.iter() {
+            let mp_address = mp_address.clone();
+            let provider = self.provider.clone();
+            // TODO update multipool structs with new data
+            // let multipool_storage = multipool_storage.clone();
+            let raw_storage = self.raw_storage.clone();
+            let chain_id = self.chain_id.clone();
+
+            let last_block_number_mutex = self.last_observed_block.clone();
+
+            tasks.push(tokio::spawn(async move {
+                let last_observed_block_number = last_block_number_mutex.read().await.clone();
+                let (asset_change_events, _) = fetch_asset_change_events(
+                    mp_address,
+                    last_observed_block_number,
+                    provider.clone(),
+                )
+                .await?;
+
+                let (target_share_change_events, last_block_number) =
+                    fetch_target_share_change_events(
+                        mp_address,
+                        last_observed_block_number,
+                        provider.clone(),
+                    )
+                    .await?;
+
+                for (event, log) in asset_change_events {
+                    raw_storage
+                        .insert_event(
+                            &mp_address.to_string(),
+                            &provider.get_chain_id().await?.to_string(),
+                            log.block_number.unwrap().try_into().unwrap(),
+                            event,
+                        )
+                        .await?;
+                }
+
+                for (event, log) in target_share_change_events {
+                    raw_storage
+                        .insert_event(
+                            &mp_address.to_string(),
+                            &provider.get_chain_id().await?.to_string(),
+                            log.block_number.unwrap().try_into().unwrap(),
+                            event,
+                        )
+                        .await?;
+                }
+                *last_block_number_mutex.write().await =
+                    BlockNumberOrTag::Number(last_block_number.into());
+                raw_storage
+                    .update_last_observed_block_number(
+                        &chain_id,
+                        last_block_number.try_into().unwrap(),
+                    )
+                    .await?;
+
+                Ok(())
+            }));
+        }
+
+        try_join_all(tasks).await?;
+
         Ok(())
     }
 }
