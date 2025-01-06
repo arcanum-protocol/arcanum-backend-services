@@ -25,31 +25,22 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Ticker {
-    pub new_multipool_fetch_tick_sender: mpsc::Sender<()>,
     pub new_multipool_fetch_tick_interval_millis: u64,
-    pub multipool_events_fetch_tick_sender: mpsc::Sender<()>,
     pub multipool_events_fetch_tick_interval_millis: u64,
 }
 
 impl Ticker {
     pub fn new(
-        new_multipool_fetch_tick_sender: mpsc::Sender<()>,
-        multipool_events_fetch_tick_sender: mpsc::Sender<()>,
         new_multipool_fetch_tick_interval_millis: u64,
         multipool_events_fetch_tick_interval_millis: u64,
     ) -> Self {
         Self {
-            new_multipool_fetch_tick_sender,
             new_multipool_fetch_tick_interval_millis,
-            multipool_events_fetch_tick_sender,
             multipool_events_fetch_tick_interval_millis,
         }
     }
 
-    pub fn run(&self) {
-        let multipool_creation_ticker = self.new_multipool_fetch_tick_sender.clone();
-        let multipool_events_ticker = self.multipool_events_fetch_tick_sender.clone();
-
+    pub fn run(&self, new_multipool_fetch_tick_sender: mpsc::Sender<()>) {
         let mut multipool_creation_ticker_interval_stream = IntervalStream::new(time::interval(
             Duration::from_millis(self.new_multipool_fetch_tick_interval_millis),
         ));
@@ -59,20 +50,12 @@ impl Ticker {
 
         tokio::spawn(async move {
             loop {
-                tokio::select! {
-                    Some(_) = multipool_creation_ticker_interval_stream.next() => {
-                        if let Err(_) = multipool_creation_ticker.send(()).await {
-                            break;
-                        }
-                    }
-                    Some(_) = multipool_events_ticker_interval_stream.next() => {
-                        if let Err(_) = multipool_events_ticker.send(()).await {
-                            break;
-                        }
-                    }
-                    else => {
-                        break;
-                    }
+                if let None = multipool_creation_ticker_interval_stream.next().await {
+                    break;
+                }
+
+                if let Err(_) = new_multipool_fetch_tick_sender.send(()).await {
+                    break;
                 }
             }
         });
@@ -86,7 +69,6 @@ pub struct IntervalConfig {
 }
 
 pub struct MultipoolIndexer<P, R: RawEventStorage> {
-    contract_address: Address,
     factory_contract_address: Address,
     chain_id: String,
     from_block: BlockNumberOrTag,
@@ -94,35 +76,27 @@ pub struct MultipoolIndexer<P, R: RawEventStorage> {
     provider: P,
     multipool_storage: crate::multipool_storage::MultipoolStorage,
     ticker: Ticker,
-    new_multipool_fetch_tick_receiver: mpsc::Receiver<()>,
-    multipool_events_fetch_tick_receiver: mpsc::Receiver<()>,
+    enable_ws: bool,
 }
 
 impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + 'static>
     MultipoolIndexer<P, R>
 {
     pub async fn new(
-        contract_address: Address,
         factory_address: Address,
         provider: P,
         from_block: BlockNumberOrTag,
         raw_storage: R,
         multipool_storage: crate::multipool_storage::MultipoolStorage,
         intervals: IntervalConfig,
+        enable_ws: bool,
     ) -> anyhow::Result<Self> {
-        let (new_multipool_fetch_tick_sender, new_multipool_fetch_tick_receiver) = mpsc::channel(1);
-        let (multipool_events_fetch_tick_sender, multipool_events_fetch_tick_receiver) =
-            mpsc::channel(1);
-
         let ticker = Ticker::new(
-            new_multipool_fetch_tick_sender,
-            multipool_events_fetch_tick_sender,
             intervals.new_multipool_fetch_tick_interval_millis,
             intervals.multipool_events_ticker_interval_millis,
         );
 
         Ok(Self {
-            contract_address,
             factory_contract_address: factory_address,
             chain_id: provider.get_chain_id().await?.to_string(),
             from_block,
@@ -130,67 +104,45 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
             provider,
             multipool_storage,
             ticker,
-            new_multipool_fetch_tick_receiver,
-            multipool_events_fetch_tick_receiver,
+            enable_ws,
         })
     }
 
-    pub async fn run(mut self) -> anyhow::Result<()> {
-        self.ticker.run();
-        self.spawn_event_detector().await?;
-        self.spawn_polling_task().await?;
+    pub async fn run(self) -> anyhow::Result<()> {
+        let (new_multipool_fetch_tick_sender, new_multipool_fetch_tick_receiver) = mpsc::channel(1);
+
+        self.ticker.run(new_multipool_fetch_tick_sender.clone());
+        if self.enable_ws {
+            self.spawn_event_detector(new_multipool_fetch_tick_sender)
+                .await?;
+        }
+        self.spawn_polling_task(new_multipool_fetch_tick_receiver)
+            .await;
 
         Ok(())
     }
 
-    pub async fn spawn_event_detector(&self) -> anyhow::Result<()> {
+    pub async fn spawn_event_detector(
+        &self,
+        new_multipool_fetch_tick_sender: mpsc::Sender<()>,
+    ) -> anyhow::Result<()> {
         let factory_instance =
             MultipoolFactoryInstance::new(self.factory_contract_address, self.provider.clone());
-        let contract_instance =
-            MultipoolInstance::new(self.contract_address, self.provider.clone());
+        // let contract_instance =
+        //     MultipoolInstance::new(self.contract_address, self.provider.clone());
         let from_block = self.from_block.clone();
-        let ticker = self.ticker.clone();
 
         let mut multipool_creation_filter = factory_instance
             .MultipoolSpawned_filter()
             .from_block(from_block)
-            .watch()
-            .await?
-            .into_stream();
-        let mut asset_change_filter = contract_instance
-            .AssetChange_filter()
-            .from_block(from_block)
-            .watch()
-            .await?
-            .into_stream();
-        let mut target_share_change_filter = contract_instance
-            .TargetShareChange_filter()
-            .from_block(from_block)
-            .watch()
+            .subscribe()
             .await?
             .into_stream();
 
         tokio::spawn(async move {
             loop {
-                tokio::select! {
-                    Some(Ok((event, log))) = multipool_creation_filter.next() => {
-                        if let Err(_) = ticker.new_multipool_fetch_tick_sender.send(()).await {
-                            break;
-                        }
-                    }
-                    Some(Ok((event, log))) = asset_change_filter.next() => {
-                        if let Err(_) = ticker.multipool_events_fetch_tick_sender.send(()).await {
-                            break;
-                        }
-                    }
-                    Some(Ok((event, log))) = target_share_change_filter.next() => {
-                        if let Err(_) = ticker.multipool_events_fetch_tick_sender.send(()).await {
-                            break;
-                        }
-                    }
-                    else => {
-                        break;
-                    }
+                if let Some(Ok((_, _))) = multipool_creation_filter.next().await {
+                    new_multipool_fetch_tick_sender.send(()).await.unwrap();
                 }
             }
         });
@@ -198,90 +150,46 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         Ok(())
     }
 
-    pub async fn spawn_polling_task(mut self) -> anyhow::Result<()> {
-        let mut new_mp_fetch_tick_receiver =
-            ReceiverStream::new(self.new_multipool_fetch_tick_receiver);
-        let mut mp_events_fetch_tick_receiver =
-            ReceiverStream::new(self.multipool_events_fetch_tick_receiver);
+    pub async fn spawn_polling_task(
+        mut self,
+        new_multipool_fetch_tick_receiver: mpsc::Receiver<()>,
+    ) {
+        let mut new_mp_fetch_tick_receiver = ReceiverStream::new(new_multipool_fetch_tick_receiver);
 
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    Some(_) = new_mp_fetch_tick_receiver.next() => {
-                        let (new_multipools, last_block_number) = fetch_new_multipools(
-                            self.factory_contract_address.clone(),
-                            self.from_block.clone(),
-                            self.provider.clone(),
-                        ).await.unwrap();
-                        self.from_block = BlockNumberOrTag::Number(last_block_number.into());
-                        for (mp_spawned_event, log) in new_multipools {
-                            let mp_address = mp_spawned_event.address.clone();
-                            self.raw_storage
-                                .insert_event(
-                                    &self.factory_contract_address.to_string(),
-                                    &self.chain_id,
-                                    log.block_number.unwrap().try_into().unwrap(),
-                                    mp_spawned_event,
-                                )
-                                .await
-                                .unwrap();
-                            self.multipool_storage
-                                .insert_multipool(
-                                    mp_address,
-                                    log.block_number
-                                        .unwrap()
-                                        .try_into()
-                                        .unwrap())
-                                .unwrap();
-                        }
-                    }
-                    Some(_) = mp_events_fetch_tick_receiver.next() => {
-                        let (asset_change_events, _) = fetch_asset_change_events(
-                            self.contract_address.clone(),
-                            self.from_block.clone(),
-                            self.provider.clone(),
-                        )
-                        .await
-                        .unwrap();
-                        for (asset_change_event, log) in asset_change_events {
-                            self.raw_storage
-                                .insert_event(
-                                    &self.contract_address.to_string(),
-                                    &self.chain_id,
-                                    log.block_number.unwrap().try_into().unwrap(),
-                                    asset_change_event,
-                                )
-                                .await
-                                .unwrap();
-                        }
-
-                        let (target_share_change_events, last_block_number) = fetch_target_share_change_events(
-                            self.contract_address.clone(),
-                            self.from_block.clone(),
-                            self.provider.clone(),
-                        )
-                        .await
-                        .unwrap();
-                        for (target_share_change_event, log) in target_share_change_events {
-                            self.raw_storage
-                                .insert_event(
-                                    &self.contract_address.to_string(),
-                                    &self.chain_id,
-                                    log.block_number.unwrap().try_into().unwrap(),
-                                    target_share_change_event,
-                                )
-                                .await
-                                .unwrap();
-                        }
-                        self.from_block = BlockNumberOrTag::Number(last_block_number.into());
-                    }
-                    else => {
-                        break;
-                    }
-                }
+        loop {
+            if let None = new_mp_fetch_tick_receiver.next().await {
+                break;
             }
-        });
+            let (new_multipools, last_block_number) = fetch_new_multipools(
+                self.factory_contract_address.clone(),
+                self.from_block.clone(),
+                self.provider.clone(),
+            )
+            .await
+            .unwrap();
+            self.from_block = BlockNumberOrTag::Number(last_block_number.into());
+            for (mp_spawned_event, log) in new_multipools {
+                let mp_address = mp_spawned_event.address.clone();
+                self.raw_storage
+                    .insert_event(
+                        &self.factory_contract_address.to_string(),
+                        &self.chain_id,
+                        log.block_number.unwrap().try_into().unwrap(),
+                        mp_spawned_event,
+                    )
+                    .await
+                    .unwrap();
+                self.multipool_storage
+                    .insert_multipool(mp_address, log.block_number.unwrap().try_into().unwrap())
+                    .unwrap();
+            }
+        }
+    }
 
+    async fn update_last_block_number(&self, block_number: u64) -> anyhow::Result<()> {
+        self.raw_storage
+            .update_last_observed_block_number(&self.chain_id, block_number.try_into().unwrap())
+            .await?;
         Ok(())
     }
 }
@@ -308,12 +216,12 @@ async fn fetch_new_multipools<P: Provider>(
 }
 
 async fn fetch_asset_change_events<P: Provider>(
-    contract_address: Address,
+    multipool_address: Address,
     from_block: BlockNumberOrTag,
     provider: P,
 ) -> anyhow::Result<(Vec<(AssetChangeEvent, Log)>, u64)> {
     let last_block_number = provider.get_block_number().await?;
-    let logs = MultipoolInstance::new(contract_address, provider)
+    let logs = MultipoolInstance::new(multipool_address, provider)
         .AssetChange_filter()
         .from_block(from_block)
         .to_block(last_block_number - 1)
