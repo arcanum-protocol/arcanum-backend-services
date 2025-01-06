@@ -3683,6 +3683,7 @@ dependencies = [
  "sled",
  "sqlx",
  "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
