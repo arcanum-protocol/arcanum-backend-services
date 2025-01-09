@@ -65,4 +65,8 @@ impl MultipoolStorage {
             })?;
         Ok(prev_val.map(|x| bincode::deserialize(&x).unwrap()))
     }
+
+    pub fn exists(&self, address: Address) -> anyhow::Result<bool> {
+        Ok(self.db.contains_key(address.to_string())?)
+    }
 }
