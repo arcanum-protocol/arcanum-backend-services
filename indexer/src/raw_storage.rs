@@ -21,7 +21,7 @@ pub trait RawEventStorage {
     fn update_last_observed_block_number(
         &self,
         chain_id: &str,
-        block_number: i64,
+        block_number: u64,
     ) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
@@ -52,8 +52,8 @@ impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
         )
         .bind(contract_address)
         .bind(chain_id)
-        .bind::<i64>(block_number.try_into().unwrap())
-        .bind::<i64>(block_timestamp.try_into().unwrap())
+        .bind::<i64>(block_number.try_into()?)
+        .bind::<i64>(block_timestamp.try_into()?)
         .bind(serde_json::to_value(&event)?)
         .execute(&self.pool)
         .await?;
@@ -73,7 +73,7 @@ impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
     async fn update_last_observed_block_number(
         &self,
         chain_id: &str,
-        block_number: i64,
+        block_number: u64,
     ) -> anyhow::Result<()> {
         sqlx::query(
             "
@@ -82,7 +82,7 @@ impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
                 WHERE chain_id = $2
             ",
         )
-        .bind(block_number)
+        .bind::<i64>(block_number.try_into()?)
         .bind(chain_id)
         .execute(&self.pool)
         .await?;

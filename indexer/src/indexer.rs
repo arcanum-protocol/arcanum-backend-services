@@ -126,7 +126,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
 
     async fn update_last_block_number(&self, block_number: u64) -> anyhow::Result<()> {
         self.raw_storage
-            .update_last_observed_block_number(&self.chain_id, block_number.try_into().unwrap())
+            .update_last_observed_block_number(&self.chain_id, block_number)
             .await?;
         Ok(())
     }
@@ -184,12 +184,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         }
 
         self.last_observed_block = last_block_number;
-        self.raw_storage
-            .update_last_observed_block_number(
-                &self.chain_id,
-                last_block_number.try_into().unwrap(),
-            )
-            .await?;
+        self.update_last_block_number(last_block_number).await?;
 
         Ok(())
     }
