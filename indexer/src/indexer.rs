@@ -1,7 +1,4 @@
-use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::Duration,
-};
+use std::time::Duration;
 
 use alloy::{
     primitives::Address,
@@ -15,7 +12,7 @@ use tokio_stream::{wrappers::WatchStream, StreamExt as StreamExtTokio};
 use crate::{
     contracts::{
         Multipool::{AssetChange, MultipoolEvents, TargetShareChange},
-        MultipoolFactory::{MultipoolFactoryEvents, MultipoolFactoryInstance, MultipoolSpawned},
+        MultipoolFactory::{MultipoolFactoryEvents, MultipoolSpawned},
     },
     raw_storage::RawEventStorage,
 };
@@ -23,7 +20,7 @@ use crate::{
 pub struct MultipoolIndexer<P, R: RawEventStorage> {
     factory_contract_address: Address,
     chain_id: String,
-    last_observed_block: AtomicU64,
+    last_observed_block: u64,
     raw_storage: R,
     provider: P,
     ws_provider: Option<P>,
@@ -48,7 +45,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         Ok(Self {
             factory_contract_address: factory_address,
             chain_id: provider.get_chain_id().await?.to_string(),
-            last_observed_block: AtomicU64::new(from_block),
+            last_observed_block: from_block,
             raw_storage,
             provider,
             ws_provider,
@@ -92,8 +89,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
             .clone()
             .ok_or(anyhow::anyhow!("WS provider not provided"))?;
 
-        let new_multipool_event_filter =
-            build_multipool_event_filter(self.last_observed_block.load(Ordering::Relaxed));
+        let new_multipool_event_filter = build_multipool_event_filter(self.last_observed_block);
         let mut subscription = ws_provider
             .subscribe_logs(&new_multipool_event_filter)
             .await?;
@@ -112,7 +108,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 
     pub async fn spawn_interval_polling_task(
-        self,
+        mut self,
         fetch_tick_recv: watch::Receiver<()>,
     ) -> anyhow::Result<()> {
         let mut fetch_tick_recv = WatchStream::new(fetch_tick_recv);
@@ -122,35 +118,9 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                 break;
             }
 
-            // TODO handle tick
+            self.handle_multipool_events_tick().await?;
         }
 
-        Ok(())
-    }
-
-    async fn handle_new_multipools_fetch_tick(&self) -> anyhow::Result<()> {
-        let (new_multipools, last_block_number) = fetch_new_multipools(
-            self.factory_contract_address.clone(),
-            self.last_observed_block.load(Ordering::Relaxed),
-            self.provider.clone(),
-        )
-        .await?;
-        for (mp_spawned_event, log) in new_multipools {
-            let mp_address = mp_spawned_event._0.clone();
-            self.raw_storage
-                .insert_event(
-                    &self.factory_contract_address.to_string(),
-                    &self.chain_id,
-                    log.block_number.unwrap().try_into().unwrap(),
-                    mp_spawned_event,
-                )
-                .await?;
-            self.multipool_storage
-                .insert_multipool(mp_address, log.block_number.unwrap().try_into().unwrap())?;
-        }
-        self.last_observed_block
-            .store(last_block_number, Ordering::Relaxed);
-        self.update_last_block_number(last_block_number).await?;
         Ok(())
     }
 
@@ -162,49 +132,73 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 
     // TODO apply events to multipool structs
-    async fn handle_multipool_events_tick(&self) -> anyhow::Result<()> {
-        let provider = self.provider.clone();
-        let raw_storage = self.raw_storage.clone();
-        let chain_id = self.chain_id.clone();
+    async fn handle_multipool_events_tick(&mut self) -> anyhow::Result<()> {
+        let (mut batch, last_block_number) =
+            fetch_multipool_events(self.last_observed_block, self.provider.clone()).await?;
 
-        let last_observed_block_number = self.last_observed_block.load(Ordering::Relaxed);
-        let (mut updates, last_block_number) =
-            fetch_multipool_events(last_observed_block_number, provider.clone()).await?;
+        self.filter_multipool_events(&mut batch);
 
-        self.filter_multipool_events(&mut updates);
+        for (mp_spawned_event, log) in batch.multipools_spawned {
+            let mp_address = mp_spawned_event._0.clone();
+            self.raw_storage
+                .insert_event(
+                    &self.factory_contract_address.to_string(),
+                    &self.chain_id,
+                    log.block_number
+                        .ok_or(anyhow::anyhow!("no block number in response"))?,
+                    log.block_timestamp
+                        .ok_or(anyhow::anyhow!("no block timestamp in response"))?,
+                    mp_spawned_event,
+                )
+                .await?;
+            self.multipool_storage
+                .insert_multipool(mp_address, log.block_number.unwrap().try_into().unwrap())?;
+        }
 
-        for (event, log) in updates.asset_changes {
-            raw_storage
+        for (event, log) in batch.asset_changes {
+            self.raw_storage
                 .insert_event(
                     &log.inner.address.to_string(),
-                    &provider.get_chain_id().await?.to_string(),
-                    log.block_number.unwrap().try_into().unwrap(),
+                    &self.provider.get_chain_id().await?.to_string(),
+                    log.block_number
+                        .ok_or(anyhow::anyhow!("no block number in response"))?,
+                    log.block_timestamp
+                        .ok_or(anyhow::anyhow!("no block timestamp in response"))?,
                     event,
                 )
                 .await?;
         }
 
-        for (event, log) in updates.target_share_changes {
-            raw_storage
+        for (event, log) in batch.target_share_changes {
+            self.raw_storage
                 .insert_event(
                     &log.inner.address.to_string(),
-                    &provider.get_chain_id().await?.to_string(),
-                    log.block_number.unwrap().try_into().unwrap(),
+                    &self.provider.get_chain_id().await?.to_string(),
+                    log.block_number
+                        .ok_or(anyhow::anyhow!("no block number in response"))?,
+                    log.block_timestamp
+                        .ok_or(anyhow::anyhow!("no block timestamp in response"))?,
                     event,
                 )
                 .await?;
         }
 
-        self.last_observed_block
-            .store(last_block_number, Ordering::Relaxed);
-        raw_storage
-            .update_last_observed_block_number(&chain_id, last_block_number.try_into().unwrap())
+        self.last_observed_block = last_block_number;
+        self.raw_storage
+            .update_last_observed_block_number(
+                &self.chain_id,
+                last_block_number.try_into().unwrap(),
+            )
             .await?;
 
         Ok(())
     }
 
     pub fn filter_multipool_events(&self, batch: &mut MultipoolEventsBatch) {
+        batch
+            .multipools_spawned
+            .retain(|(_, log)| self.factory_contract_address == log.inner.address);
+
         batch.asset_changes.retain(|(_, log)| {
             self.multipool_storage
                 .exists(log.inner.address)
@@ -217,22 +211,6 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                 .unwrap_or(false)
         });
     }
-}
-
-async fn fetch_new_multipools<P: Provider>(
-    factory_address: Address,
-    from_block: u64,
-    provider: P,
-) -> anyhow::Result<(Vec<(MultipoolSpawned, Log)>, u64)> {
-    let last_block_number = provider.get_block_number().await?;
-    let logs = MultipoolFactoryInstance::new(factory_address, provider)
-        .MultipoolSpawned_filter()
-        .from_block(from_block)
-        .to_block(last_block_number - 1)
-        .query()
-        .await?;
-
-    Ok((logs, last_block_number))
 }
 
 #[derive(Default)]
@@ -254,7 +232,6 @@ async fn fetch_multipool_events<P: Provider>(
     let mut batch = MultipoolEventsBatch::default();
 
     for log in logs.iter() {
-        // TODO filter events here
         match MultipoolFactoryEvents::decode_log(&log.inner, true) {
             Ok(decoded_log) => match decoded_log.data {
                 MultipoolFactoryEvents::MultipoolSpawned(multipool_spawned) => batch

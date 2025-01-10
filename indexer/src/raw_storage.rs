@@ -8,7 +8,8 @@ pub trait RawEventStorage {
         &self,
         contract_address: &str,
         chain_id: &str,
-        block_number: i64,
+        block_number: u64,
+        block_timestamp: u64,
         event: T,
     ) -> impl Future<Output = anyhow::Result<()>> + Send;
 
@@ -39,18 +40,20 @@ impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
         &self,
         contract_address: &str,
         chain_id: &str,
-        block_number: i64,
+        block_number: u64,
+        block_timestamp: u64,
         event: T,
     ) -> anyhow::Result<()> {
         sqlx::query(
             "
-            INSERT INTO raw_events (contract_address, chain_id, block_number, event)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO raw_events (contract_address, chain_id, block_number, block_timestamp, event)
+            VALUES ($1, $2, $3, $4, $5)
             ",
         )
         .bind(contract_address)
         .bind(chain_id)
-        .bind(block_number)
+        .bind::<i64>(block_number.try_into().unwrap())
+        .bind::<i64>(block_timestamp.try_into().unwrap())
         .bind(serde_json::to_value(&event)?)
         .execute(&self.pool)
         .await?;
