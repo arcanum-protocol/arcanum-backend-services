@@ -36,6 +36,7 @@ impl<DB: Database> RawEventStorageImpl<DB> {
 }
 
 impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
+    // TODO insert events in bulk
     async fn insert_event<T: Serialize + Send>(
         &self,
         contract_address: &str,

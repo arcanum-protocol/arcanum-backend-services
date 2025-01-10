@@ -6,8 +6,12 @@ use alloy::{
     rpc::types::{Filter, Log},
     sol_types::{SolEvent, SolEventInterface},
 };
-use tokio::{sync::watch, time::interval};
-use tokio_stream::{wrappers::WatchStream, StreamExt as StreamExtTokio};
+use futures::{
+    stream::{self},
+    Stream,
+};
+use tokio::time::interval;
+use tokio_stream::{wrappers::IntervalStream, StreamExt as StreamExtTokio};
 
 use crate::{
     contracts::{
@@ -55,73 +59,41 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         })
     }
 
-    pub async fn run(self) -> anyhow::Result<()> {
-        let (fetch_tick_sender, fetch_tick_receiver) = watch::channel(());
+    pub async fn run(mut self) -> anyhow::Result<()> {
+        let poll_interval =
+            IntervalStream::new(interval(Duration::from_millis(self.poll_interval_millis)));
 
-        tokio::spawn({
-            let mut poll_interval = interval(Duration::from_millis(self.poll_interval_millis));
-            let fetch_tick_sender = fetch_tick_sender.clone();
-            async move {
-                loop {
-                    poll_interval.tick().await;
-                    if let Err(_) = fetch_tick_sender.send(()) {
-                        break;
-                    }
-                }
+        let ws_watcher = self.spawn_ws_watcher().await?;
+        tokio::pin!(ws_watcher);
+        tokio::pin!(poll_interval);
+
+        loop {
+            tokio::select! {
+                Some(_) = ws_watcher.next() => {}
+                Some(_) = poll_interval.next() => {}
+                else => break,
             }
-        });
 
-        if self.enable_ws {
-            self.spawn_ws_watcher(fetch_tick_sender).await?;
+            self.handle_tick().await?;
         }
-        self.spawn_interval_polling_task(fetch_tick_receiver)
-            .await?;
 
         Ok(())
     }
 
-    pub async fn spawn_ws_watcher(
-        &self,
-        new_event_notifier: watch::Sender<()>,
-    ) -> anyhow::Result<()> {
+    pub async fn spawn_ws_watcher(&self) -> anyhow::Result<Box<dyn Stream<Item = Log> + Unpin>> {
+        if !self.enable_ws {
+            return Ok(Box::new(stream::empty()));
+        }
         let ws_provider = self
             .ws_provider
             .clone()
             .ok_or(anyhow::anyhow!("WS provider not provided"))?;
 
         let new_multipool_event_filter = build_multipool_event_filter(self.last_observed_block);
-        let mut subscription = ws_provider
+        let subscription = ws_provider
             .subscribe_logs(&new_multipool_event_filter)
             .await?;
-
-        tokio::spawn(async move {
-            loop {
-                if let Ok(_) = subscription.recv().await {
-                    if let Err(_) = new_event_notifier.send(()) {
-                        break;
-                    }
-                }
-            }
-        });
-
-        Ok(())
-    }
-
-    pub async fn spawn_interval_polling_task(
-        mut self,
-        fetch_tick_recv: watch::Receiver<()>,
-    ) -> anyhow::Result<()> {
-        let mut fetch_tick_recv = WatchStream::new(fetch_tick_recv);
-
-        loop {
-            if let None = fetch_tick_recv.next().await {
-                break;
-            }
-
-            self.handle_multipool_events_tick().await?;
-        }
-
-        Ok(())
+        Ok(Box::new(subscription.into_stream()))
     }
 
     async fn update_last_block_number(&self, block_number: u64) -> anyhow::Result<()> {
@@ -132,7 +104,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 
     // TODO apply events to multipool structs
-    async fn handle_multipool_events_tick(&mut self) -> anyhow::Result<()> {
+    async fn handle_tick(&mut self) -> anyhow::Result<()> {
         let (mut batch, last_block_number) =
             fetch_multipool_events(self.last_observed_block, self.provider.clone()).await?;
 
@@ -189,6 +161,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
         Ok(())
     }
 
+    // TODO derive multipool address and check it when unknown address emitted mp event
     pub fn filter_multipool_events(&self, batch: &mut MultipoolEventsBatch) {
         batch
             .multipools_spawned
@@ -208,6 +181,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 }
 
+// TODO merge fields into one vec using enum
 #[derive(Default)]
 struct MultipoolEventsBatch {
     pub asset_changes: Vec<(AssetChange, Log)>,
