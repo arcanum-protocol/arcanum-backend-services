@@ -5,7 +5,7 @@ CREATE TABLE raw_events (
     chain_id TEXT NOT NULL,
     block_number BIGINT NOT NULL,
     event_data JSONB NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    block_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
 );
 
 CREATE TABLE chains (
