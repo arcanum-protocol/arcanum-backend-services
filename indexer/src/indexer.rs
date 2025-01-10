@@ -105,8 +105,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
 
     // TODO apply events to multipool structs
     async fn handle_tick(&mut self) -> anyhow::Result<()> {
-        let (mut batch, last_block_number) =
-            fetch_multipool_events(self.last_observed_block, self.provider.clone()).await?;
+        let (mut batch, last_block_number) = self.fetch_multipool_events().await?;
 
         self.filter_multipool_events(&mut batch);
 
@@ -162,7 +161,7 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 
     // TODO derive multipool address and check it when unknown address emitted mp event
-    pub fn filter_multipool_events(&self, batch: &mut MultipoolEventsBatch) {
+    fn filter_multipool_events(&self, batch: &mut MultipoolEventsBatch) {
         batch
             .multipools_spawned
             .retain(|(_, log)| self.factory_contract_address == log.inner.address);
@@ -179,6 +178,45 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
                 .unwrap_or(false)
         });
     }
+
+    async fn fetch_multipool_events(&self) -> anyhow::Result<(MultipoolEventsBatch, u64)> {
+        let last_block_number = self.provider.get_block_number().await?;
+        let filter =
+            build_multipool_event_filter(self.last_observed_block).to_block(last_block_number - 1);
+
+        let logs = self.provider.get_logs(&filter).await?;
+
+        let mut batch = MultipoolEventsBatch::default();
+
+        for log in logs.iter() {
+            match MultipoolFactoryEvents::decode_log(&log.inner, true) {
+                Ok(decoded_log) => match decoded_log.data {
+                    MultipoolFactoryEvents::MultipoolSpawned(multipool_spawned) => batch
+                        .multipools_spawned
+                        .push((multipool_spawned, log.clone())),
+                    _ => continue,
+                },
+                Err(_) => {}
+            }
+            let decoded_log = match MultipoolEvents::decode_log(&log.inner, true) {
+                Ok(log) => log,
+                Err(_) => continue,
+            };
+
+            match decoded_log.data {
+                MultipoolEvents::AssetChange(asset_change) => {
+                    batch.asset_changes.push((asset_change, log.clone()))
+                }
+                MultipoolEvents::TargetShareChange(target_share_change) => batch
+                    .target_share_changes
+                    .push((target_share_change, log.clone())),
+
+                _ => {}
+            };
+        }
+
+        Ok((batch, last_block_number))
+    }
 }
 
 // TODO merge fields into one vec using enum
@@ -187,47 +225,6 @@ struct MultipoolEventsBatch {
     pub asset_changes: Vec<(AssetChange, Log)>,
     pub target_share_changes: Vec<(TargetShareChange, Log)>,
     pub multipools_spawned: Vec<(MultipoolSpawned, Log)>,
-}
-
-async fn fetch_multipool_events<P: Provider>(
-    from_block: u64,
-    provider: P,
-) -> anyhow::Result<(MultipoolEventsBatch, u64)> {
-    let last_block_number = provider.get_block_number().await?;
-    let filter = build_multipool_event_filter(from_block).to_block(last_block_number - 1);
-
-    let logs = provider.get_logs(&filter).await?;
-
-    let mut batch = MultipoolEventsBatch::default();
-
-    for log in logs.iter() {
-        match MultipoolFactoryEvents::decode_log(&log.inner, true) {
-            Ok(decoded_log) => match decoded_log.data {
-                MultipoolFactoryEvents::MultipoolSpawned(multipool_spawned) => batch
-                    .multipools_spawned
-                    .push((multipool_spawned, log.clone())),
-                _ => continue,
-            },
-            Err(_) => {}
-        }
-        let decoded_log = match MultipoolEvents::decode_log(&log.inner, true) {
-            Ok(log) => log,
-            Err(_) => continue,
-        };
-
-        match decoded_log.data {
-            MultipoolEvents::AssetChange(asset_change) => {
-                batch.asset_changes.push((asset_change, log.clone()))
-            }
-            MultipoolEvents::TargetShareChange(target_share_change) => batch
-                .target_share_changes
-                .push((target_share_change, log.clone())),
-
-            _ => {}
-        };
-    }
-
-    Ok((batch, last_block_number))
 }
 
 pub fn build_multipool_event_filter(from_block: u64) -> Filter {
