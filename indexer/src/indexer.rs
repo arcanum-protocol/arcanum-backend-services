@@ -2,9 +2,11 @@ use std::time::Duration;
 
 use alloy::{
     primitives::Address,
-    providers::Provider,
+    providers::{Provider, RootProvider},
+    pubsub::PubSubFrontend,
     rpc::types::{Filter, Log},
     sol_types::{SolEvent, SolEventInterface},
+    transports::http::{Client, Http},
 };
 use futures::{
     stream::{self},
@@ -21,29 +23,25 @@ use crate::{
     raw_storage::RawEventStorage,
 };
 
-pub struct MultipoolIndexer<P, R: RawEventStorage> {
+pub struct MultipoolIndexer<R: RawEventStorage> {
     factory_contract_address: Address,
     chain_id: String,
     last_observed_block: u64,
     raw_storage: R,
-    provider: P,
-    ws_provider: Option<P>,
+    provider: RootProvider<Http<Client>>,
+    ws_provider: Option<RootProvider<PubSubFrontend>>,
     multipool_storage: crate::multipool_storage::MultipoolStorage,
     poll_interval_millis: u64,
-    enable_ws: bool,
 }
 
-impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + 'static>
-    MultipoolIndexer<P, R>
-{
+impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     pub async fn new(
         factory_address: Address,
-        provider: P,
-        ws_provider: Option<P>,
+        provider: RootProvider<Http<Client>>,
+        ws_provider: Option<RootProvider<PubSubFrontend>>,
         from_block: u64,
         raw_storage: R,
         multipool_storage: crate::multipool_storage::MultipoolStorage,
-        enable_ws: bool,
         poll_interval_millis: u64,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -55,7 +53,6 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
             ws_provider,
             multipool_storage,
             poll_interval_millis,
-            enable_ws,
         })
     }
 
@@ -81,13 +78,10 @@ impl<P: Provider + Clone + 'static, R: RawEventStorage + Clone + Send + Sync + '
     }
 
     pub async fn spawn_ws_watcher(&self) -> anyhow::Result<Box<dyn Stream<Item = Log> + Unpin>> {
-        if !self.enable_ws {
-            return Ok(Box::new(stream::empty()));
-        }
-        let ws_provider = self
-            .ws_provider
-            .clone()
-            .ok_or(anyhow::anyhow!("WS provider not provided"))?;
+        let ws_provider = match self.ws_provider {
+            Some(ref ws_provider) => ws_provider.clone(),
+            None => return Ok(Box::new(stream::empty())),
+        };
 
         let new_multipool_event_filter = build_multipool_event_filter(self.last_observed_block);
         let subscription = ws_provider
