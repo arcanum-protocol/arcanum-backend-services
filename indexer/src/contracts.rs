@@ -4,7 +4,7 @@ use serde::Serialize;
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    #[derive(Serialize)]
+    #[derive(Serialize, Debug)]
     Multipool,
     "src/abi/multipool.json"
 );
@@ -12,7 +12,7 @@ sol!(
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    #[derive(Serialize)]
+    #[derive(Serialize, Debug)]
     MultipoolFactory,
     "src/abi/multipool_factory.json"
 );
