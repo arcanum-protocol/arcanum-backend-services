@@ -1,11 +1,7 @@
-use alloy::{
-    primitives::{Address, U256, U64},
-    signers::k256::elliptic_curve::rand_core::block,
-};
-use dashmap::DashMap;
+use alloy::primitives::{Address, U64};
 use multipool::{expiry::TimeExtractor, Multipool};
 use multipool_storage::MultipoolWithMeta;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 
 #[derive(Clone, Debug)]
 pub struct MultipoolStorage {

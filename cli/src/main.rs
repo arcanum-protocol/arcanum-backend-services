@@ -3,7 +3,6 @@ use anyhow::{anyhow, bail};
 use clap::{Parser, Subcommand};
 
 use multipool_ledger::{ir::MultipoolStorageIR, DiscLedger, Ledger};
-use rpc_controller::RpcRobber;
 use url::Url;
 
 use std::{env, path::PathBuf};
@@ -21,7 +20,7 @@ fn default_rpc_path() -> PathBuf {
 }
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version, about, long_about = none)]
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,

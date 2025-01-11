@@ -25,6 +25,7 @@ pub trait RawEventStorage {
     ) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
+#[derive(Clone)]
 pub struct RawEventStorageImpl<DB: Database> {
     pool: Pool<DB>,
 }
