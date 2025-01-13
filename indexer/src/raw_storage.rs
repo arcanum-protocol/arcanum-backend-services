@@ -23,6 +23,14 @@ pub trait RawEventStorage {
         chain_id: &str,
         block_number: u64,
     ) -> impl Future<Output = anyhow::Result<()>> + Send;
+
+    fn factory_nonce(&self, chain_id: &str) -> impl Future<Output = anyhow::Result<u32>> + Send;
+
+    fn update_factory_nonce(
+        &self,
+        chain_id: &str,
+        nonce: u32,
+    ) -> impl Future<Output = anyhow::Result<()>> + Send;
 }
 
 #[derive(Clone)]
@@ -85,6 +93,31 @@ impl RawEventStorage for RawEventStorageImpl<sqlx::Postgres> {
             ",
         )
         .bind::<i64>(block_number.try_into()?)
+        .bind(chain_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn factory_nonce(&self, chain_id: &str) -> anyhow::Result<u32> {
+        let row = sqlx::query("SELECT factory_nonce FROM chains WHERE chain_id = $1")
+            .bind(chain_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(row.get::<i64, usize>(0).try_into()?)
+    }
+
+    async fn update_factory_nonce(&self, chain_id: &str, nonce: u32) -> anyhow::Result<()> {
+        sqlx::query(
+            "
+                UPDATE chains
+                SET factory_nonce = $1
+                WHERE chain_id = $2
+            ",
+        )
+        .bind::<i64>(nonce.try_into()?)
         .bind(chain_id)
         .execute(&self.pool)
         .await?;

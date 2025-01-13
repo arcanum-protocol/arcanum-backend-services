@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use alloy::{
+    hex,
     primitives::{keccak256, Address},
     providers::{Provider, RootProvider},
     pubsub::PubSubFrontend,
@@ -17,10 +18,7 @@ use tokio::time::interval;
 use tokio_stream::{wrappers::IntervalStream, StreamExt as StreamExtTokio};
 
 use crate::{
-    contracts::{
-        Multipool::{AssetChange, MultipoolEvents, TargetShareChange},
-        MultipoolFactory::MultipoolSpawned,
-    },
+    contracts::Multipool::{AssetChange, MultipoolEvents, TargetShareChange},
     raw_storage::RawEventStorage,
 };
 
@@ -40,20 +38,33 @@ pub struct MultipoolIndexer<R: RawEventStorage> {
 impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     pub async fn new(
         factory_address: Address,
-        factory_salt_nonce: u32,
-        multipool_contract_bytecode: Vec<u8>,
+        multipool_contract_bytecode: String,
         provider: RootProvider<Http<Client>>,
         ws_provider: Option<RootProvider<PubSubFrontend>>,
-        from_block: u64,
+        from_block: Option<u64>,
         raw_storage: R,
         multipool_storage: crate::multipool_storage::MultipoolStorage,
         poll_interval_millis: u64,
     ) -> anyhow::Result<Self> {
+        let chain_id = provider.get_chain_id().await?.to_string();
+        let factory_nonce = raw_storage.factory_nonce(&chain_id).await?;
+        let from_block = match from_block {
+            Some(from_block) => {
+                if from_block == 0 {
+                    return Err(anyhow::anyhow!("from_block must be greater than 0"));
+                }
+                from_block
+            }
+            None => {
+                let last_observed_block = raw_storage.last_observed_block_number(&chain_id).await?;
+                last_observed_block as u64
+            }
+        };
         Ok(Self {
             factory_contract_address: factory_address,
-            factory_salt_nonce,
-            multipool_contract_bytecode,
-            chain_id: provider.get_chain_id().await?.to_string(),
+            factory_salt_nonce: factory_nonce,
+            multipool_contract_bytecode: hex::decode(multipool_contract_bytecode)?,
+            chain_id,
             last_observed_block: from_block,
             raw_storage,
             provider,
@@ -113,6 +124,9 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
                     self.multipool_storage
                         .insert_multipool(log.address(), log.block_number.unwrap())?;
                     self.factory_salt_nonce += 1; // HACK ensure that event ordering is preserved
+                    self.raw_storage
+                        .update_factory_nonce(&self.chain_id, self.factory_salt_nonce)
+                        .await?;
                 } else {
                     continue;
                 }

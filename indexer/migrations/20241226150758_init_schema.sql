@@ -12,4 +12,5 @@ CREATE TABLE chains (
     id SERIAL PRIMARY KEY,
     chain_id TEXT NOT NULL,
     last_observed_block BIGINT NOT NULL,
+    factory_nonce BIGINT NOT NULL,
 )
