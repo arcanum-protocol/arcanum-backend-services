@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use alloy::{
-    primitives::Address,
+    primitives::{keccak256, Address},
     providers::{Provider, RootProvider},
     pubsub::PubSubFrontend,
     rpc::types::{Filter, Log},
@@ -25,6 +25,8 @@ use crate::{
 
 pub struct MultipoolIndexer<R: RawEventStorage> {
     factory_contract_address: Address,
+    factory_salt_nonce: u32,
+    multipool_contract_bytecode: Vec<u8>,
     chain_id: String,
     last_observed_block: u64,
     raw_storage: R,
@@ -37,6 +39,8 @@ pub struct MultipoolIndexer<R: RawEventStorage> {
 impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     pub async fn new(
         factory_address: Address,
+        factory_salt_nonce: u32,
+        multipool_contract_bytecode: Vec<u8>,
         provider: RootProvider<Http<Client>>,
         ws_provider: Option<RootProvider<PubSubFrontend>>,
         from_block: u64,
@@ -46,6 +50,8 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     ) -> anyhow::Result<Self> {
         Ok(Self {
             factory_contract_address: factory_address,
+            factory_salt_nonce,
+            multipool_contract_bytecode,
             chain_id: provider.get_chain_id().await?.to_string(),
             last_observed_block: from_block,
             raw_storage,
@@ -98,12 +104,19 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     }
 
     async fn handle_tick(&mut self) -> anyhow::Result<()> {
-        let (mut events, last_block_number) = self.fetch_multipool_events().await?;
-
-        // TODO derive multipool address and check event when unknown address emitted it
-        // filter out events from contracts that were not created by the factory
+        let (events, last_block_number) = self.fetch_multipool_events().await?;
 
         for (event, log) in events {
+            if !self.multipool_storage.exists(log.address())? {
+                if log.address() == self.derive_multipool_address() {
+                    self.multipool_storage
+                        .insert_multipool(log.address(), log.block_number.unwrap())?;
+                    self.factory_salt_nonce += 1; // HACK ensure that event ordering is preserved
+                } else {
+                    continue;
+                }
+            }
+
             self.raw_storage
                 .insert_event(
                     &log.inner.address.to_string(),
@@ -142,6 +155,16 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
         }
 
         Ok((events, last_block_number))
+    }
+
+    pub fn derive_multipool_address(&self) -> Address {
+        let mut address_bytes: Vec<u8> = vec![0xff];
+        address_bytes.extend_from_slice(&self.factory_contract_address[..]);
+        address_bytes.extend_from_slice(&self.factory_salt_nonce.to_le_bytes()); // FIXME check endianness
+        address_bytes
+            .extend_from_slice(&keccak256(self.multipool_contract_bytecode.clone()).as_slice());
+
+        Address::from_slice(&address_bytes[12..])
     }
 }
 
