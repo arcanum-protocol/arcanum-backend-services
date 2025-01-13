@@ -15,6 +15,7 @@ mod raw_storage;
 #[derive(Parser, Debug)]
 struct Args {
     config_path: PathBuf,
+    from_block: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -22,10 +23,10 @@ struct IndexerConfig {
     provider_url: String,
     ws_provider_url: Option<String>,
     factory_contract_address: String,
-    from_block: u64,
     poll_interval_millis: u64,
     raw_storage_uri: String,
     multipool_storage_path: String,
+    multipool_contract_bytecode: String,
 }
 
 #[tokio::main]
@@ -53,9 +54,10 @@ async fn main() -> anyhow::Result<()> {
 
     let indexer = indexer::MultipoolIndexer::new(
         deserialized_config.factory_contract_address.parse()?,
+        deserialized_config.multipool_contract_bytecode,
         provider,
         ws_provider,
-        deserialized_config.from_block,
+        args.from_block,
         raw_storage,
         mp_storage_db,
         deserialized_config.poll_interval_millis,
