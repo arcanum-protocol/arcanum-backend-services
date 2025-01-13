@@ -86,7 +86,7 @@ impl<T: TimeExtractor> Multipool<T> {
     }
 
     pub fn update_shares(&mut self, shares: &[(Address, Share)], update_expiry: bool) {
-        //TODO: replase with 0(max(len(quantities), len(self.assets)))
+        //TODO: replace with 0(max(len(quantities), len(self.assets)))
         let mut shares_set: HashMap<Address, Share> = shares.iter().cloned().collect();
         let mut total_shares = self
             .total_shares

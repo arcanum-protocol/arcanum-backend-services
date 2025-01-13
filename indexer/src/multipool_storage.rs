@@ -1,5 +1,8 @@
 use alloy::primitives::{Address, U64};
-use multipool::{expiry::TimeExtractor, Multipool};
+use multipool::{
+    expiry::{StdTimeExtractor, TimeExtractor},
+    Multipool,
+};
 use multipool_storage::MultipoolWithMeta;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -42,14 +45,11 @@ impl MultipoolStorage {
         Ok(())
     }
 
-    pub fn update_multipool<
-        T: TimeExtractor + Serialize + DeserializeOwned,
-        F: Fn(Multipool<T>) -> Multipool<T>,
-    >(
+    pub fn update_multipool<F: Fn(Multipool<StdTimeExtractor>) -> Multipool<StdTimeExtractor>>(
         &self,
         address: Address,
         update_fn: F,
-    ) -> anyhow::Result<Option<Multipool<T>>> {
+    ) -> anyhow::Result<Option<Multipool<StdTimeExtractor>>> {
         let prev_val = self
             .db
             .fetch_and_update(address.to_string(), move |old_mp| {
