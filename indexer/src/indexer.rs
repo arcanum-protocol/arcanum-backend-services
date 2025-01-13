@@ -12,6 +12,7 @@ use futures::{
     stream::{self},
     Stream,
 };
+use multipool::QuantityData;
 use tokio::time::interval;
 use tokio_stream::{wrappers::IntervalStream, StreamExt as StreamExtTokio};
 
@@ -117,6 +118,33 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
                 }
             }
 
+            match &event {
+                MultipoolEvents::TargetShareChange(event) => {
+                    self.multipool_storage
+                        .update_multipool(log.address(), |mut mp| {
+                            mp.update_shares(&[(event.asset, event.newTargetShare)], true);
+                            mp
+                        })?;
+                }
+                MultipoolEvents::AssetChange(event) => {
+                    self.multipool_storage
+                        .update_multipool(log.address(), |mut mp| {
+                            mp.update_quantities(
+                                &[(
+                                    event.asset,
+                                    QuantityData {
+                                        quantity: event.quantity,
+                                        cashback: event.collectedCashbacks.try_into().unwrap(),
+                                    },
+                                )],
+                                true,
+                            );
+                            mp
+                        })?;
+                }
+                _ => {}
+            }
+
             self.raw_storage
                 .insert_event(
                     &log.inner.address.to_string(),
@@ -128,6 +156,7 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
                     event,
                 )
                 .await?;
+
             // TODO apply events to multipool structs
         }
         self.last_observed_block = last_block_number;
