@@ -33,8 +33,8 @@ impl MultipoolStorage {
         Ok(val.map(|x| bincode::deserialize(&x).unwrap()))
     }
 
-    pub fn insert_multipool(&self, address: Address, block_number: U64) -> anyhow::Result<()> {
-        let multipool = MultipoolWithMeta::new(address, block_number);
+    pub fn insert_multipool(&self, address: Address, block_number: u64) -> anyhow::Result<()> {
+        let multipool = MultipoolWithMeta::new(address, U64::from(block_number));
         self.db.insert(
             address.to_string(),
             bincode::serialize(&multipool.multipool)?,
