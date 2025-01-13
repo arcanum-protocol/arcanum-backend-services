@@ -160,7 +160,7 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     pub fn derive_multipool_address(&self) -> Address {
         let mut address_bytes: Vec<u8> = vec![0xff];
         address_bytes.extend_from_slice(&self.factory_contract_address[..]);
-        address_bytes.extend_from_slice(&self.factory_salt_nonce.to_le_bytes()); // FIXME check endianness
+        address_bytes.extend_from_slice(&self.factory_salt_nonce.to_be_bytes()); // FIXME check endianness
         address_bytes
             .extend_from_slice(&keccak256(self.multipool_contract_bytecode.clone()).as_slice());
 
@@ -170,10 +170,6 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
 
 pub fn build_multipool_event_filter(from_block: u64) -> Filter {
     Filter::new()
-        .events(vec![
-            AssetChange::SIGNATURE,
-            TargetShareChange::SIGNATURE,
-            MultipoolSpawned::SIGNATURE,
-        ])
+        .events(vec![AssetChange::SIGNATURE, TargetShareChange::SIGNATURE])
         .from_block(from_block)
 }
