@@ -20,12 +20,12 @@ fn default_rpc_path() -> PathBuf {
 }
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = none)]
+#[command(version, about, long_about = None)]
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,
     /// Path to ledger storage
-    #[arg(short, long, default_value=default_ledger_path().into_os_string())]
+    #[arg(short, long, default_value = default_ledger_path())]
     ledger: PathBuf,
 
     #[arg(short, long, default_value_t = false)]
