@@ -19,7 +19,10 @@ use tokio::time::interval;
 use tokio_stream::{wrappers::IntervalStream, StreamExt as StreamExtTokio};
 
 use crate::{
-    contracts::Multipool::{AssetChange, MultipoolEvents, TargetShareChange},
+    contracts::Multipool::{
+        AssetChange, AuthorityRightsChange, CollectedFeesChange, FeesChange, MultipoolEvents,
+        PauseChange, PriceFeedChange, SharePriceExpirationChange, TargetShareChange,
+    },
     raw_storage::RawEventStorage,
 };
 
@@ -236,7 +239,16 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
 
 pub fn build_multipool_event_filter(from_block: u64) -> Filter {
     Filter::new()
-        .events(vec![AssetChange::SIGNATURE, TargetShareChange::SIGNATURE])
+        .events(vec![
+            AssetChange::SIGNATURE,
+            TargetShareChange::SIGNATURE,
+            FeesChange::SIGNATURE,
+            PriceFeedChange::SIGNATURE,
+            SharePriceExpirationChange::SIGNATURE,
+            AuthorityRightsChange::SIGNATURE,
+            PauseChange::SIGNATURE,
+            CollectedFeesChange::SIGNATURE,
+        ])
         .from_block(from_block)
 }
 
