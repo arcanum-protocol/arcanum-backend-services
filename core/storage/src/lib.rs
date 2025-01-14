@@ -1,12 +1,33 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
-use alloy::primitives::{Address, U64};
+use alloy::primitives::Address;
 use anyhow::Result;
 use multipool::{expiry::StdTimeExtractor, Multipool};
-use multipool_ledger::ir::Time;
+use serde::{Deserialize, Serialize};
 use tokio::{sync::RwLock, task::JoinHandle};
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Time {
+    pub timestamp: u64,
+    pub block: u64,
+}
+
+impl Time {
+    pub fn new(block: u64) -> Self {
+        Self {
+            block,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Shold be always after epoch start")
+                .as_secs(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultipoolWithMeta {
     pub multipool: Multipool<StdTimeExtractor>,
     pub quantity_time: Time,
@@ -14,7 +35,7 @@ pub struct MultipoolWithMeta {
 }
 
 impl MultipoolWithMeta {
-    pub fn new(address: Address, start_block: U64) -> Self {
+    pub fn new(address: Address, start_block: u64) -> Self {
         Self {
             multipool: Multipool::new(address),
             quantity_time: Time::new(start_block),
@@ -68,7 +89,7 @@ impl StorageEntry {
 }
 
 impl<H: MultipoolStorageHook + Send + Sync + 'static> MultipoolStorage<H> {
-    pub async fn insert_new_pools(&self, pools: &[(Address, U64)]) {
+    pub async fn insert_new_pools(&self, pools: &[(Address, u64)]) {
         let mut new_pools = Vec::new();
         for (address, block_number) in pools {
             let mp = Arc::new(RwLock::new(MultipoolWithMeta::new(*address, *block_number)));

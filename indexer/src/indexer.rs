@@ -1,8 +1,8 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use alloy::{
     hex,
-    primitives::{keccak256, Address},
+    primitives::{keccak256, Address, U256},
     providers::{Provider, RootProvider},
     pubsub::PubSubFrontend,
     rpc::types::{Filter, Log},
@@ -14,6 +14,7 @@ use futures::{
     Stream,
 };
 use multipool::QuantityData;
+use multipool_storage::Time;
 use tokio::time::interval;
 use tokio_stream::{wrappers::IntervalStream, StreamExt as StreamExtTokio};
 
@@ -118,15 +119,21 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
     async fn handle_tick(&mut self) -> anyhow::Result<()> {
         let (events, last_block_number) = self.fetch_multipool_events().await?;
 
+        let mut new_multipools = vec![];
+        let mut target_shares = HashMap::new();
+        let mut quantities = HashMap::new();
+
         for (event, log) in events {
             if !self.multipool_storage.exists(log.address())? {
-                if log.address() == self.derive_multipool_address() {
-                    self.multipool_storage
-                        .insert_multipool(log.address(), log.block_number.unwrap())?;
+                if log.address()
+                    == derive_multipool_address(
+                        self.factory_contract_address,
+                        self.factory_salt_nonce,
+                        self.multipool_contract_bytecode.clone(),
+                    )
+                {
+                    new_multipools.push((log.address(), log.block_number.unwrap()));
                     self.factory_salt_nonce += 1; // HACK ensure that event ordering is preserved
-                    self.raw_storage
-                        .update_factory_nonce(&self.chain_id, self.factory_salt_nonce)
-                        .await?;
                 } else {
                     continue;
                 }
@@ -134,27 +141,32 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
 
             match &event {
                 MultipoolEvents::TargetShareChange(event) => {
-                    self.multipool_storage
-                        .update_multipool(log.address(), |mut mp| {
-                            mp.update_shares(&[(event.asset, event.newTargetShare)], true);
-                            mp
-                        })?;
+                    target_shares
+                        .entry(log.address())
+                        .and_modify(|e: &mut (Vec<(Address, U256)>, Time)| {
+                            e.0.push((event.asset, event.newTargetShare));
+                            e.1 = Time::new(log.block_timestamp.unwrap());
+                        })
+                        .or_insert((
+                            vec![(event.asset, event.newTargetShare)],
+                            Time::new(log.block_timestamp.unwrap()),
+                        ));
                 }
                 MultipoolEvents::AssetChange(event) => {
-                    self.multipool_storage
-                        .update_multipool(log.address(), |mut mp| {
-                            mp.update_quantities(
-                                &[(
-                                    event.asset,
-                                    QuantityData {
-                                        quantity: event.quantity,
-                                        cashback: event.collectedCashbacks.try_into().unwrap(),
-                                    },
-                                )],
-                                true,
-                            );
-                            mp
-                        })?;
+                    let asset_change = (
+                        event.asset,
+                        QuantityData {
+                            quantity: event.quantity,
+                            cashback: event.collectedCashbacks.try_into().unwrap(),
+                        },
+                    );
+                    quantities
+                        .entry(log.address())
+                        .and_modify(|f: &mut (Vec<(Address, QuantityData)>, Time)| {
+                            f.0.push(asset_change.clone());
+                            f.1 = Time::new(log.block_timestamp.unwrap());
+                        })
+                        .or_insert((vec![asset_change], Time::new(log.block_timestamp.unwrap())));
                 }
                 _ => {}
             }
@@ -170,9 +182,30 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
                     event,
                 )
                 .await?;
-
-            // TODO apply events to multipool structs
         }
+
+        self.multipool_storage.insert_multipools(new_multipools)?;
+
+        for (multipool_address, (target_shares, update_time)) in target_shares {
+            self.multipool_storage
+                .update_multipool(multipool_address, |mp| {
+                    mp.multipool.update_shares(&target_shares, true);
+                    mp.share_time = update_time.clone();
+                })?;
+        }
+
+        for (multipool_address, (quantities, update_time)) in quantities {
+            self.multipool_storage
+                .update_multipool(multipool_address, |mp| {
+                    mp.multipool.update_quantities(&quantities, true);
+                    mp.quantity_time = update_time.clone();
+                })?;
+        }
+
+        self.raw_storage
+            .update_factory_nonce(&self.chain_id, self.factory_salt_nonce)
+            .await?;
+
         self.last_observed_block = last_block_number;
         self.update_last_block_number(last_block_number).await?;
 
@@ -199,20 +232,23 @@ impl<R: RawEventStorage + Send + Sync + 'static> MultipoolIndexer<R> {
 
         Ok((events, last_block_number))
     }
-
-    pub fn derive_multipool_address(&self) -> Address {
-        let mut address_bytes: Vec<u8> = vec![0xff];
-        address_bytes.extend_from_slice(&self.factory_contract_address[..]);
-        address_bytes.extend_from_slice(&self.factory_salt_nonce.to_be_bytes()); // FIXME check endianness
-        address_bytes
-            .extend_from_slice(&keccak256(self.multipool_contract_bytecode.clone()).as_slice());
-
-        Address::from_slice(&address_bytes[12..])
-    }
 }
 
 pub fn build_multipool_event_filter(from_block: u64) -> Filter {
     Filter::new()
         .events(vec![AssetChange::SIGNATURE, TargetShareChange::SIGNATURE])
         .from_block(from_block)
+}
+
+pub fn derive_multipool_address(
+    factory_address: Address,
+    factory_salt_nonce: u32,
+    multipool_contract_bytecode: Vec<u8>,
+) -> Address {
+    let mut address_bytes: Vec<u8> = vec![0xff];
+    address_bytes.extend_from_slice(&factory_address[..]);
+    address_bytes.extend_from_slice(&factory_salt_nonce.to_be_bytes()); // FIXME check endianness
+    address_bytes.extend_from_slice(keccak256(multipool_contract_bytecode).as_slice());
+
+    Address::from_slice(&address_bytes[12..])
 }
