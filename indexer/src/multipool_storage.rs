@@ -1,8 +1,5 @@
-use alloy::primitives::{Address, U64};
-use multipool::{
-    expiry::{StdTimeExtractor, TimeExtractor},
-    Multipool,
-};
+use alloy::primitives::Address;
+use multipool::{expiry::TimeExtractor, Multipool};
 use multipool_storage::MultipoolWithMeta;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -36,28 +33,36 @@ impl MultipoolStorage {
         Ok(val.map(|x| bincode::deserialize(&x).unwrap()))
     }
 
-    pub fn insert_multipool(&self, address: Address, block_number: u64) -> anyhow::Result<()> {
-        let multipool = MultipoolWithMeta::new(address, U64::from(block_number));
-        self.db.insert(
-            address.to_string(),
-            bincode::serialize(&multipool.multipool)?,
-        )?;
+    pub fn insert_multipools(&self, multipools: Vec<(Address, u64)>) -> anyhow::Result<()> {
+        let mut batch = sled::Batch::default();
+
+        for (address, start_block) in multipools {
+            let multipool_with_meta = MultipoolWithMeta::new(address, start_block);
+            batch.insert(
+                address.to_string().as_bytes(),
+                bincode::serialize(&multipool_with_meta)?,
+            );
+        }
+
+        self.db.apply_batch(batch)?;
+
         Ok(())
     }
 
-    pub fn update_multipool<F: Fn(Multipool<StdTimeExtractor>) -> Multipool<StdTimeExtractor>>(
+    pub fn update_multipool<F: Fn(&mut MultipoolWithMeta)>(
         &self,
         address: Address,
         update_fn: F,
-    ) -> anyhow::Result<Option<Multipool<StdTimeExtractor>>> {
+    ) -> anyhow::Result<Option<MultipoolWithMeta>> {
         let prev_val = self
             .db
             .fetch_and_update(address.to_string(), move |old_mp| {
                 if let None = old_mp {
                     return None;
                 }
-                let new_mp = update_fn(bincode::deserialize(&old_mp.unwrap()).unwrap());
-                bincode::serialize(&new_mp).ok()
+                let mut mp = bincode::deserialize(&old_mp.unwrap()).unwrap();
+                update_fn(&mut mp);
+                bincode::serialize(&mp).ok()
             })?;
         Ok(prev_val.map(|x| bincode::deserialize(&x).unwrap()))
     }
