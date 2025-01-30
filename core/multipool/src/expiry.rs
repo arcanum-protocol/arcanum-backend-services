@@ -18,6 +18,16 @@ pub trait TimeExtractor {
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+pub struct EmptyTimeExtractor;
+
+impl TimeExtractor for EmptyTimeExtractor {
+    type TimeMeasure = u64;
+    fn now() -> u64 {
+        panic!("Should never be invoked");
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub struct StdTimeExtractor;
 
 impl TimeExtractor for StdTimeExtractor {
@@ -59,6 +69,10 @@ impl<V, T: TimeExtractor> MayBeExpired<V, T> {
 
     pub fn any_age(self) -> V {
         self.0
+    }
+
+    pub fn map<U, F: FnOnce(V) -> U>(self, f: F) -> MayBeExpired<U, T> {
+        MayBeExpired(f(self.0), self.1)
     }
 
     pub fn refresh(&mut self) {

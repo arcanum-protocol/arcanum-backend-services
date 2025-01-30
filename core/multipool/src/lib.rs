@@ -6,10 +6,15 @@ pub mod expiry;
 pub mod tests;
 pub mod write;
 
+use alloy::primitives::aliases::U112;
+use alloy::primitives::aliases::U96;
+use alloy::primitives::ruint::aliases::U128;
+use alloy::primitives::ruint::aliases::U256;
 use alloy::primitives::Address;
-use alloy::primitives::U256;
-use alloy::primitives::U64;
-use expiry::TimeExtractor;
+use alloy::primitives::B256;
+use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
+use expiry::EmptyTimeExtractor;
 
 use std::ops::Shr;
 
@@ -20,114 +25,92 @@ use errors::MultipoolOverflowErrors::*;
 
 use serde::{Deserialize, Serialize};
 
-pub type MultipoolId = String;
-pub type Price = U256;
-pub type BlockNumber = U64;
-pub type Quantity = U256;
-pub type Share = U256;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Multipool<T: TimeExtractor> {
+#[derive(Debug, Deserialize, Serialize, Clone, Default, BorshSerialize, BorshDeserialize)]
+pub struct Multipool {
+    #[borsh(skip)]
     pub contract_address: Address,
-    pub assets: Vec<MultipoolAsset<T>>,
-    pub total_supply: Option<MayBeExpired<Quantity, T>>,
-    pub total_shares: Option<MayBeExpired<Share, T>>,
-    pub fees: Option<MayBeExpired<MultipoolFees, T>>,
+    pub assets: Vec<MultipoolAsset>,
+    #[borsh(skip)]
+    pub total_supply: U256,
+
+    pub deviation_increase_fee: u16,
+    pub deviation_limit: u16,
+    pub cashback_fee: u16,
+    pub base_fee: u16,
+    #[borsh(skip)]
+    pub management_fee_receiver: Address,
+    pub management_fee: u16,
+    pub total_target_shares: u16,
+
+    #[borsh(skip)]
+    pub oracle_address: Address,
+    #[borsh(skip)]
+    pub initial_share_price: U96,
 }
 
-impl<T: TimeExtractor> Clone for Multipool<T> {
-    fn clone(&self) -> Self {
-        Self {
-            contract_address: self.contract_address,
-            assets: self.assets.clone(),
-            total_supply: self.total_supply.clone(),
-            total_shares: self.total_shares.clone(),
-            fees: self.fees.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct MultipoolFees {
-    pub deviation_limit: U64,
-    pub deviation_param: U64,
-    pub depeg_base_fee: U64,
-    pub base_fee: U64,
-    pub developer_base_fee: U64,
-    pub developer_address: Address,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct MultipoolAsset<T: TimeExtractor> {
+#[derive(Debug, Deserialize, Serialize, Clone, BorshSerialize, BorshDeserialize)]
+pub struct MultipoolAsset {
+    //#[borsh(deserialize_with = "")]
+    //#[borsh(serialize_with = "")]
+    #[borsh(skip)]
     pub address: Address,
-    pub price: Option<MayBeExpired<Price, T>>,
-    pub quantity_slot: Option<MayBeExpired<QuantityData, T>>,
-    pub share: Option<MayBeExpired<Share, T>>,
-}
 
-impl<T: TimeExtractor> Clone for MultipoolAsset<T> {
-    fn clone(&self) -> Self {
-        Self {
-            address: self.address,
-            price: self.price.clone(),
-            quantity_slot: self.quantity_slot.clone(),
-            share: self.share.clone(),
-        }
-    }
+    #[borsh(skip)]
+    pub price_data: B256,
+    #[borsh(skip)]
+    pub price: Option<MayBeExpired<U256, EmptyTimeExtractor>>,
+
+    #[borsh(skip)]
+    pub quantity: U128,
+    #[borsh(skip)]
+    pub collected_cashbacks: U112,
+    pub share: u16,
 }
 
 const X96: u64 = 96;
 const X32: u64 = 32;
 
-impl<T: TimeExtractor> MultipoolAsset<T> {
-    fn quoted_quantity(&self) -> Result<MayBeExpired<Price, T>, MultipoolErrors> {
-        let slot = self
-            .quantity_slot
+impl MultipoolAsset {
+    fn new(address: Address) -> Self {
+        Self {
+            address,
+            price_data: Default::default(),
+            price: Default::default(),
+            quantity: Default::default(),
+            collected_cashbacks: Default::default(),
+            share: Default::default(),
+        }
+    }
+
+    fn quoted_quantity(&self) -> Result<MayBeExpired<U256, EmptyTimeExtractor>, MultipoolErrors> {
+        self.price
             .clone()
-            //       .unwrap_or(MayBeExpired::new(QuantityData {
-            //           quantity: U256::default(),
-            //           cashback: U256::default(),
-            //       }));
-            //   let price = self
-            //       .price
-            //       .clone()
-            //       .ok_or(MultipoolErrors::PriceMissing(self.address))?;
-            .ok_or(QuantitySlotMissing(self.address))?;
-        let price = self.price.clone().ok_or(PriceMissing(self.address))?;
-        (slot, price)
-            .merge(|(slot, price)| -> Option<U256> {
-                slot.quantity.checked_mul(price).map(|v| v.shr(X96))
+            .ok_or(PriceMissing(self.address))?
+            .map(|price| {
+                U256::from(self.quantity)
+                    .checked_mul(price)
+                    .map(|v| v.shr(X96))
+                    .ok_or(Overflow(QuotedQuantityOverflow))
             })
             .transpose()
-            .ok_or(Overflow(QuotedQuantityOverflow))
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct QuantityData {
-    pub quantity: Quantity,
-    pub cashback: Quantity,
-}
-
-impl QuantityData {
-    #[cfg(test)]
-    fn new(quantity: U256, cashback: U256) -> Self {
-        QuantityData { quantity, cashback }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.quantity.is_zero() && self.cashback.is_zero()
-    }
-}
-
-impl<T: TimeExtractor> Multipool<T> {
+impl Multipool {
     pub fn new(contract_address: Address) -> Self {
         Self {
             contract_address,
             assets: Default::default(),
             total_supply: Default::default(),
-            total_shares: Default::default(),
-            fees: Default::default(),
+            deviation_increase_fee: Default::default(),
+            deviation_limit: Default::default(),
+            cashback_fee: Default::default(),
+            base_fee: Default::default(),
+            management_fee_receiver: Default::default(),
+            management_fee: Default::default(),
+            total_target_shares: Default::default(),
+            oracle_address: Default::default(),
+            initial_share_price: Default::default(),
         }
     }
 }

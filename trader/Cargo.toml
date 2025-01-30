@@ -24,8 +24,6 @@ tokio-postgres = "0.7.10"
 multipool = { path = "../core/multipool" }
 multipool-cache = { path = "../core/cache" }
 multipool-storage = { path = "../core/storage" }
-multipool-ledger = { path = "../core/ledger" }
-rpc-controller = { path = "../utils/rpc-controller" }
 
 async-process = "2.1.0"
 

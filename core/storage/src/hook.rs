@@ -1,0 +1,11 @@
+use anyhow::Result;
+use futures::Future;
+use multipool::Multipool;
+use tokio::task::JoinHandle;
+
+pub trait HookInitializer {
+    fn initialize_hook<F: Fn() -> Multipool>(
+        &mut self,
+        getter: F,
+    ) -> impl Future<Output = JoinHandle<Result<()>>>;
+}

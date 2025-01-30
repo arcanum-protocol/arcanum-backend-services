@@ -1,0 +1,22 @@
+use anyhow::Result;
+use futures::future::ready;
+use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
+
+pub struct TestHookInitializer;
+
+impl HookInitializer for TestHookInitializer {
+    async fn initialize_hook<F: Fn() -> multipool::Multipool>(
+        &mut self,
+        _getter: F,
+    ) -> tokio::task::JoinHandle<Result<()>> {
+        tokio::spawn(ready(Ok(())))
+    }
+}
+
+#[tokio::test]
+async fn happy_path() -> Result<()> {
+    let db = sled::open("test")?;
+    let mut storage = MultipoolStorage::init(db, TestHookInitializer).await?;
+    storage.apply_events(vec![], 1, 3).await?;
+    Ok(())
+}
