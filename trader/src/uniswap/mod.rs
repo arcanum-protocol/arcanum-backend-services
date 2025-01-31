@@ -3,7 +3,7 @@ use alloy::primitives::Address;
 use anyhow::{anyhow, Result};
 use compute_address::{compute_pool_address, FeeAmount, FACTORY_ADDRESS};
 
-use crate::contracts::{Quoter, WETH_ADDRESS};
+use crate::contracts::{Quoter, MULTICALL_ADDRESS, QUOTER_ADDRESS, WETH_ADDRESS};
 use crate::trade::{MultipoolChoise, SwapOutcome, UniswapChoise};
 use alloy::primitives::{address, aliases::U256};
 use alloy_multicall::Multicall;
@@ -29,8 +29,9 @@ impl MultipoolChoise {
         let f = Quoter::abi::functions();
         let inp = &f.get("quoteExactInputSingle").unwrap()[0];
         let out = &f.get("quoteExactOutputSingle").unwrap()[0];
-        let mut mc = Multicall::new(rpc, address!("0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"));
+        let mut mc = Multicall::new(rpc, MULTICALL_ADDRESS);
         let mut pools = Vec::with_capacity(8);
+        println!("1");
         for fee in FeeAmount::iter() {
             let input_uniswap_pool =
                 compute_pool_address(FACTORY_ADDRESS, WETH_ADDRESS, self.swap_asset_in, fee, None);
@@ -40,7 +41,7 @@ impl MultipoolChoise {
                 base_is_token0: WETH_ADDRESS < self.swap_asset_in,
             });
             mc.add_call(
-                address!("0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"),
+                QUOTER_ADDRESS,
                 &inp,
                 &[
                     DynSolValue::Address(WETH_ADDRESS),
@@ -52,6 +53,7 @@ impl MultipoolChoise {
                 true,
             );
         }
+        println!("1");
 
         // two equals iterations to pack results in order like (4 inputs -- 4 outputs)
         // make another iteration of 4 is simplier than try to partition the Vec<Result<DynValue>> by x & 1 predicate
@@ -69,7 +71,7 @@ impl MultipoolChoise {
                 base_is_token0: WETH_ADDRESS < self.swap_asset_in,
             });
             mc.add_call(
-                address!("0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6"),
+                QUOTER_ADDRESS,
                 &out,
                 &[
                     DynSolValue::Address(asset2),
@@ -81,9 +83,10 @@ impl MultipoolChoise {
                 true,
             );
         }
-
+        println!("1");
         // let result: Vec<U256> = mc.call().await;
         let result = mc.call().await?;
+        println!("1");
         let (best_input_pool, input_value) = pools
             .iter()
             .zip(result.iter().take(4))

@@ -8,6 +8,10 @@ pub const CASHBACK_VAULT: Address = address!("B9cb365F599885F6D97106918bbd406FE0
 
 pub const WETH_ADDRESS: Address = address!("82aF49447D8a07e3bd95BD0d56f35241523fBab1");
 
+pub const QUOTER_ADDRESS: Address = address!("b27308f9F90D607463bb33eA1BeBb41C27CE5AB6");
+// ethereum mainnet -- must be mc3
+pub const MULTICALL_ADDRESS: Address = address!("cA11bde05977b3631167028862bE2a173976CA11");
+
 pub const SILO_LENS: Address = address!("BDb843c7a7e48Dc543424474d7Aa63b61B5D9536");
 pub const SILO_WRAPPER: Address = address!("5F127Aedf5A31E2F2685E49618D4f4809205fd62");
 
@@ -15,7 +19,7 @@ pub mod multipool {
     use super::sol;
     sol!(
         #[allow(missing_docs)]
-        #[sol(rpc)]
+        #[sol(rpc, abi)]
         MultipoolContract,
         "../arcanum-contracts/out/Multipool.sol/Multipool.json"
     );

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::contracts::trader::Trader::ForcePushArgs;
+use crate::contracts::trader::Trader::OraclePrice;
 use alloy::{
     primitives::{Address, I256, U256},
     providers::RootProvider,
@@ -28,7 +28,7 @@ pub type HttpProvider = RootProvider<Http<Client>>;
 pub struct TradingData {
     pub rpc: RootProvider<Http<Client>>,
     pub multipool: Multipool,
-    pub force_push: ForcePushArgs,
+    pub oracle_price: OraclePrice,
     pub silo_assets: HashMap<Address, (Address, Address)>,
     pub weth: Address,
 }

@@ -51,8 +51,8 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                 let mp = Multipool::deserialize(&mut &mp[..]).unwrap();
                 mp
             };
-            let handle = hook_initializer.initialize_hook(getter).await;
-            hooks.push(handle);
+            let handles = hook_initializer.initialize_hook(getter).await;
+            hooks.extend(handles);
         }
 
         Ok(Self {
@@ -88,6 +88,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             .get(b"current_block")?
             .map(|value| u64::deserialize(&mut &value[..]).unwrap())
             .unwrap_or(from_block - 1);
+        println!("from {}, to {} value {}", from_block, to_block, value);
 
         if from_block != value + 1 {
             println!("{from_block}");
@@ -104,6 +105,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                     address,
                     events
                         .filter_map(|e| {
+                            println!("value {}, bn {}", value, e.block_number.expect("log should contain block number"));
                             if value > e.block_number.expect("log should contain block number") {
                                 None
                             } else {
@@ -145,13 +147,10 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
 
 
                     mp.apply_events(&events);
-
                     let mut w = Vec::new();
                     Multipool::serialize(&mp, &mut w).unwrap();
                     multipools.insert(address.as_slice(), w)?;
                 }
-                let mut serialized_to_block = Vec::new();
-                to_block.serialize(&mut serialized_to_block).unwrap();
                 let mut current_block = Vec::new();
                 to_block.serialize(&mut current_block).unwrap();
                 index_data.insert(b"current_block", current_block)?;
@@ -168,11 +167,11 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                 let mp = Multipool::deserialize(&mut &mp[..]).unwrap();
                 mp
             };
-            let handle = self
+            let mut handles = self
                 .hook_initializer
                 .initialize_hook(multipool_getter)
                 .await;
-            self.hooks.push(handle);
+            self.hooks.append(&mut handles);
         }
         Ok(())
     }

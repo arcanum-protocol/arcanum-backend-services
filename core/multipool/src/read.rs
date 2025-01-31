@@ -1,4 +1,4 @@
-use std::ops::Shl;
+use std::{ops::Shl, u64};
 
 use alloy::primitives::{Address, I256, U256, U512};
 
@@ -38,7 +38,7 @@ impl Multipool {
             .map(|asset| -> Result<_, MultipoolErrors> { asset.quoted_quantity() })
             .collect::<Result<Vec<_>, MultipoolErrors>>()?;
         Ok(merged_prices.iter().fold(
-            MayBeExpired::new(Default::default()),
+            MayBeExpired::with_time(Default::default(), u64::MAX),
             |a, b| -> MayBeExpired<U256, EmptyTimeExtractor> {
                 (a, b.clone())
                     .merge(|(a, b)| a.checked_add(b))
@@ -54,12 +54,8 @@ impl Multipool {
         asset_address: &Address,
     ) -> Result<MayBeExpired<U256, EmptyTimeExtractor>, MultipoolErrors> {
         if self.contract_address.eq(asset_address) {
-            self.cap()?
-                .map(|c| c.shl(X96).checked_div(self.total_supply))
-                .transpose()
-                .ok_or(MultipoolErrors::Overflow(
-                    MultipoolOverflowErrors::TotalSupplyOverflow,
-                ))
+            Ok(self.cap()?
+                .map(|c| c.shl(X96).checked_div(self.total_supply).unwrap_or_default()))
         } else {
             self.asset(asset_address).and_then(|asset| {
                 asset
@@ -165,6 +161,6 @@ impl Multipool {
             .to(),
         );
         let amount = amount - I256::from_raw(U256::from(quantity));
-        Ok(MayBeExpired::new(amount))
+        Ok(MayBeExpired::with_time(amount, 0))
     }
 }

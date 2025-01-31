@@ -17,31 +17,27 @@ impl AssetsChoise {
             .multipool
             .get_price(&self.asset1)
             .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than(180)
-            .ok_or(anyhow!("price too old"))?;
+            .any_age();
         let price2 = self
             .trading_data
             .multipool
             .get_price(&self.asset2)
             .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than(180)
-            .ok_or(anyhow!("price too old"))?;
+            .any_age();
 
         let amount1 = self
             .trading_data
             .multipool
             .quantity_to_deviation(&self.asset1, self.deviation_bound)
             .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than(180)
-            .ok_or(anyhow!("price too old"))?;
+            .any_age();
 
         let amount2 = self
             .trading_data
             .multipool
             .quantity_to_deviation(&self.asset2, self.deviation_bound)
             .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than(180)
-            .ok_or(anyhow!("price too old"))?;
+            .any_age();
 
         if (amount1.is_positive() && amount2.is_positive())
             || (amount1.is_negative() && amount2.is_negative())
