@@ -7,5 +7,5 @@ pub trait HookInitializer {
     fn initialize_hook<F: Fn() -> Multipool + Send + Sync + 'static>(
         &mut self,
         multipool: F,
-    ) -> impl Future<Output = JoinHandle<Result<()>>>;
+    ) -> impl Future<Output = Vec<JoinHandle<Result<()>>>>;
 }
