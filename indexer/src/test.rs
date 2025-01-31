@@ -71,7 +71,6 @@ async fn happy_path(pool: sqlx::SqlitePool) -> Result<()> {
         db,
         EmptyHookInitialiser,
         *factory.address(),
-        *mp_implementation.address(),
     )
     .await?;
 

@@ -97,11 +97,11 @@ impl UniswapChoise {
             poolOut: self.output.best_pool,
 
             multipool: multipool.contract_address(),
-            fp: self
+            oraclePrice: self
                 .trading_data
                 .trading_data_with_assets
                 .trading_data
-                .force_push
+                .oracle_price
                 .clone(),
             gasLimit: U256::from(4000000),
             weth: self.trading_data.trading_data_with_assets.trading_data.weth,

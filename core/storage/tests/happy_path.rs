@@ -9,8 +9,8 @@ impl HookInitializer for TestHookInitializer {
     async fn initialize_hook<F: Fn() -> multipool::Multipool>(
         &mut self,
         _getter: F,
-    ) -> tokio::task::JoinHandle<Result<()>> {
-        tokio::spawn(ready(Ok(())))
+    ) -> Vec<tokio::task::JoinHandle<Result<()>> {
+        vec![tokio::spawn(ready(Ok(())))]
     }
 }
 

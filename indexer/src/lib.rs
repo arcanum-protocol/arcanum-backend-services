@@ -14,12 +14,12 @@ impl HookInitializer for EmptyHookInitialiser {
     async fn initialize_hook<F: Fn() -> Multipool + Send + 'static>(
         &mut self,
         multipool: F,
-    ) -> tokio::task::JoinHandle<Result<()>> {
-        tokio::spawn(async move {
+    ) -> Vec<tokio::task::JoinHandle<Result<()>>> {
+        vec![tokio::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
-        })
+        })]
     }
 }
 
@@ -29,6 +29,7 @@ pub struct EmbededProcessor<T: HookInitializer> {
 
 impl<T: HookInitializer> EmbededProcessor<T> {
     pub fn from_storage(storage: MultipoolStorage<T>) -> Self {
+        println!("processor initialized");
         Self { storage }
     }
 }
@@ -42,6 +43,7 @@ impl<T, R: HookInitializer> Processor<T> for EmbededProcessor<R> {
         new_saved_block: u64,
         _chain_id: u64,
     ) -> anyhow::Result<()> {
+        println!("logs {:?}", logs);
         self.storage
             .apply_events(logs.into_iter().cloned(), prev_saved_block, new_saved_block)
             .await?;

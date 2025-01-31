@@ -10,9 +10,8 @@ use std::collections::HashMap;
 
 impl Multipool {
     /// Prices are updated if these assets present in pool. Otherwhise there is no effect
-    pub fn update_prices(&mut self, prices: &[(Address, U256)], timestamp: u64) {
+    pub fn update_prices(&mut self, prices_set: HashMap<Address, U256>, timestamp: u64) {
         //TODO: replase with 0(max(len(prices), len(self.assets)))
-        let prices_set: HashMap<Address, U256> = prices.iter().cloned().collect();
         for asset in self.assets.iter_mut() {
             if let Some(new_price) = prices_set.get(&asset.address).cloned() {
                 asset.price = Some(MayBeExpired::with_time(new_price, timestamp));
@@ -36,6 +35,7 @@ impl Multipool {
     pub fn apply_events(&mut self, events: &[MultipoolEvents]) {
         events.iter().for_each(|v| match v {
             MultipoolEvents::PoolCreated(e) => {
+                println!("pool created {:?}", e.initialSharePrice);
                 self.initial_share_price = e.initialSharePrice;
             }
             MultipoolEvents::AssetChange(e) => {

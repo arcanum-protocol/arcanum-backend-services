@@ -1,21 +1,27 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use alloy::primitives::{Bytes, I256};
-use contracts::{trader::Trader::ForcePushArgs, WETH_ADDRESS};
+use clickhouse::Click;
+use contracts::{trader::Trader::OraclePrice, WETH_ADDRESS};
 use multipool::expiry::MayBeExpired;
+use multipool::expiry::{StdTimeExtractor, TimeExtractor};
 use multipool_storage::hook::HookInitializer;
+use prices::get_asset_prices;
 use tokio::{runtime::Handle, time::timeout};
 use trade::{AssetsChoise, HttpProvider, TradingData};
 
+pub mod cashback;
 pub mod clickhouse;
 pub mod contracts;
 pub mod execution;
+pub mod prices;
 pub mod strategies;
 pub mod trade;
 pub mod uniswap;
 
 #[derive(Clone)]
 pub struct TraderHook {
+    pub click: Arc<Click>,
     pub handle: Handle,
     pub rpc: HttpProvider,
     pub task_timeout: Duration,
@@ -25,11 +31,23 @@ impl HookInitializer for TraderHook {
     async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
         &mut self,
         getter: F,
-    ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
+    ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        println!("Initialized hook");
         let hook_data = self.clone();
         loop {
             tokio::time::sleep(Duration::from_secs(3)).await;
-            let multipool = getter();
+            let mut multipool = getter();
+            let prices = {
+                let assets = multipool.assets.iter().map(|v| v.address).collect();
+                let res =
+                    get_asset_prices(&hook_data.rpc, multipool.contract_address, assets).await;
+                if let Err(e) = res {
+                    println!("price error: {e:?}");
+                    continue;
+                }
+                res.unwrap()
+            };
+            multipool.update_prices(prices, StdTimeExtractor::now());
             let price = multipool
                 .get_price(&multipool.contract_address)
                 // no need to check if there is no asset, because we have multipool info
@@ -41,7 +59,7 @@ impl HookInitializer for TraderHook {
                 rpc: hook_data.rpc.clone(),
                 multipool,
                 silo_assets: HashMap::new(),
-                force_push: ForcePushArgs {
+                oracle_price: OraclePrice {
                     contractAddress: contract_address,
                     timestamp: price.timestamp as u128,
                     sharePrice: price.value.to::<u128>(),
@@ -64,14 +82,14 @@ impl HookInitializer for TraderHook {
                                 Ok(v) => {
                                     let r =
                                         timeout(hook_data.task_timeout.clone(), v.execute()).await;
-                                    println!("{r:?}");
+                                    println!("task result: {r:?}");
                                 }
                                 Err(e) => {
-                                    println!("{e:?}");
+                                    println!("estimate uni: {e:?}");
                                 }
                             },
                             Err(e) => {
-                                println!("{e:?}");
+                                println!("estimate mp error: {e:?}");
                             }
                         }
                     });
@@ -84,5 +102,5 @@ impl HookInitializer for TraderHook {
 fn some_sign_method(
     _price: &MayBeExpired<alloy::primitives::Uint<256, 4>, multipool::expiry::EmptyTimeExtractor>,
 ) -> Bytes {
-    todo!()
+    Bytes::new()
 }
