@@ -44,8 +44,8 @@ impl TimeExtractor for StdTimeExtractor {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct MayBeExpired<V, T: TimeExtractor> {
-    value: V,
-    timestamp: T::TimeMeasure,
+    pub value: V,
+    pub timestamp: T::TimeMeasure,
 }
 
 impl BorshDeserialize for MayBeExpired<alloy::primitives::U256, EmptyTimeExtractor> {

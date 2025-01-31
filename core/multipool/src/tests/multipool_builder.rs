@@ -109,7 +109,7 @@ pub fn multipool_fixture(
     }
 }
 
-pub fn read_method_fixture(contract_address: Address) -> Multipool<StdTimeExtractor> {
+pub fn read_method_fixture(contract_address: Address) -> Multipool {
     //target_shares will be 20% 5% 5% 30% 40% for 5 tokens
     let shares: Vec<U256> = vec![
         U256::from(200) << 96,

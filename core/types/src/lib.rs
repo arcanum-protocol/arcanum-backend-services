@@ -7,5 +7,5 @@ sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     Multipool,
-    "Multipool.json"
+    "../../arcanum-contracts/out/Multipool.sol/Multipool.json"
 );

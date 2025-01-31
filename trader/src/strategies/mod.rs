@@ -1,23 +1,17 @@
+use alloy::{
+    dyn_abi::DynSolValue,
+    primitives::{Address, I256, U256},
+};
+use anyhow::{anyhow, bail, Result};
 use std::ops::Shr;
 
-use ethers::{abi::Token, prelude::*};
-
-use anyhow::{anyhow, bail, Result};
-
 use crate::{
-    contracts::{
-        multipool::{AssetArgs, ForcePushArgs, MultipoolContract},
-        SiloLens, ERC20,
-    },
+    contracts::{SiloLens, ERC20, SILO_LENS, SILO_WRAPPER},
     trade::{AssetsChoise, MultipoolChoise, WrapperCall},
-    uniswap::RETRIES,
 };
 
-pub const SILO_LENS: &str = "0xBDb843c7a7e48Dc543424474d7Aa63b61B5D9536";
-pub const SILO_WRAPPER: &str = "0x5F127Aedf5A31E2F2685E49618D4f4809205fd62";
-
-impl<'a> AssetsChoise<'a> {
-    pub async fn estimate_multipool(&self) -> Result<MultipoolChoise> {
+impl AssetsChoise {
+    pub async fn estimate_multipool(self) -> Result<MultipoolChoise> {
         let price1 = self
             .trading_data
             .multipool
@@ -62,11 +56,11 @@ impl<'a> AssetsChoise<'a> {
         let amount1 = U256::try_from(amount1.abs())?;
         let amount2 = U256::try_from(amount2.abs())?;
 
-        let quoted_amount1 = amount1
+        let quoted_amount1: U256 = amount1
             .checked_mul(price1)
             .ok_or(anyhow!("overflow"))?
             .shr(96);
-        let quoted_amount2 = amount2
+        let quoted_amount2: U256 = amount2
             .checked_mul(price2)
             .ok_or(anyhow!("overflow"))?
             .shr(96);
@@ -75,89 +69,77 @@ impl<'a> AssetsChoise<'a> {
 
         let amount_to_use = (quote_to_use << 96) / price1;
 
-        let mut swap_args = vec![
-            AssetArgs {
-                asset_address: self.asset1,
-                amount: I256::from_raw(amount_to_use),
-            },
-            AssetArgs {
-                asset_address: self.asset2,
-                amount: I256::from(-1000000i128),
-            },
-        ];
+        // let mut swap_args = vec![
+        //     AssetArgs {
+        //         asset_address: self.asset1,
+        //         amount: I256::from_raw(amount_to_use),
+        //     },
+        //     AssetArgs {
+        //         asset_address: self.asset2,
+        //         amount: I256::from(-1000000i128),
+        //     },
+        // ];
 
         println!("{} -> {}", self.asset1, self.asset2);
         println!("{} -> {}", amount1, amount2);
+        let fee: I256 = I256::unchecked_from(100000000_u128);
+        // let (fee, amounts): (I256, Vec<I256>) = self
+        //     .trading_data
+        //     .rpc
+        //     .aquire(
+        //         |provider, _| async {
+        //             let swap_args = swap_args.clone();
+        //             let force_push = self.trading_data.force_push.clone();
+        //             let force_push = ForcePushArgs {
+        //                 contract_address: force_push.contract_address,
+        //                 share_price: force_push.share_price,
+        //                 timestamp: force_push.timestamp,
+        //                 signatures: force_push.signatures,
+        //             };
 
-        swap_args.sort_by_key(|v| v.asset_address);
+        //             MultipoolContract::new(self.trading_data.multipool.contract_address(), provider)
+        //                 .check_swap(force_push, swap_args, true)
+        //                 .call()
+        //                 .await
+        //         },
+        //         RETRIES,
+        //     )
+        //     .await
+        //     .map_err(|e| anyhow!(e))?;
 
-        let (fee, amounts): (I256, Vec<I256>) = self
-            .trading_data
-            .rpc
-            .aquire(
-                |provider, _| async {
-                    let swap_args = swap_args.clone();
-                    let force_push = self.trading_data.force_push.clone();
-                    let force_push = ForcePushArgs {
-                        contract_address: force_push.contract_address,
-                        share_price: force_push.share_price,
-                        timestamp: force_push.timestamp,
-                        signatures: force_push.signatures,
-                    };
+        // println!("out {:?}", amounts);
 
-                    MultipoolContract::new(self.trading_data.multipool.contract_address(), provider)
-                        .check_swap(force_push, swap_args, true)
-                        .call()
-                        .await
-                },
-                RETRIES,
-            )
-            .await
-            .map_err(|e| anyhow!(e))?;
+        // TODO: calculate fee
 
-        println!("out {:?}", amounts);
-
-        let amount_of_in = amounts[0].max(amounts[1]);
-        let amount_of_out = amounts[0].min(amounts[1]);
+        let amount_of_in = I256::from_raw(amount_to_use);
+        let amount_of_out = I256::unchecked_from(-1000000);
 
         let multipool_amount_in = U256::try_from(amount_of_in.abs())?;
         let multipool_amount_out = U256::try_from(amount_of_out.abs())?;
 
         let (unwrapped_amount_in, swap_asset_in, wrap_call) = if let Some((silo_pool, base_asset)) =
-            self.trading_data.uniswap.silo_assets.get(&self.asset1)
+            self.trading_data.silo_assets.get(&self.asset1)
         {
-            let (total_supply, collected): (U256, U256) = self
-                .trading_data
-                .rpc
-                .aquire(
-                    |provider, _| async {
-                        let total_supply = ERC20::new(self.asset1, provider.clone())
-                            .total_supply()
-                            .call()
-                            .await?;
-                        println!("{}, {}", silo_pool, base_asset);
+            let total_supply = ERC20::new(self.asset1, self.trading_data.rpc.clone())
+                .totalSupply()
+                .call()
+                .await?;
+            let collected = SiloLens::new(SILO_LENS, self.trading_data.rpc.clone())
+                .totalDepositsWithInterest(*silo_pool, *base_asset)
+                .call()
+                .await?;
 
-                        let collected =
-                            SiloLens::new(SILO_LENS.parse::<Address>().unwrap(), provider)
-                                .total_deposits_with_interest(*silo_pool, *base_asset)
-                                .call()
-                                .await?;
-                        anyhow::Ok((total_supply, collected))
-                    },
-                    RETRIES,
-                )
-                .await
-                .map_err(|e| anyhow!(e))?;
             (
-                multipool_amount_in * collected / total_supply,
+                multipool_amount_in * collected._totalDeposits / total_supply.value,
                 *base_asset,
                 WrapperCall {
-                    wrapper: SILO_WRAPPER.parse().unwrap(),
-                    data: abi::encode(&[
-                        Token::Address(*silo_pool),
-                        Token::Address(*base_asset),
-                        Token::Address(self.asset1),
-                    ]),
+                    wrapper: SILO_WRAPPER,
+                    data: DynSolValue::Tuple(vec![
+                        DynSolValue::Address(*silo_pool),
+                        DynSolValue::Address(*base_asset),
+                        DynSolValue::Address(self.asset1),
+                    ])
+                    .abi_encode(),
                 },
             )
         } else {
@@ -165,60 +147,51 @@ impl<'a> AssetsChoise<'a> {
                 multipool_amount_in,
                 self.asset1,
                 WrapperCall {
-                    wrapper: Address::zero(),
+                    wrapper: Address::ZERO,
                     data: Vec::default(),
                 },
             )
         };
 
-        let (unwrapped_amount_out, swap_asset_out, unwrap_call) =
-            if let Some((silo_pool, base_asset)) =
-                self.trading_data.uniswap.silo_assets.get(&self.asset2)
-            {
-                let (total_supply, collected): (U256, U256) = self
-                    .trading_data
-                    .rpc
-                    .aquire(
-                        |provider, _| async {
-                            let total_supply = ERC20::new(self.asset2, provider.clone())
-                                .total_supply()
-                                .call()
-                                .await?;
-                            println!("{}, {}", silo_pool, base_asset);
+        let (unwrapped_amount_out, swap_asset_out, unwrap_call) = if let Some((
+            silo_pool,
+            base_asset,
+        )) =
+            self.trading_data.silo_assets.get(&self.asset2)
+        {
+            let total_supply = ERC20::new(self.asset2, self.trading_data.rpc.clone())
+                .totalSupply()
+                .call()
+                .await?;
 
-                            let collected =
-                                SiloLens::new(SILO_LENS.parse::<Address>().unwrap(), provider)
-                                    .total_deposits_with_interest(*silo_pool, *base_asset)
-                                    .call()
-                                    .await?;
-                            anyhow::Ok((total_supply, collected))
-                        },
-                        RETRIES,
-                    )
-                    .await
-                    .map_err(|e| anyhow!(e))?;
-                (
-                    multipool_amount_out * collected / total_supply,
-                    *base_asset,
-                    WrapperCall {
-                        wrapper: SILO_WRAPPER.parse().unwrap(),
-                        data: abi::encode(&[
-                            Token::Address(*silo_pool),
-                            Token::Address(*base_asset),
-                            Token::Address(self.asset2),
-                        ]),
-                    },
-                )
-            } else {
-                (
-                    multipool_amount_out,
-                    self.asset2,
-                    WrapperCall {
-                        wrapper: Address::zero(),
-                        data: Vec::default(),
-                    },
-                )
-            };
+            let collected = SiloLens::new(SILO_LENS, self.trading_data.rpc.clone())
+                .totalDepositsWithInterest(*silo_pool, *base_asset)
+                .call()
+                .await?;
+
+            (
+                multipool_amount_out * collected._totalDeposits / total_supply.value,
+                *base_asset,
+                WrapperCall {
+                    wrapper: SILO_WRAPPER,
+                    data: DynSolValue::Tuple(vec![
+                        DynSolValue::Address(*silo_pool),
+                        DynSolValue::Address(*base_asset),
+                        DynSolValue::Address(self.asset2),
+                    ])
+                    .abi_encode(),
+                },
+            )
+        } else {
+            (
+                multipool_amount_out,
+                self.asset2,
+                WrapperCall {
+                    wrapper: Address::ZERO,
+                    data: Vec::default(),
+                },
+            )
+        };
 
         Ok(MultipoolChoise {
             trading_data_with_assets: self,
