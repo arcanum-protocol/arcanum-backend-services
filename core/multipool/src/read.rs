@@ -75,7 +75,7 @@ impl Multipool {
     ) -> Result<MayBeExpired<U256, EmptyTimeExtractor>, MultipoolErrors> {
         let asset = self.asset(asset_address)?;
         (asset.quoted_quantity()?, self.cap()?)
-            .merge(|(q, c)| q.shl(X32).checked_div(c))
+            .merge(|(q, c)| q.shl(&X32).checked_div(c))
             .transpose()
             .ok_or(MultipoolErrors::ZeroCap)
     }

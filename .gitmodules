@@ -2,4 +2,4 @@
 [submodule "arcanum-contracts"]
 	path = arcanum-contracts
 	url = https://github.com/arcanum-protocol/arcanum-contracts.git
-    branch = feat/54_MULTIPOOL_silo_adapter
+    branch = feat/66_STAKING_scaffold

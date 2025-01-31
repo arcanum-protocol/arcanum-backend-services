@@ -1,13 +1,13 @@
-use std::{collections::HashMap, fs, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use ethers::prelude::*;
-
-use anyhow::Result;
-use multipool::{expiry::StdTimeExtractor, Multipool};
-use rpc_controller::RpcRobber;
+use crate::contracts::trader::Trader::ForcePushArgs;
+use alloy::{
+    primitives::{Address, I256, U256},
+    providers::RootProvider,
+    transports::http::{Client, Http},
+};
+use multipool::Multipool;
 use serde::{Deserialize, Serialize};
-
-use crate::execution::ForcePushArgs;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PoolInfo {
@@ -23,37 +23,18 @@ pub struct AssetPools {
     pub pools: Vec<PoolInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Uniswap {
-    pub eth_pools: Vec<AssetPools>,
-    pub silo_assets: HashMap<Address, (Address, Address)>,
-}
-
-impl Uniswap {
-    pub fn try_from_file(path: PathBuf) -> Self {
-        serde_yaml::from_slice(fs::read(path).expect("Config should exist").as_slice())
-            .expect("Config should be valid")
-    }
-
-    pub fn get_pool_fee(&self, address: &Address) -> Result<AssetPools, String> {
-        self.eth_pools
-            .iter()
-            .find(|a| a.address == *address)
-            .map(ToOwned::to_owned)
-            .ok_or("pool not found".into())
-    }
-}
+pub type HttpProvider = RootProvider<Http<Client>>;
 
 pub struct TradingData {
-    pub rpc: RpcRobber,
-    pub multipool: Multipool<StdTimeExtractor>,
+    pub rpc: RootProvider<Http<Client>>,
+    pub multipool: Multipool,
     pub force_push: ForcePushArgs,
-    pub uniswap: Arc<Uniswap>,
+    pub silo_assets: HashMap<Address, (Address, Address)>,
     pub weth: Address,
 }
 
-pub struct AssetsChoise<'a> {
-    pub trading_data: &'a TradingData,
+pub struct AssetsChoise {
+    pub trading_data: Arc<TradingData>,
     pub asset1: Address,
     pub asset2: Address,
     pub deviation_bound: I256,
@@ -64,8 +45,8 @@ pub struct WrapperCall {
     pub data: Vec<u8>,
 }
 
-pub struct MultipoolChoise<'a> {
-    pub trading_data_with_assets: &'a AssetsChoise<'a>,
+pub struct MultipoolChoise {
+    pub trading_data_with_assets: AssetsChoise,
 
     pub unwrapped_amount_in: U256,
     pub unwrapped_amount_out: U256,
@@ -89,8 +70,8 @@ pub struct SwapOutcome {
     pub best_fee: u32,
 }
 
-pub struct UniswapChoise<'a> {
-    pub trading_data: &'a MultipoolChoise<'a>,
+pub struct UniswapChoise {
+    pub trading_data: MultipoolChoise,
     pub input: SwapOutcome,
     pub output: SwapOutcome,
 }

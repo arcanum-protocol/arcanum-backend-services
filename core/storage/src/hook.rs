@@ -4,7 +4,7 @@ use multipool::Multipool;
 use tokio::task::JoinHandle;
 
 pub trait HookInitializer {
-    fn initialize_hook<F: Fn() -> Multipool>(
+    fn initialize_hook<F: Fn() -> Multipool + Send + Sync + 'static>(
         &mut self,
         getter: F,
     ) -> impl Future<Output = JoinHandle<Result<()>>>;

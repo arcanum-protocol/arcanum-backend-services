@@ -10,13 +10,13 @@ tokio.workspace = true
 anyhow.workspace = true
 alloy.workspace = true
 sqlx.workspace = true
+sled.workspace = true
 
 multipool-types = { path = "../core/types/" }
 multipool-storage = { path = "../core/storage/" }
 multipool = { path = "../core/multipool/" }
 
-sled = "0.34.7"
 
-#indexer1 = "0.1.1"
+indexer1 = "0.2.1"
 
-indexer1 = { path = "../../indexer1/" }
+#indexer1 = { path = "../../indexer1/" }
