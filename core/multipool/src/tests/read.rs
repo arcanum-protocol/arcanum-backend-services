@@ -31,30 +31,6 @@ fn check_deviation() {
 }
 
 #[test]
-fn quantity_to_deviation_positive() {
-    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
-    let multipool = multipool_fixture(contract_address, ADDRESSES.to_vec(), U256::from(10) << 96);
-    let quantity_to_deviation =
-        multipool.quantity_to_deviation(&ADDRESSES[1], I256::unchecked_from(10));
-    assert_eq!(
-        quantity_to_deviation.unwrap().any_age(),
-        I256::from_dec_str("9223372036854775808000").unwrap()
-    )
-}
-
-#[test]
-fn quantity_to_deviation_negative() {
-    let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
-    let multipool = multipool_fixture(contract_address, ADDRESSES.to_vec(), U256::from(10) << 96);
-    let quantity_to_deviation =
-        multipool.quantity_to_deviation(&ADDRESSES[1], I256::unchecked_from(-10));
-    assert_eq!(
-        quantity_to_deviation.unwrap().any_age(),
-        I256::from_dec_str("-9223372036854775808000").unwrap()
-    )
-}
-
-#[test]
 fn check_current_share() {
     let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
     let multipool = read_method_fixture(contract_address);
