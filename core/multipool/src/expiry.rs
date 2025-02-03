@@ -3,6 +3,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use borsh::{BorshDeserialize, BorshSerialize};
+use multipool_types::borsh_methods::{deserialize, serialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub trait TimeExtractor {
@@ -40,56 +42,91 @@ impl TimeExtractor for StdTimeExtractor {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct MayBeExpired<V, T: TimeExtractor>(V, T::TimeMeasure);
+#[derive(Debug, PartialEq, Eq)]
+pub struct MayBeExpired<V, T: TimeExtractor> {
+    value: V,
+    timestamp: T::TimeMeasure,
+}
+
+impl BorshDeserialize for MayBeExpired<alloy::primitives::U256, EmptyTimeExtractor> {
+    // Required method
+    fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
+        let value = deserialize::u256(reader)?;
+        let timestamp =
+            borsh::BorshDeserialize::deserialize_reader(reader).map(u64::from_le_bytes)?;
+        Ok(Self { value, timestamp })
+    }
+}
+
+impl BorshSerialize for MayBeExpired<alloy::primitives::U256, EmptyTimeExtractor> {
+    fn serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        serialize::u256(&self.value, writer)?;
+        borsh::BorshSerialize::serialize(&self.timestamp.to_le_bytes(), writer)
+    }
+}
 
 impl<V: Clone, T: TimeExtractor> Clone for MayBeExpired<V, T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), self.1)
+        Self {
+            value: self.value.clone(),
+            timestamp: self.timestamp,
+        }
     }
 }
 
 impl<V, T: TimeExtractor> MayBeExpired<V, T> {
     pub fn new(value: V) -> Self {
-        MayBeExpired(value, T::now())
+        MayBeExpired {
+            value,
+            timestamp: T::now(),
+        }
     }
 
     pub fn with_time(value: V, timestamp: T::TimeMeasure) -> Self {
-        Self(value, timestamp)
+        Self { value, timestamp }
     }
 
     pub fn not_older_than(self, interval: T::TimeMeasure) -> Option<V> {
         let current_timestamp = T::now();
-        if current_timestamp <= self.1 + interval {
-            Some(self.0)
+        if current_timestamp <= self.timestamp + interval {
+            Some(self.value)
         } else {
             None
         }
     }
 
     pub fn any_age(self) -> V {
-        self.0
+        self.value
     }
 
     pub fn map<U, F: FnOnce(V) -> U>(self, f: F) -> MayBeExpired<U, T> {
-        MayBeExpired(f(self.0), self.1)
+        MayBeExpired {
+            value: f(self.value),
+            timestamp: self.timestamp,
+        }
     }
 
     pub fn refresh(&mut self) {
         let current_timestamp = T::now();
-        self.1 = current_timestamp;
+        self.timestamp = current_timestamp;
     }
 }
 
 impl<V, T: TimeExtractor> MayBeExpired<Option<V>, T> {
     pub fn transpose(self) -> Option<MayBeExpired<V, T>> {
-        self.0.map(|val| MayBeExpired(val, self.1))
+        self.value.map(|value| MayBeExpired {
+            value,
+            timestamp: self.timestamp,
+        })
     }
 }
 
 impl<V, T: TimeExtractor, E> MayBeExpired<Result<V, E>, T> {
     pub fn transpose(self) -> Result<MayBeExpired<V, T>, E> {
-        self.0.map(|value| MayBeExpired(value, self.1))
+        self.value.map(|value| MayBeExpired {
+            value,
+            timestamp: self.timestamp,
+        })
     }
 }
 
@@ -108,9 +145,9 @@ macro_rules! impl_merge {
             type Measure = T;
             fn merge<V, F:FnOnce(Self::Item) -> V>(self, operator: F) -> MayBeExpired<V, T> {
                 let ($($type),*) = self;
-                let temp_vec: Vec<T::TimeMeasure> = vec![$($type.1.clone()),*];
+                let temp_vec: Vec<T::TimeMeasure> = vec![$($type.timestamp.clone()),*];
                 let min_timestamp = temp_vec.iter().min().expect("not enought elements");
-                MayBeExpired(operator(($($type.0),*)), *min_timestamp)
+                MayBeExpired {value: operator(($($type.value),*)), timestamp: *min_timestamp }
             }
         }
     };
@@ -141,7 +178,10 @@ mod tests {
             .as_secs();
         let t2 = (
             MayBeExpiredStd::new("New data"),
-            MayBeExpired("New data", time),
+            MayBeExpired {
+                value: "New data",
+                timestamp: time,
+            },
         );
         let t2_merged = t2.merge(|(a, b)| a.to_owned() + b);
         assert_eq!(
@@ -149,46 +189,142 @@ mod tests {
             MayBeExpiredStd::new("New dataNew data".to_string())
         );
         let t3 = (
-            MayBeExpired::<_, StdTimeExtractor>(1, 1),
-            MayBeExpired(2, 2),
-            MayBeExpired(3, 3),
+            MayBeExpired::<_, StdTimeExtractor> {
+                value: 1,
+                timestamp: 1,
+            },
+            MayBeExpired {
+                value: 2,
+                timestamp: 2,
+            },
+            MayBeExpired {
+                value: 3,
+                timestamp: 3,
+            },
         );
         let t3_merged = t3.merge(|(a, b, c)| a + b + c);
         let t4 = (
-            MayBeExpired::<_, StdTimeExtractor>(1, 1),
-            MayBeExpired(2, 2),
-            MayBeExpired(3, 3),
-            MayBeExpired(4, 4),
+            MayBeExpired::<_, StdTimeExtractor> {
+                value: 1,
+                timestamp: 1,
+            },
+            MayBeExpired {
+                value: 2,
+                timestamp: 2,
+            },
+            MayBeExpired {
+                value: 3,
+                timestamp: 3,
+            },
+            MayBeExpired {
+                value: 4,
+                timestamp: 4,
+            },
         );
         let t4_merged = t4.merge(|(a, b, c, d)| a + b + c + d);
         let t5 = (
-            MayBeExpired::<_, StdTimeExtractor>(1, time - 20),
-            MayBeExpired(2, time - 11),
-            MayBeExpired(3, time + 1113),
-            MayBeExpired(4, time - 1),
-            MayBeExpired(5, time),
+            MayBeExpired::<_, StdTimeExtractor> {
+                value: 1,
+                timestamp: time - 20,
+            },
+            MayBeExpired {
+                value: 2,
+                timestamp: time - 11,
+            },
+            MayBeExpired {
+                value: 3,
+                timestamp: time + 1113,
+            },
+            MayBeExpired {
+                value: 4,
+                timestamp: time - 1,
+            },
+            MayBeExpired {
+                value: 5,
+                timestamp: time,
+            },
         );
         let t5_merged = t5.merge(|(a, b, c, d, _)| a + b + c + d);
         let t6 = (
-            MayBeExpired::<_, StdTimeExtractor>(1, 1),
-            MayBeExpired(2, 2),
-            MayBeExpired(3, 3),
-            MayBeExpired(4, 4),
-            MayBeExpired(5, 1),
-            MayBeExpired(6, 2),
-            MayBeExpired(7, 3),
-            MayBeExpired(8, 4),
-            MayBeExpired(9, 1),
-            MayBeExpired(10, 2),
-            MayBeExpired(11, 3),
-            MayBeExpired(12, 4),
+            MayBeExpired::<_, StdTimeExtractor> {
+                value: 1,
+                timestamp: 1,
+            },
+            MayBeExpired {
+                value: 2,
+                timestamp: 2,
+            },
+            MayBeExpired {
+                value: 3,
+                timestamp: 3,
+            },
+            MayBeExpired {
+                value: 4,
+                timestamp: 4,
+            },
+            MayBeExpired {
+                value: 5,
+                timestamp: 1,
+            },
+            MayBeExpired {
+                value: 6,
+                timestamp: 2,
+            },
+            MayBeExpired {
+                value: 7,
+                timestamp: 3,
+            },
+            MayBeExpired {
+                value: 8,
+                timestamp: 4,
+            },
+            MayBeExpired {
+                value: 9,
+                timestamp: 1,
+            },
+            MayBeExpired {
+                value: 10,
+                timestamp: 2,
+            },
+            MayBeExpired {
+                value: 11,
+                timestamp: 3,
+            },
+            MayBeExpired {
+                value: 12,
+                timestamp: 4,
+            },
         );
         let t6_merged = t6.merge(|(a, b, c, d, e, f, g, k, l, m, n, o)| {
             a + b + c + d + e + f + g + k + l + m + n + o
         });
-        assert_eq!(t3_merged, MayBeExpired(6, 1));
-        assert_eq!(t4_merged, MayBeExpired(10, 1));
-        assert_eq!(t5_merged, MayBeExpired(10, time - 20));
-        assert_eq!(t6_merged, MayBeExpired(78, 1));
+        assert_eq!(
+            t3_merged,
+            MayBeExpired {
+                value: 6,
+                timestamp: 1
+            }
+        );
+        assert_eq!(
+            t4_merged,
+            MayBeExpired {
+                value: 10,
+                timestamp: 1
+            }
+        );
+        assert_eq!(
+            t5_merged,
+            MayBeExpired {
+                value: 10,
+                timestamp: time - 20
+            }
+        );
+        assert_eq!(
+            t6_merged,
+            MayBeExpired {
+                value: 78,
+                timestamp: 1
+            }
+        );
     }
 }

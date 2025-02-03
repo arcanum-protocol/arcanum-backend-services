@@ -6,4 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tokio.workspace = true
+anyhow.workspace = true
+alloy.workspace = true
+sqlx.workspace = true
 
+multipool-types = { path = "../core/types/" }
+multipool-storage = { path = "../core/storage/" }
+multipool = { path = "../core/multipool/" }
+
+indexer1 = "0.1.1"

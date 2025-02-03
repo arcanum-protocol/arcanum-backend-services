@@ -1,6 +1,6 @@
 use std::ops::Shl;
 
-use alloy::primitives::{Address, I256, U256};
+use alloy::primitives::{Address, I256, U256, U512};
 
 use crate::expiry::EmptyTimeExtractor;
 
@@ -105,73 +105,66 @@ impl Multipool {
             .transpose()
     }
 
-    //    // TODO: rewrite with merging
-    //    pub fn quantity_to_deviation(
-    //        &self,
-    //        asset_address: &Address,
-    //        target_deviation: I256,
-    //    ) -> Result<MayBeExpired<I256, T>, MultipoolErrors> {
-    //        let asset = self.asset(asset_address)?;
-    //        let quantity = asset
-    //            .quantity_slot
-    //            //.unwrap_or(MayBeExpired::new(QuantityData {
-    //            //    quantity: U256::default(),
-    //            //    cashback: U256::default(),
-    //            //}))
-    //            .ok_or(MultipoolErrors::QuantitySlotMissing(*asset_address))?
-    //            .any_age()
-    //            .quantity;
-    //        let price = asset
-    //            .price
-    //            .ok_or(MultipoolErrors::PriceMissing(*asset_address))?
-    //            .any_age();
-    //        let share = asset
-    //            .share
-    //            .ok_or(MultipoolErrors::ShareMissing(*asset_address))?
-    //            .any_age();
-    //        let total_shares = self
-    //            .total_shares
-    //            .clone()
-    //            .ok_or(MultipoolErrors::TotalSharesMissing(*asset_address))?
-    //            .any_age();
-    //        let usd_cap = U512::from(self.cap()?.any_age());
-    //        let share_bound = U256::try_from(target_deviation.checked_abs().ok_or(
-    //            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow),
-    //        )?)
-    //        .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow))?
-    //        .checked_mul(total_shares)
-    //        .ok_or(MultipoolErrors::Overflow(
-    //            MultipoolOverflowErrors::TotalSharesOverflow(self.contract_address),
-    //        ))
-    //        .map_err(|_| {
-    //            MultipoolErrors::Overflow(MultipoolOverflowErrors::TotalSharesOverflow(
-    //                self.contract_address,
-    //            ))
-    //        })?
-    //        .shr(32);
-    //
-    //        let result_share = if target_deviation.ge(&I256::default()) {
-    //            U512::from(
-    //                share
-    //                    .checked_add(share_bound)
-    //                    .unwrap_or_default()
-    //                    .min(total_shares),
-    //            )
-    //        } else {
-    //            U512::from(share.checked_sub(share_bound).unwrap_or_default())
-    //        };
-    //
-    //        let amount: I256 = I256::from_raw(
-    //            (result_share
-    //                .checked_mul(usd_cap.shl(96))
-    //                .expect("multiply shouldn't overflow"))
-    //            .checked_div(U512::from(price))
-    //            .expect("price division shouldn't overflow")
-    //            .checked_div(U512::from(total_shares))
-    //            .expect("total shares division shouldn't overflow")
-    //            .to(),
-    //        );
-    //        let amount = amount - I256::from_raw(quantity);
-    //        Ok(MayBeExpired::new(amount))
-    //    }
+    pub fn quantity_to_deviation(
+        &self,
+        asset_address: &Address,
+        target_deviation: I256,
+    ) -> Result<MayBeExpired<I256, EmptyTimeExtractor>, MultipoolErrors> {
+        let asset = self.asset(asset_address)?;
+        let quantity = asset.quantity;
+        let price = asset
+            .price
+            .ok_or(MultipoolErrors::PriceMissing(*asset_address))?
+            .any_age();
+        let share = asset.share;
+        let total_target_shares = self.total_target_shares;
+
+        let usd_cap = U512::from(self.cap()?.any_age());
+
+        let share_bound = U256::try_from(target_deviation.checked_abs().ok_or(
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow),
+        )?)
+        .map_err(|_| MultipoolErrors::Overflow(MultipoolOverflowErrors::TargetDeviationOverflow))?
+        .checked_mul(U256::from(total_target_shares))
+        .ok_or(MultipoolErrors::Overflow(
+            MultipoolOverflowErrors::TotalSharesOverflow(self.contract_address),
+        ))
+        .map_err(|_| {
+            MultipoolErrors::Overflow(MultipoolOverflowErrors::TotalSharesOverflow(
+                self.contract_address,
+            ))
+        })?
+        .checked_shr(32)
+        .ok_or(MultipoolErrors::Overflow(
+            MultipoolOverflowErrors::TotalSharesOverflow(self.contract_address),
+        ))?;
+
+        let result_share = if target_deviation.ge(&I256::default()) {
+            U512::from(
+                U256::from(share)
+                    .checked_add(share_bound)
+                    .unwrap_or_default()
+                    .min(U256::from(total_target_shares)),
+            )
+        } else {
+            U512::from(
+                U256::from(share)
+                    .checked_sub(share_bound)
+                    .unwrap_or_default(),
+            )
+        };
+
+        let amount: I256 = I256::from_raw(
+            (result_share
+                .checked_mul(usd_cap.shl(96))
+                .expect("multiply shouldn't overflow"))
+            .checked_div(U512::from(price))
+            .expect("price division shouldn't overflow")
+            .checked_div(U512::from(total_target_shares))
+            .expect("total shares division shouldn't overflow")
+            .to(),
+        );
+        let amount = amount - I256::from_raw(U256::from(quantity));
+        Ok(MayBeExpired::new(amount))
+    }
 }

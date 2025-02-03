@@ -2,7 +2,6 @@ use lazy_static::lazy_static;
 
 use super::*;
 pub mod errors;
-pub mod expiry;
 pub mod multipool_builder;
 pub mod read;
 pub mod write;

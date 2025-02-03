@@ -1,13 +1,11 @@
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{Address, U128, U256};
 use multipool_types::Multipool::MultipoolEvents;
 
 use crate::expiry::StdTimeExtractor;
 
 use std::cmp::Ordering;
 
-use super::{MayBeExpired, Multipool, MultipoolAsset, ADDRESSES};
-
-pub const POISON_TIME: u64 = 3;
+use super::{EmptyTimeExtractor, MayBeExpired, Multipool, MultipoolAsset, ADDRESSES};
 
 impl PartialEq for Multipool {
     fn eq(&self, other: &Self) -> bool {
@@ -85,31 +83,29 @@ impl MultipoolMockBuilder {
 //fill multipool with similar values, but other way
 pub fn multipool_fixture(
     contract_address: Address,
-    addresses: Vec<(Address, U256, u16)>,
+    addresses: Vec<(Address, U128, U256, u16)>,
+    total_supply: U256,
 ) -> Multipool {
-    let mut assets: Vec<MultipoolAsset<StdTimeExtractor>> = Vec::new();
-    let mut total_shares = U256::default();
-    let mut total_supply = U256::default();
-    for address in addresses {
-        let share_number = value;
-        let price_number = value;
+    let mut assets: Vec<MultipoolAsset> = Vec::new();
+    let mut total_target_shares = Default::default();
+    for (address, value, price, share) in addresses {
         let asset = MultipoolAsset {
             address,
-            price: Some(MayBeExpired::new(price_number)),
+            price: Some(MayBeExpired::with_time(price, 0)),
             quantity: value,
+            price_data: Default::default(),
             collected_cashbacks: Default::default(),
-            share: share,
+            share,
         };
-        total_supply += quantity_data.quantity;
-        total_shares += share_number;
+        total_target_shares += share;
         assets.push(asset)
     }
     Multipool {
-        fees: None,
         contract_address,
         assets,
-        total_supply: Some(MayBeExpired::new(total_supply)),
-        total_shares: Some(MayBeExpired::new(total_shares)),
+        total_supply,
+        total_target_shares,
+        ..Default::default()
     }
 }
 
@@ -153,11 +149,4 @@ pub fn read_method_fixture(contract_address: Address) -> Multipool<StdTimeExtrac
         .fill_updated_shares(new_shares_info)
         .fill_updated_quantities(new_quantity_info, None)
         .build()
-}
-
-pub fn compare_assets(
-    asset1: &MultipoolAsset<StdTimeExtractor>,
-    asset2: &MultipoolAsset<StdTimeExtractor>,
-) -> Ordering {
-    asset1.address.cmp(&asset2.address)
 }

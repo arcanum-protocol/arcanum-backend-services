@@ -7,7 +7,6 @@ use alloy::primitives::I256;
 use alloy::primitives::U256;
 use pretty_assertions::assert_eq;
 
-//MULTIPOOL ASSET ERRORS
 #[test]
 fn check_asset_missing() {
     let contract_address = Address::from_slice(&[0x10; 20]);
@@ -19,8 +18,6 @@ fn check_asset_missing() {
     );
 }
 
-//MULTIPOOL CAP ERRORS
-
 #[test]
 fn check_cap_quantity_slot_missing() {
     let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
@@ -29,7 +26,6 @@ fn check_cap_quantity_slot_missing() {
         .insert_assets(ADDRESSES.to_vec())
         .build();
 
-    // check quantity slot missing
     let expected_error = QuantitySlotMissing(ADDRESSES[0]);
     assert_eq!(multipool.cap(), Err(expected_error),);
 }
@@ -61,7 +57,6 @@ fn check_cap_overflow() {
     assert_eq!(Err(expected_error), multipool.cap());
 }
 
-// MULTIPOOL TARGET SHARE ERROR
 #[test]
 fn check_target_share_share_missing() {
     let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
@@ -81,7 +76,6 @@ fn check_target_share_share_missing() {
     );
 }
 
-// MULTIPOOL CURRENT SHARE ERROR
 #[test]
 fn check_current_share_zero_division() {
     let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());
@@ -103,7 +97,6 @@ fn check_current_share_zero_division() {
     );
 }
 
-// MULTIPOOL QUANTITY TO DEVIATION ERRORS
 #[test]
 fn check_quantity_to_deviation_overflow() {
     let contract_address = Address::from_slice(0x10_u64.to_be_bytes().as_ref());

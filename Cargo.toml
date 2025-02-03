@@ -16,3 +16,4 @@ tokio = { version = "1.34.0", features = ["full"] }
 anyhow = "1.0.79"
 alloy = { version = "0.8.3", features = ["full", "serde"] }
 borsh = { version = "1.5.5", features = ["derive"] }
+sqlx = { version = "0.8.2", features = ["runtime-tokio", "postgres", "sqlite"] }

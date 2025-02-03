@@ -23,46 +23,69 @@ use errors::MultipoolErrors;
 use errors::MultipoolErrors::*;
 use errors::MultipoolOverflowErrors::*;
 
-use serde::{Deserialize, Serialize};
+use multipool_types::borsh_methods::{deserialize, serialize};
 
-#[derive(Debug, Deserialize, Serialize, Clone, Default, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, Default, BorshSerialize, BorshDeserialize)]
 pub struct Multipool {
     #[borsh(skip)]
     pub contract_address: Address,
     pub assets: Vec<MultipoolAsset>,
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::u256",
+        serialize_with = "serialize::u256"
+    )]
     pub total_supply: U256,
 
     pub deviation_increase_fee: u16,
     pub deviation_limit: u16,
     pub cashback_fee: u16,
     pub base_fee: u16,
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::address",
+        serialize_with = "serialize::address"
+    )]
     pub management_fee_receiver: Address,
     pub management_fee: u16,
     pub total_target_shares: u16,
 
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::address",
+        serialize_with = "serialize::address"
+    )]
     pub oracle_address: Address,
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::u96",
+        serialize_with = "serialize::u96"
+    )]
     pub initial_share_price: U96,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
 pub struct MultipoolAsset {
-    //#[borsh(deserialize_with = "")]
-    //#[borsh(serialize_with = "")]
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::address",
+        serialize_with = "serialize::address"
+    )]
     pub address: Address,
 
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::b256",
+        serialize_with = "serialize::b256"
+    )]
     pub price_data: B256,
-    #[borsh(skip)]
+
     pub price: Option<MayBeExpired<U256, EmptyTimeExtractor>>,
 
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::u128",
+        serialize_with = "serialize::u128"
+    )]
     pub quantity: U128,
-    #[borsh(skip)]
+
+    #[borsh(
+        deserialize_with = "deserialize::u112",
+        serialize_with = "serialize::u112"
+    )]
     pub collected_cashbacks: U112,
     pub share: u16,
 }
