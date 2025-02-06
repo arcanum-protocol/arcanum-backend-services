@@ -15,4 +15,8 @@ multipool-types = { path = "../core/types/" }
 multipool-storage = { path = "../core/storage/" }
 multipool = { path = "../core/multipool/" }
 
-indexer1 = "0.1.1"
+sled = "0.34.7"
+
+#indexer1 = "0.1.1"
+
+indexer1 = { path = "../../indexer1/" }

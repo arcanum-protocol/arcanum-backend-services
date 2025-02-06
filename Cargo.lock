@@ -3662,9 +3662,7 @@ checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexer1"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d39f2233f5edfc3707611b18af8d84b24eea8521812068631511c4d8b562c4ff"
+version = "0.2.0"
 dependencies = [
  "alloy",
  "anyhow",
@@ -4174,6 +4172,7 @@ dependencies = [
  "multipool",
  "multipool-storage",
  "multipool-types",
+ "sled",
  "sqlx",
  "tokio",
 ]

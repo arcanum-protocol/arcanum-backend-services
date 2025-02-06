@@ -1,3 +1,4 @@
+use alloy::primitives::{address, Address};
 use anyhow::Result;
 use futures::future::ready;
 use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
@@ -16,7 +17,7 @@ impl HookInitializer for TestHookInitializer {
 #[tokio::test]
 async fn happy_path() -> Result<()> {
     let db = sled::open("test")?;
-    let mut storage = MultipoolStorage::init(db, TestHookInitializer).await?;
+    let mut storage = MultipoolStorage::init(db, TestHookInitializer, Address::ZERO).await?;
     storage.apply_events(vec![], 1, 3).await?;
     Ok(())
 }

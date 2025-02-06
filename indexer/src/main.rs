@@ -1,8 +1,7 @@
-use std::{future::ready, time::Duration};
+use std::future::ready;
 
-use alloy::{rpc::types::Filter, sol_types::SolEvent};
 use anyhow::Result;
-use indexer1::{Indexer, Processor};
+use indexer1::Processor;
 use multipool::Multipool;
 use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
 
@@ -24,22 +23,23 @@ pub struct EmbededProcessor {
     storage: MultipoolStorage<EmptyHookInitialiser>,
 }
 
-impl Processor for EmbededProcessor {
-    async fn process<DB: indexer1::sqlx::Database>(
+impl EmbededProcessor {
+    pub fn from_storage(storage: MultipoolStorage<EmptyHookInitialiser>) -> Self {
+        Self { storage }
+    }
+}
+
+impl<T> Processor<T> for EmbededProcessor {
+    async fn process(
         &mut self,
         logs: &[alloy::rpc::types::Log],
-        transaction: &mut indexer1::sqlx::Transaction<'static, DB>,
-        chain_id: u64,
+        _transaction: &mut T,
+        prev_saved_block: u64,
+        new_saved_block: u64,
+        _chain_id: u64,
     ) -> anyhow::Result<()> {
         self.storage
-            .apply_events(
-                logs.into_iter().cloned().map(|l| alloy::primitives::Log {
-                    address: l.inner.address,
-                    data: l.inner.data,
-                }),
-                0,
-                1,
-            )
+            .apply_events(logs.into_iter().cloned(), prev_saved_block, new_saved_block)
             .await?;
         Ok(())
     }
@@ -47,16 +47,5 @@ impl Processor for EmbededProcessor {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    //let sqlite = sqlx::SqlitePool::;
-    Indexer::builder()
-        .sqlite_storage(pool)
-        .http_rpc_url("https://")
-        .ws_rpc_url("https://")
-        .fetch_interval(Duration::from_millis(100))
-        .filter(Filter::new().events([
-            multipool_types::Multipool::TargetShareChange::SIGNATURE,
-            multipool_types::Multipool::AssetChange::SIGNATURE,
-            multipool_types::Multipool::FeesChange::SIGNATURE,
-        ]))
-        .set_processor(EmbededProcessor)
+    Ok(())
 }
