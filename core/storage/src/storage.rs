@@ -1,7 +1,10 @@
 use alloy::{
-    primitives::{aliases::U128, keccak256, Address},
+    primitives::{
+        aliases::{U128, U96},
+        keccak256, Address, B256, U256,
+    },
     rpc::types::Log,
-    sol_types::{SolEventInterface, SolValue},
+    sol_types::{SolCall, SolConstructor, SolEventInterface, SolValue},
 };
 use anyhow::{anyhow, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -17,6 +20,7 @@ pub struct MultipoolStorage<HI: HookInitializer> {
     multipools: sled::Tree,
     index_data: sled::Tree,
     factory_address: Address,
+    implementation_address: Address,
     hooks: Vec<JoinHandle<Result<()>>>,
     hook_initializer: HI,
 }
@@ -35,6 +39,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
         db: sled::Db,
         mut hook_initializer: HI,
         factory_address: Address,
+        implementation_address: Address,
     ) -> Result<Self> {
         let multipools = db.open_tree(b"multipools")?;
         let index_data = db.open_tree(b"index_data")?;
@@ -57,8 +62,22 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             index_data,
             hooks,
             hook_initializer,
+            implementation_address,
             factory_address,
         })
+    }
+
+    pub fn derive_multipool_address(
+        factory_address: Address,
+        factory_salt_nonce: U128,
+        multipool_contract_bytecode: Vec<u8>,
+    ) -> Address {
+        let mut address_bytes: Vec<u8> = vec![0xff];
+        address_bytes.extend_from_slice(factory_address.as_slice());
+        address_bytes.extend_from_slice(&U256::from(factory_salt_nonce).abi_encode());
+        address_bytes.extend_from_slice(keccak256(multipool_contract_bytecode).as_slice());
+
+        Address::from_word(keccak256(address_bytes))
     }
 
     pub async fn apply_events<I: IntoIterator<Item = Log>>(
@@ -107,30 +126,26 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                     let mut mp = match multipools.get(address)? {
                         Some(mp) => Multipool::deserialize(&mut &mp[..]).unwrap(),
                         None => {
-                            let nonce = self
-                                .index_data
+                            let nonce = index_data
                                 .get(b"factory_nonce")?
-                                .map(|value| multipool_types::borsh_methods::deserialize::u128(&mut &value[..]).unwrap())
-                                .unwrap_or(U128::from(0));
+                                .map(|value| u64::deserialize(&mut &value[..]).unwrap())
+                                .unwrap_or(1);
 
-                            // TODO: we need to check seed and check that derived addresses match
-                            let mut bytes = Vec::new();
-                            bytes.extend_from_slice(self.factory_address.abi_encode().as_slice());
-                            bytes.extend_from_slice(&nonce.to_le_bytes::<16>());
-
-                            let expected_address = Address::from_word(keccak256(bytes));
+                            let expected_address = self.factory_address.create(nonce);
                             if *address != expected_address {
                                 continue;
                             } else {
-                                // IF all ok, we store stuff
-                                // TODO check all endiness of storage
-                                index_data.insert(b"factory_nonce", &(nonce + U128::from(1)).to_be_bytes::<16>())?;
+                                let mut serialized_nonce = Vec::new();
+                                u64::serialize(&(nonce + 1), &mut serialized_nonce).unwrap();
+
+                                index_data.insert(b"factory_nonce", serialized_nonce)?;
                                 new_pools.push(*address);
                                 Multipool::new(*address)
                             }
 
                         },
                     };
+
 
                     mp.apply_events(&events);
 
@@ -151,12 +166,16 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
 
         for mp_address in new_pools {
             let tree = self.multipools.clone();
-            let getter = move || {
-                let mp = tree.get(mp_address).unwrap().unwrap();
+            let multipool_getter = move || {
+                let mp = tree.get(mp_address.as_slice()).unwrap().unwrap();
+                println!("{:?}", mp);
                 let mp = Multipool::deserialize(&mut &mp[..]).unwrap();
                 mp
             };
-            let handle = self.hook_initializer.initialize_hook(getter).await;
+            let handle = self
+                .hook_initializer
+                .initialize_hook(multipool_getter)
+                .await;
             self.hooks.push(handle);
         }
         Ok(())
