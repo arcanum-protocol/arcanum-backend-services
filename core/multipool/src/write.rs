@@ -1,4 +1,8 @@
-use alloy::primitives::{aliases::U112, Address, U128, U256};
+use alloy::{
+    primitives::{aliases::U112, Address, U128, U256},
+    rpc::types::Filter,
+    sol_types::SolEvent,
+};
 use multipool_types::Multipool::MultipoolEvents;
 
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset};
@@ -16,8 +20,24 @@ impl Multipool {
         }
     }
 
+    pub fn filter() -> Filter {
+        use multipool_types::Multipool::*;
+        Filter::new().events([
+            PoolCreated::SIGNATURE,
+            TargetShareChange::SIGNATURE,
+            AssetChange::SIGNATURE,
+            FeesChange::SIGNATURE,
+            PriceOracleUpdated::SIGNATURE,
+            StrategyManagerToggled::SIGNATURE,
+            PriceFeedChange::SIGNATURE,
+        ])
+    }
+
     pub fn apply_events(&mut self, events: &[MultipoolEvents]) {
         events.iter().for_each(|v| match v {
+            MultipoolEvents::PoolCreated(e) => {
+                self.initial_share_price = e.initialSharePrice;
+            }
             MultipoolEvents::AssetChange(e) => {
                 match self.assets.iter().position(|a| a.address.eq(&e.asset)) {
                     Some(idx) => {
@@ -33,15 +53,15 @@ impl Multipool {
                 }
             }
             MultipoolEvents::FeesChange(e) => {
-                self.deviation_increase_fee = e.newHalfDeviationFee;
+                self.deviation_increase_fee = e.newDeviationIncreaseFee;
                 self.deviation_limit = e.newDeviationLimit;
-                self.management_fee_receiver = e.newManagementFeeRecepientAddress;
+                self.management_fee_receiver = e.newManagementFeeRecepient;
                 self.management_fee = e.newManagementFee;
-                self.cashback_fee = e.newDepegBaseFee;
+                self.cashback_fee = e.newFeeToCashbackRatio;
                 self.base_fee = e.newBaseFee;
             }
-            MultipoolEvents::PriceVerifierUpdated(e) => {
-                self.oracle_address = e.newPriceVerifierAddress;
+            MultipoolEvents::PriceOracleUpdated(e) => {
+                self.oracle_address = e.newOracle;
             }
             MultipoolEvents::TargetShareChange(e) => {
                 self.total_target_shares = e.newTotalTargetShares;
@@ -54,6 +74,15 @@ impl Multipool {
                         asset.share = e.newTargetShare;
                         self.assets.push(asset);
                     }
+                }
+            }
+            MultipoolEvents::StrategyManagerToggled(e) => {
+                if e.isStrategyManager {
+                    self.strategy_managers.push(e.account);
+                } else {
+                    let index = self.strategy_managers.iter().position(|a| e.account.eq(a));
+                    self.strategy_managers
+                        .swap_remove(index.expect("Should always exist"));
                 }
             }
             MultipoolEvents::PriceFeedChange(e) => {

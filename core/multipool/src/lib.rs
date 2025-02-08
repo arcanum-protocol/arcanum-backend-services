@@ -36,6 +36,12 @@ pub struct Multipool {
     )]
     pub total_supply: U256,
 
+    #[borsh(
+        deserialize_with = "deserialize::vec_address",
+        serialize_with = "serialize::vec_address"
+    )]
+    pub strategy_managers: Vec<Address>,
+
     pub deviation_increase_fee: u16,
     pub deviation_limit: u16,
     pub cashback_fee: u16,
@@ -123,17 +129,7 @@ impl Multipool {
     pub fn new(contract_address: Address) -> Self {
         Self {
             contract_address,
-            assets: Default::default(),
-            total_supply: Default::default(),
-            deviation_increase_fee: Default::default(),
-            deviation_limit: Default::default(),
-            cashback_fee: Default::default(),
-            base_fee: Default::default(),
-            management_fee_receiver: Default::default(),
-            management_fee: Default::default(),
-            total_target_shares: Default::default(),
-            oracle_address: Default::default(),
-            initial_share_price: Default::default(),
+            ..Default::default()
         }
     }
 }
