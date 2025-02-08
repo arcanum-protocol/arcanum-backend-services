@@ -3631,9 +3631,9 @@ checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexer1"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c897ffe23033bbbc413ddbf7919597918471a8941b903ead440d12a33b6fd390"
+checksum = "7d058d21694d74b45d88d6b91a219ae9c10bcf3dc693c1ee01f10585bbeb0d90"
 dependencies = [
  "alloy",
  "anyhow",

@@ -18,6 +18,13 @@ pub mod deserialize {
         borsh::BorshDeserialize::deserialize_reader(reader).map(|a: [u8; 20]| Address::from(a))
     }
 
+    pub fn vec_address<R: borsh::io::Read>(
+        reader: &mut R,
+    ) -> ::core::result::Result<Vec<Address>, borsh::io::Error> {
+        borsh::BorshDeserialize::deserialize_reader(reader)
+            .map(|v: Vec<[u8; 20]>| v.into_iter().map(|a| Address::from(a)).collect())
+    }
+
     pub fn b256<R: borsh::io::Read>(
         reader: &mut R,
     ) -> ::core::result::Result<B256, borsh::io::Error> {
@@ -57,6 +64,18 @@ pub mod serialize {
         writer: &mut W,
     ) -> ::core::result::Result<(), borsh::io::Error> {
         borsh::BorshSerialize::serialize(&<[u8; 20]>::from(obj.0), writer)
+    }
+
+    pub fn vec_address<W: borsh::io::Write>(
+        obj: &Vec<Address>,
+        writer: &mut W,
+    ) -> ::core::result::Result<(), borsh::io::Error> {
+        borsh::BorshSerialize::serialize(
+            &obj.into_iter()
+                .map(|a| <[u8; 20]>::from(a.0))
+                .collect::<Vec<_>>(),
+            writer,
+        )
     }
 
     pub fn b256<W: borsh::io::Write>(

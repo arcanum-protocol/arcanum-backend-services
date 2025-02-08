@@ -71,9 +71,11 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             .index_data
             .get(b"current_block")?
             .map(|value| u64::deserialize(&mut &value[..]).unwrap())
-            .unwrap_or(0);
+            .unwrap_or(1);
 
         if from_block != value + 1 {
+            println!("{from_block}");
+            println!("{value}");
             return Err(anyhow!("data potentially skipped"));
         }
 
@@ -138,7 +140,9 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                 }
                 let mut serialized_to_block = Vec::new();
                 to_block.serialize(&mut serialized_to_block).unwrap();
-                index_data.insert(b"current_block", &to_block.to_be_bytes())?;
+                let mut current_block = Vec::new();
+                to_block.serialize(&mut current_block).unwrap();
+                index_data.insert(b"current_block", current_block)?;
                 Ok(new_pools)
             })
             .unwrap();
