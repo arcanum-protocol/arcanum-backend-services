@@ -20,7 +20,6 @@ pub struct MultipoolStorage<HI: HookInitializer> {
     multipools: sled::Tree,
     index_data: sled::Tree,
     factory_address: Address,
-    implementation_address: Address,
     hooks: Vec<JoinHandle<Result<()>>>,
     hook_initializer: HI,
 }
@@ -39,7 +38,6 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
         db: sled::Db,
         mut hook_initializer: HI,
         factory_address: Address,
-        implementation_address: Address,
     ) -> Result<Self> {
         let multipools = db.open_tree(b"multipools")?;
         let index_data = db.open_tree(b"index_data")?;
@@ -62,7 +60,6 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             index_data,
             hooks,
             hook_initializer,
-            implementation_address,
             factory_address,
         })
     }
@@ -90,7 +87,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             .index_data
             .get(b"current_block")?
             .map(|value| u64::deserialize(&mut &value[..]).unwrap())
-            .unwrap_or(1);
+            .unwrap_or(from_block - 1);
 
         if from_block != value + 1 {
             println!("{from_block}");
@@ -168,7 +165,6 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             let tree = self.multipools.clone();
             let multipool_getter = move || {
                 let mp = tree.get(mp_address.as_slice()).unwrap().unwrap();
-                println!("{:?}", mp);
                 let mp = Multipool::deserialize(&mut &mp[..]).unwrap();
                 mp
             };
