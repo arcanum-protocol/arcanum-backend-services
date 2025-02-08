@@ -1,13 +1,8 @@
 use std::time::Duration;
 
 use alloy::{
-    network::{EthereumWallet, NetworkWallet, TxSigner},
-    node_bindings::Anvil,
-    primitives::{aliases::U96, Address},
-    providers::ProviderBuilder,
-    rpc::types::Filter,
-    signers::local::PrivateKeySigner,
-    sol_types::{SolCall, SolEvent},
+    network::EthereumWallet, node_bindings::Anvil, primitives::aliases::U96,
+    providers::ProviderBuilder, signers::local::PrivateKeySigner, sol_types::SolCall,
 };
 use anyhow::Result;
 use indexer1::Indexer;
@@ -22,7 +17,6 @@ async fn happy_path(pool: sqlx::SqlitePool) -> Result<()> {
     let anvil = Anvil::new().block_time_f64(0.1).try_spawn()?;
 
     let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
-    let owner = EthereumWallet::from(signer.clone());
     let owner_address = signer.address();
 
     // Create a provider.
@@ -73,7 +67,13 @@ async fn happy_path(pool: sqlx::SqlitePool) -> Result<()> {
         .await?;
 
     let db = sled::open("test_db")?;
-    let storage = MultipoolStorage::init(db, EmptyHookInitialiser, *factory.address()).await?;
+    let storage = MultipoolStorage::init(
+        db,
+        EmptyHookInitialiser,
+        *factory.address(),
+        *mp_implementation.address(),
+    )
+    .await?;
 
     Indexer::builder()
         .sqlite_storage(pool)

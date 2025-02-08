@@ -6,6 +6,6 @@ use tokio::task::JoinHandle;
 pub trait HookInitializer {
     fn initialize_hook<F: Fn() -> Multipool + Send + Sync + 'static>(
         &mut self,
-        getter: F,
+        multipool: F,
     ) -> impl Future<Output = JoinHandle<Result<()>>>;
 }

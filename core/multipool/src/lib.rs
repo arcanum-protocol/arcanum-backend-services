@@ -27,7 +27,10 @@ use multipool_types::borsh_methods::{deserialize, serialize};
 
 #[derive(Debug, Clone, Default, BorshSerialize, BorshDeserialize)]
 pub struct Multipool {
-    #[borsh(skip)]
+    #[borsh(
+        deserialize_with = "deserialize::address",
+        serialize_with = "serialize::address"
+    )]
     pub contract_address: Address,
     pub assets: Vec<MultipoolAsset>,
     #[borsh(
