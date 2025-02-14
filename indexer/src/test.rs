@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use alloy::{
-    network::EthereumWallet, node_bindings::Anvil, primitives::aliases::U96,
-    providers::ProviderBuilder, signers::local::PrivateKeySigner, sol_types::SolCall,
+    node_bindings::Anvil, primitives::aliases::U96, providers::ProviderBuilder,
+    signers::local::PrivateKeySigner, sol_types::SolCall,
 };
 use anyhow::Result;
 use indexer1::Indexer;
@@ -67,12 +67,7 @@ async fn happy_path(pool: sqlx::SqlitePool) -> Result<()> {
         .await?;
 
     let db = sled::open("test_db")?;
-    let storage = MultipoolStorage::init(
-        db,
-        EmptyHookInitialiser,
-        *factory.address(),
-    )
-    .await?;
+    let storage = MultipoolStorage::init(db, EmptyHookInitialiser, *factory.address()).await?;
 
     Indexer::builder()
         .sqlite_storage(pool)

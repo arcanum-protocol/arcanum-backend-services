@@ -5,6 +5,7 @@ pub mod borsh_methods;
 sol!(
     #[allow(clippy::too_many_arguments)]
     #[allow(missing_docs)]
+    #[derive(serde::Serialize)]
     #[sol(rpc)]
     Multipool,
     "../../arcanum-contracts/out/Multipool.sol/Multipool.json"

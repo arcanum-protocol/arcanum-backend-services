@@ -1,10 +1,7 @@
 use alloy::{
-    primitives::{
-        aliases::{U128, U96},
-        keccak256, Address, B256, U256,
-    },
+    primitives::{aliases::U128, keccak256, Address, U256},
     rpc::types::Log,
-    sol_types::{SolCall, SolConstructor, SolEventInterface, SolValue},
+    sol_types::{SolEventInterface, SolValue},
 };
 use anyhow::{anyhow, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -24,7 +21,7 @@ pub struct MultipoolStorage<HI: HookInitializer> {
     hook_initializer: HI,
 }
 
-fn parse_log(log: Log) -> Option<MultipoolEvents> {
+pub fn parse_log(log: Log) -> Option<MultipoolEvents> {
     let log = alloy::primitives::Log {
         address: log.inner.address,
         data: log.inner.data,
@@ -77,24 +74,45 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
         Address::from_word(keccak256(address_bytes))
     }
 
+    pub fn get_last_seen_block(&self) -> anyhow::Result<Option<u64>> {
+        Ok(self
+            .index_data
+            .get(b"current_block")?
+            .map(|value| u64::deserialize(&mut &value[..]).map(Into::into))
+            .transpose()?)
+    }
+
     pub async fn apply_events<I: IntoIterator<Item = Log>>(
         &mut self,
         logs: I,
         from_block: u64,
-        to_block: u64,
+        // In case of none uses last block from logs
+        to_block: Option<u64>,
     ) -> anyhow::Result<()> {
         let value = self
             .index_data
             .get(b"current_block")?
             .map(|value| u64::deserialize(&mut &value[..]).unwrap())
             .unwrap_or(from_block - 1);
-        println!("from {}, to {} value {}", from_block, to_block, value);
 
         if from_block != value + 1 {
-            println!("{from_block}");
-            println!("{value}");
             return Err(anyhow!("data potentially skipped"));
         }
+
+        let logs = logs.into_iter().collect::<Vec<_>>();
+
+        let to_block = match to_block {
+            Some(b) => b,
+            None => match logs
+                .clone()
+                .into_iter()
+                .map(|log| log.block_number.unwrap())
+                .max()
+            {
+                Some(b) => b,
+                None => return Ok(()),
+            },
+        };
 
         let grouped_events = logs
             .into_iter()
@@ -105,7 +123,11 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                     address,
                     events
                         .filter_map(|e| {
-                            println!("value {}, bn {}", value, e.block_number.expect("log should contain block number"));
+                            println!(
+                                "value {}, bn {}",
+                                value,
+                                e.block_number.expect("log should contain block number")
+                            );
                             if value > e.block_number.expect("log should contain block number") {
                                 None
                             } else {
@@ -120,6 +142,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
         let new_pools = (&self.multipools, &self.index_data)
             .transaction(|(multipools, index_data)| -> ConflictableTransactionResult<Vec<Address>, anyhow::Error> {
                 let mut new_pools = Vec::new();
+                let to_block = to_block;
 
                 for (address, events) in &grouped_events {
                     let mut mp = match multipools.get(address)? {

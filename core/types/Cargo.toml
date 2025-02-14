@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 alloy.workspace = true
 borsh.workspace = true
+serde.workspace = true
