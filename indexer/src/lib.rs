@@ -1,4 +1,4 @@
-use std::{future::ready, time::Duration};
+use std::time::Duration;
 
 use anyhow::Result;
 use indexer1::Processor;
@@ -13,7 +13,7 @@ pub struct EmptyHookInitialiser;
 impl HookInitializer for EmptyHookInitialiser {
     async fn initialize_hook<F: Fn() -> Multipool + Send + 'static>(
         &mut self,
-        multipool: F,
+        _multipool: F,
     ) -> Vec<tokio::task::JoinHandle<Result<()>>> {
         vec![tokio::spawn(async move {
             loop {
@@ -45,7 +45,11 @@ impl<T, R: HookInitializer> Processor<T> for EmbededProcessor<R> {
     ) -> anyhow::Result<()> {
         println!("logs {:?}", logs);
         self.storage
-            .apply_events(logs.into_iter().cloned(), prev_saved_block, new_saved_block)
+            .apply_events(
+                logs.into_iter().cloned(),
+                prev_saved_block,
+                Some(new_saved_block),
+            )
             .await?;
         Ok(())
     }
