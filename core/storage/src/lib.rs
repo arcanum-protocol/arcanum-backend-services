@@ -1,3 +1,3 @@
 pub mod hook;
-pub mod pg_fetching;
+pub mod pg;
 pub mod storage;

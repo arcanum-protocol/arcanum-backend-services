@@ -26,10 +26,6 @@ pub struct Candle {
     low: U256,
     #[serde(rename(serialize = "h"))]
     hight: U256,
-    #[serde(rename(serialize = "q"))]
-    quote_volume: U256,
-    #[serde(rename(serialize = "b"))]
-    base_volume: U256,
 }
 
 #[derive(Serialize, Clone, Default)]
@@ -79,18 +75,6 @@ impl MultipoolCache {
             .min()
             .map(|l| l.to_owned())
             .unwrap_or(U256::ZERO);
-
-        self.stats.quote_volume = self
-            .daily_candles
-            .iter()
-            .filter_map(|c| c.as_ref().map(|c| c.quote_volume))
-            .sum();
-
-        self.stats.base_volume = self
-            .daily_candles
-            .iter()
-            .filter_map(|c| c.as_ref().map(|c| c.base_volume))
-            .sum();
 
         self.stats.current_price = candle.close;
         self.stats.multipool_tvl = self.stats.total_supply * candle.close << 96;
