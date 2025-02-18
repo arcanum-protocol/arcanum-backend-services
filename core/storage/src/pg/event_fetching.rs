@@ -2,8 +2,7 @@ use serde_json::Value;
 use sqlx::{postgres::PgRow, PgPool, Row};
 
 use crate::hook::HookInitializer;
-
-use super::storage::MultipoolStorage;
+use crate::storage::MultipoolStorage;
 
 pub async fn into_fetching_task<HI: HookInitializer>(
     storage: &mut MultipoolStorage<HI>,
