@@ -4167,6 +4167,7 @@ name = "multipool-storage"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-multicall",
  "anyhow",
  "async-process",
  "borsh",
