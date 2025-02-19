@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS trades
 (
     chain_id            BIGSERIAL   NOT NULL,
     multipool_address   TEXT        NOT NULL,
-    block_number        BIGDECIAML  NOT NULL,
+    block_number        BIGDECIMAL  NOT NULL,
+    block_timestamp     BIGDECMALL  NOT NULL,
     transaction_hash    TEXT        NOT NULL,
     event_index         BIGINT      NOT NULL,
 
