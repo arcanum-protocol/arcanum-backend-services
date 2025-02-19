@@ -26,9 +26,11 @@ impl Multipool {
             TargetShareChange::SIGNATURE,
             AssetChange::SIGNATURE,
             FeesChange::SIGNATURE,
-            PriceOracleUpdated::SIGNATURE,
-            StrategyManagerToggled::SIGNATURE,
+            PriceOracleChange::SIGNATURE,
+            StrategyManagerChange::SIGNATURE,
+            OwnershipTransferred::SIGNATURE,
             PriceFeedChange::SIGNATURE,
+            Swap::SIGNATURE,
         ])
     }
 
@@ -60,8 +62,11 @@ impl Multipool {
                 self.cashback_fee = e.newFeeToCashbackRatio;
                 self.base_fee = e.newBaseFee;
             }
-            MultipoolEvents::PriceOracleUpdated(e) => {
+            MultipoolEvents::PriceOracleChange(e) => {
                 self.oracle_address = e.newOracle;
+            }
+            MultipoolEvents::OwnershipTransferred(e) => {
+                self.owner = e.newOwner;
             }
             MultipoolEvents::TargetShareChange(e) => {
                 self.total_target_shares = e.newTotalTargetShares;
@@ -76,14 +81,8 @@ impl Multipool {
                     }
                 }
             }
-            MultipoolEvents::StrategyManagerToggled(e) => {
-                if e.isStrategyManager {
-                    self.strategy_managers.push(e.account);
-                } else {
-                    let index = self.strategy_managers.iter().position(|a| e.account.eq(a));
-                    self.strategy_managers
-                        .swap_remove(index.expect("Should always exist"));
-                }
+            MultipoolEvents::StrategyManagerChange(e) => {
+                self.strategy_manager = e.newStrategyManager;
             }
             MultipoolEvents::PriceFeedChange(e) => {
                 match self

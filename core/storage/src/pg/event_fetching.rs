@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use serde_json::Value;
 use sqlx::{postgres::PgRow, PgPool, Row};
 
@@ -7,6 +9,7 @@ use crate::storage::MultipoolStorage;
 pub async fn into_fetching_task<HI: HookInitializer>(
     storage: &mut MultipoolStorage<HI>,
     pool: PgPool,
+    interval: Duration,
 ) -> anyhow::Result<()> {
     loop {
         let last_seen_block = storage.get_last_seen_block()?.unwrap_or(0);
@@ -22,5 +25,7 @@ pub async fn into_fetching_task<HI: HookInitializer>(
         storage
             .apply_events(logs, last_seen_block + 1, None)
             .await?;
+
+        tokio::time::sleep(interval).await;
     }
 }
