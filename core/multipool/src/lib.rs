@@ -40,10 +40,15 @@ pub struct Multipool {
     pub total_supply: U256,
 
     #[borsh(
-        deserialize_with = "deserialize::vec_address",
-        serialize_with = "serialize::vec_address"
+        deserialize_with = "deserialize::address",
+        serialize_with = "serialize::address"
     )]
-    pub strategy_managers: Vec<Address>,
+    pub strategy_manager: Address,
+    #[borsh(
+        deserialize_with = "deserialize::address",
+        serialize_with = "serialize::address"
+    )]
+    pub owner: Address,
 
     pub deviation_increase_fee: u16,
     pub deviation_limit: u16,
