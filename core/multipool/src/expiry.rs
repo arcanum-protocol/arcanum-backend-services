@@ -86,8 +86,11 @@ impl<V, T: TimeExtractor> MayBeExpired<V, T> {
         Self { value, timestamp }
     }
 
-    pub fn not_older_than(self, interval: T::TimeMeasure) -> Option<V> {
-        let current_timestamp = T::now();
+    pub fn not_older_than<E: TimeExtractor<TimeMeasure = T::TimeMeasure>>(
+        self,
+        interval: T::TimeMeasure,
+    ) -> Option<V> {
+        let current_timestamp = E::now();
         if current_timestamp <= self.timestamp + interval {
             Some(self.value)
         } else {
