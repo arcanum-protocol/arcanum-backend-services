@@ -6,7 +6,7 @@ sol!(
     #[allow(clippy::too_many_arguments)]
     #[allow(missing_docs)]
     #[derive(serde::Serialize)]
-    #[sol(rpc)]
+    #[sol(rpc, abi)]
     Multipool,
     "../../arcanum-contracts/out/Multipool.sol/Multipool.json"
 );
