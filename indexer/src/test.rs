@@ -1,8 +1,11 @@
 use std::time::Duration;
 
 use alloy::{
-    node_bindings::Anvil, primitives::aliases::U96, providers::ProviderBuilder,
-    signers::local::PrivateKeySigner, sol_types::SolCall,
+    node_bindings::Anvil,
+    primitives::{aliases::U96, Address},
+    providers::ProviderBuilder,
+    signers::local::PrivateKeySigner,
+    sol_types::SolCall,
 };
 use anyhow::Result;
 use indexer1::Indexer;
@@ -57,6 +60,7 @@ async fn happy_path(pool: sqlx::SqlitePool) -> Result<()> {
         strategyManager: Default::default(),
         priceData: Default::default(),
         targetShares: Default::default(),
+        initialLiquidityAsset: Address::ZERO,
     };
 
     factory

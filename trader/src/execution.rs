@@ -1,3 +1,4 @@
+use alloy::providers::Provider;
 use anyhow::{anyhow, Result};
 use colored::Colorize;
 use std::time::Duration;
@@ -6,22 +7,18 @@ use tokio::time::sleep;
 
 use crate::clickhouse::{Click, TradeStats};
 use crate::contracts::trader::Trader::{self, Args, Call};
-use crate::contracts::{CASHBACK_VAULT, TRADER_ADDRESS};
-use crate::trade::HttpProvider;
+use crate::contracts::TRADER_ADDRESS;
 use crate::trade::UniswapChoise;
 use alloy::hex::ToHexExt;
-use alloy::primitives::{TxHash, U256};
+use alloy::primitives::{Address, TxHash, U256};
 
-impl UniswapChoise {
+impl<P: Provider> UniswapChoise<P> {
     pub async fn execute(&self) -> Result<()> {
-        println!("FEE {}", self.trading_data.fee);
-
         let multipool = &self
             .trading_data
             .trading_data_with_assets
             .trading_data
             .multipool;
-
         let stats = TradeStats {
             trade_input: self.input.estimated,
             trade_output: self.output.estimated,
@@ -62,26 +59,6 @@ impl UniswapChoise {
             pool_out_fee: self.output.best_fee,
         };
 
-        let click = Click::new()?;
-        click.insert(stats).await?;
-
-        //println!("stats\n{stats:#?}");
-
-        //let client = clickhouse::Client::default()
-        //    .with_url("http://81.163.22.190:8123")
-        //    .with_user("default")
-        //    .with_password("hardDarh10");
-        //let mut insert = client.insert("some")?;
-        //println!("{}", serde_json::to_string(&stats).unwrap());
-        //client
-        //    .query(&format!(
-        //        "INSERT INTO trades FORMAT JSONEachRow {}",
-        //        serde_json::to_string(&stats).unwrap()
-        //    ))
-        //    .execute()
-        //    .await
-        //    .unwrap();
-
         let args = Args {
             tokenIn: self.trading_data.swap_asset_in,
             multipoolTokenIn: self.trading_data.trading_data_with_assets.asset1,
@@ -105,7 +82,8 @@ impl UniswapChoise {
                 .clone(),
             gasLimit: U256::from(4000000),
             weth: self.trading_data.trading_data_with_assets.trading_data.weth,
-            cashback: CASHBACK_VAULT,
+            // cashback: CASHBACK_VAULT,
+            cashback: Address::ZERO,
             assets: vec![
                 self.trading_data.trading_data_with_assets.asset1,
                 self.trading_data.trading_data_with_assets.asset2,
@@ -128,6 +106,10 @@ impl UniswapChoise {
         )
         .await
         .map_err(|e| anyhow!("{e:?}"))?;
+
+        // insert post trade
+        let click = Click::new()?;
+        click.insert(stats).await?;
         Ok(())
     }
 }
@@ -139,7 +121,7 @@ pub struct Execution {
     pub transaction: Option<Result<TxHash, String>>,
 }
 
-pub async fn check_and_send(rpc: &HttpProvider, args: Args) -> Result<Execution, String> {
+pub async fn check_and_send<P: Provider>(rpc: &P, args: Args) -> Result<Execution, String> {
     let contract = Trader::new(TRADER_ADDRESS, rpc);
     let tx = contract
         .trade(args.clone())

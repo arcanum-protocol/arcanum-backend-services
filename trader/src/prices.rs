@@ -1,15 +1,15 @@
 use crate::contracts::multipool::MultipoolContract;
 use crate::contracts::MULTICALL_ADDRESS;
-use crate::trade::HttpProvider;
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, U256};
+use alloy::providers::Provider;
 use alloy_multicall::Multicall;
 use anyhow::Result;
 use std::collections::HashMap;
 
 // SHOULD ACCEPT assets AS LIST OF ALL TOKENS + MP ITSELF
-pub async fn get_asset_prices(
-    rpc: &HttpProvider,
+pub async fn get_asset_prices<P: Provider>(
+    rpc: &P,
     mp: Address,
     assets: Vec<Address>,
 ) -> Result<HashMap<Address, U256>> {

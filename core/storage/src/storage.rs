@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use alloy::{
     primitives::{aliases::U128, keccak256, Address, U256},
     rpc::types::Log,
@@ -6,7 +8,10 @@ use alloy::{
 use anyhow::{anyhow, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
 use itertools::Itertools;
-use multipool::Multipool;
+use multipool::{
+    expiry::{EmptyTimeExtractor, MayBeExpired},
+    Multipool,
+};
 use multipool_types::Multipool::MultipoolEvents;
 use sled::{transaction::ConflictableTransactionResult, Transactional};
 use tokio::task::JoinHandle;
@@ -26,7 +31,9 @@ pub fn parse_log(log: Log) -> Option<MultipoolEvents> {
         address: log.inner.address,
         data: log.inner.data,
     };
-    MultipoolEvents::decode_log(&log, true).ok().map(|l| l.data)
+    MultipoolEvents::decode_log(&log, false)
+        .ok()
+        .map(|l| l.data)
 }
 
 impl<HI: HookInitializer> MultipoolStorage<HI> {
@@ -45,8 +52,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             let tree = multipools.clone();
             let getter = move || {
                 let mp = tree.get(&address).unwrap().unwrap();
-                let mp = Multipool::deserialize(&mut &mp[..]).unwrap();
-                mp
+                Multipool::deserialize(&mut &mp[..]).unwrap()
             };
             let handles = hook_initializer.initialize_hook(getter).await;
             hooks.extend(handles);
@@ -168,8 +174,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                         },
                     };
 
-
-                    mp.apply_events(&events);
+                    mp.apply_events(events);
                     let mut w = Vec::new();
                     Multipool::serialize(&mp, &mut w).unwrap();
                     multipools.insert(address.as_slice(), w)?;
@@ -187,8 +192,7 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             let tree = self.multipools.clone();
             let multipool_getter = move || {
                 let mp = tree.get(mp_address.as_slice()).unwrap().unwrap();
-                let mp = Multipool::deserialize(&mut &mp[..]).unwrap();
-                mp
+                Multipool::deserialize(&mut &mp[..]).unwrap()
             };
             let mut handles = self
                 .hook_initializer
@@ -196,6 +200,29 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                 .await;
             self.hooks.append(&mut handles);
         }
+        Ok(())
+    }
+
+    pub async fn apply_prices(
+        &mut self,
+        address: Address,
+        prices: HashMap<Address, MayBeExpired<U256, EmptyTimeExtractor>>,
+    ) -> Result<()> {
+        self.multipools
+            .transaction(
+                |multipools| -> ConflictableTransactionResult<(), anyhow::Error> {
+                    if let Some(mp) = multipools.get(address)? {
+                        let mut mp = Multipool::deserialize(&mut &mp[..]).unwrap();
+                        mp.update_maybe_prices(&prices);
+                        let mut w = Vec::new();
+                        Multipool::serialize(&mp, &mut w).unwrap();
+                        multipools.insert(address.as_slice(), w)?;
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap();
+        self.multipools.flush()?;
         Ok(())
     }
 }

@@ -54,8 +54,11 @@ impl Multipool {
         asset_address: &Address,
     ) -> Result<MayBeExpired<U256, EmptyTimeExtractor>, MultipoolErrors> {
         if self.contract_address.eq(asset_address) {
-            Ok(self.cap()?
-                .map(|c| c.shl(X96).checked_div(self.total_supply).unwrap_or_default()))
+            Ok(self.cap()?.map(|c| {
+                c.shl(X96)
+                    .checked_div(self.total_supply)
+                    .unwrap_or_default()
+            }))
         } else {
             self.asset(asset_address).and_then(|asset| {
                 asset

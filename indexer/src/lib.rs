@@ -5,6 +5,8 @@ use indexer1::Processor;
 use multipool::Multipool;
 use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
 
+pub mod processors;
+
 #[cfg(test)]
 pub mod test;
 
@@ -37,7 +39,7 @@ impl<T: HookInitializer> EmbededProcessor<T> {
 impl<T, R: HookInitializer> Processor<T> for EmbededProcessor<R> {
     async fn process(
         &mut self,
-        logs: &[alloy::rpc::types::Log],
+        logs: &[indexer1::alloy::rpc::types::Log],
         _transaction: &mut T,
         prev_saved_block: u64,
         new_saved_block: u64,

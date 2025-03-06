@@ -5,6 +5,8 @@ use alloy::{
 };
 use multipool_types::Multipool::MultipoolEvents;
 
+use crate::expiry::EmptyTimeExtractor;
+
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset};
 use std::collections::HashMap;
 
@@ -15,6 +17,18 @@ impl Multipool {
         for asset in self.assets.iter_mut() {
             if let Some(new_price) = prices_set.get(&asset.address).cloned() {
                 asset.price = Some(MayBeExpired::with_time(new_price, timestamp));
+            }
+        }
+    }
+
+    pub fn update_maybe_prices(
+        &mut self,
+        prices_set: &HashMap<Address, MayBeExpired<U256, EmptyTimeExtractor>>,
+    ) {
+        //TODO: replase with 0(max(len(prices), len(self.assets)))
+        for asset in self.assets.iter_mut() {
+            if let Some(new_price) = prices_set.get(&asset.address).cloned() {
+                asset.price = Some(new_price);
             }
         }
     }
@@ -41,16 +55,20 @@ impl Multipool {
                 self.initial_share_price = e.initialSharePrice;
             }
             MultipoolEvents::AssetChange(e) => {
-                match self.assets.iter().position(|a| a.address.eq(&e.asset)) {
-                    Some(idx) => {
-                        self.assets[idx].quantity = U128::from(e.quantity);
-                        self.assets[idx].collected_cashbacks = U112::from(e.collectedCashbacks);
-                    }
-                    None => {
-                        let mut asset = MultipoolAsset::new(e.asset);
-                        asset.quantity = U128::from(e.quantity);
-                        asset.collected_cashbacks = U112::from(e.collectedCashbacks);
-                        self.assets.push(asset);
+                if self.contract_address == e.asset {
+                    self.total_supply = U256::from(e.quantity);
+                } else {
+                    match self.assets.iter().position(|a| a.address.eq(&e.asset)) {
+                        Some(idx) => {
+                            self.assets[idx].quantity = U128::from(e.quantity);
+                            self.assets[idx].collected_cashbacks = U112::from(e.collectedCashbacks);
+                        }
+                        None => {
+                            let mut asset = MultipoolAsset::new(e.asset);
+                            asset.quantity = U128::from(e.quantity);
+                            asset.collected_cashbacks = U112::from(e.collectedCashbacks);
+                            self.assets.push(asset);
+                        }
                     }
                 }
             }

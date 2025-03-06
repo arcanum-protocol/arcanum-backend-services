@@ -6,3 +6,4 @@ clickhouse
 *.db
 sled_db/
 *.DS_store
+pk.txt

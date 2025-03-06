@@ -42,7 +42,7 @@ impl TimeExtractor for StdTimeExtractor {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MayBeExpired<V, T: TimeExtractor> {
     pub value: V,
     pub timestamp: T::TimeMeasure,

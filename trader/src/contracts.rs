@@ -3,13 +3,14 @@ use alloy::{
     sol,
 };
 
-pub const TRADER_ADDRESS: Address = address!("955aDe421294B9D9C49b09bd64a92a4138EA6C56");
+// pub const TRADER_ADDRESS: Address = address!("955aDe421294B9D9C49b09bd64a92a4138EA6C56");
+pub const TRADER_ADDRESS: Address = address!("1991E54D4d503086a9De4ff272c316f0ed4AA263");
 pub const CASHBACK_VAULT: Address = address!("B9cb365F599885F6D97106918bbd406FE09b8590");
 
-pub const WETH_ADDRESS: Address = address!("82aF49447D8a07e3bd95BD0d56f35241523fBab1");
+pub const WETH_ADDRESS: Address = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
 
-pub const QUOTER_ADDRESS: Address = address!("b27308f9F90D607463bb33eA1BeBb41C27CE5AB6");
-// ethereum mainnet -- must be mc3
+pub const QUOTERV2_ADDRESS: Address = address!("61fFE014bA17989E743c5F6cB21bF9697530B21e");
+
 pub const MULTICALL_ADDRESS: Address = address!("cA11bde05977b3631167028862bE2a173976CA11");
 
 pub const SILO_LENS: Address = address!("BDb843c7a7e48Dc543424474d7Aa63b61B5D9536");
@@ -48,8 +49,34 @@ sol!(
     #[allow(missing_docs)]
     #[sol(abi)]
     contract Quoter {
-        function quoteExactInputSingle(address tokenIn,address tokenOut,uint24 fee,uint256 amountIn,uint160 sqrtPriceLimitX96) external returns (uint256 amountOut);
-        function quoteExactOutputSingle(address tokenIn,address tokenOut,uint24 fee,uint256 amountOut,uint160 sqrtPriceLimitX96) external returns (uint256 amountIn);
+
+        struct QuoteExactInputSingleParams {
+            address tokenIn;
+            address tokenOut;
+            uint256 amountIn;
+            uint24 fee;
+            uint160 sqrtPriceLimitX96;
+        }
+
+        function quoteExactInputSingle(QuoteExactInputSingleParams calldata params) external returns (
+            uint256 amountOut,
+            uint160 sqrtPriceX96After,
+            uint32 initializedTicksCrossed,
+            uint256 gasEstimate
+        );
+
+        struct QuoteExactOutputSingleParams {
+            address tokenIn;
+            address tokenOut;
+            uint256 amount;
+            uint24 fee;
+            uint160 sqrtPriceLimitX96;
+        }
+        function quoteExactOutputSingle(QuoteExactOutputSingleParams calldata params) external returns (
+            uint256 amountIn,
+            uint160 sqrtPriceX96After,
+            uint32 initializedTicksCrossed,
+            uint256 gasEstimate);
     }
 );
 
