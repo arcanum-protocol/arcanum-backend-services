@@ -1,11 +1,12 @@
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::Address;
+use alloy::providers::Provider;
 use anyhow::{anyhow, Result};
 use compute_address::{compute_pool_address, FeeAmount, FACTORY_ADDRESS};
 
-use crate::contracts::{Quoter, MULTICALL_ADDRESS, QUOTER_ADDRESS, WETH_ADDRESS};
+use crate::contracts::{Quoter, MULTICALL_ADDRESS, QUOTERV2_ADDRESS, WETH_ADDRESS};
 use crate::trade::{MultipoolChoise, SwapOutcome, UniswapChoise};
-use alloy::primitives::{address, aliases::U256};
+use alloy::primitives::aliases::U256;
 use alloy_multicall::Multicall;
 
 mod compute_address;
@@ -21,17 +22,16 @@ pub enum AmountWithDirection {
     ExactOutput(U256),
 }
 
-impl MultipoolChoise {
-    pub async fn estimate_uniswap(self) -> Result<UniswapChoise> {
+impl<P: Provider> MultipoolChoise<P> {
+    pub async fn estimate_uniswap(self) -> Result<UniswapChoise<P>> {
         let asset1 = self.swap_asset_in;
         let asset2 = self.swap_asset_out;
         let rpc = &self.trading_data_with_assets.trading_data.rpc;
         let f = Quoter::abi::functions();
         let inp = &f.get("quoteExactInputSingle").unwrap()[0];
-        let out = &f.get("quoteExactOutputSingle").unwrap()[0];
+        let out = &f.get("quoteExactInputSingle").unwrap()[0];
         let mut mc = Multicall::new(rpc, MULTICALL_ADDRESS);
         let mut pools = Vec::with_capacity(8);
-        println!("1");
         for fee in FeeAmount::iter() {
             let input_uniswap_pool =
                 compute_pool_address(FACTORY_ADDRESS, WETH_ADDRESS, self.swap_asset_in, fee, None);
@@ -41,20 +41,18 @@ impl MultipoolChoise {
                 base_is_token0: WETH_ADDRESS < self.swap_asset_in,
             });
             mc.add_call(
-                QUOTER_ADDRESS,
+                QUOTERV2_ADDRESS,
                 &inp,
-                &[
+                &[DynSolValue::Tuple(vec![
                     DynSolValue::Address(WETH_ADDRESS),
                     DynSolValue::Address(asset1),
-                    DynSolValue::Uint(fee.to_val(), 24),
                     DynSolValue::Uint(self.unwrapped_amount_in, 256),
-                    DynSolValue::Uint(U256::ZERO, 160),
-                ],
+                    DynSolValue::Uint(fee.to_val(), 24),
+                    DynSolValue::Uint(U256::from(0), 160),
+                ])],
                 true,
             );
         }
-        println!("1");
-
         // two equals iterations to pack results in order like (4 inputs -- 4 outputs)
         // make another iteration of 4 is simplier than try to partition the Vec<Result<DynValue>> by x & 1 predicate
         for fee in FeeAmount::iter() {
@@ -71,29 +69,31 @@ impl MultipoolChoise {
                 base_is_token0: WETH_ADDRESS < self.swap_asset_in,
             });
             mc.add_call(
-                QUOTER_ADDRESS,
+                QUOTERV2_ADDRESS,
                 &out,
-                &[
+                &[DynSolValue::Tuple(vec![
                     DynSolValue::Address(asset2),
                     DynSolValue::Address(WETH_ADDRESS),
-                    DynSolValue::Uint(fee.to_val(), 24),
                     DynSolValue::Uint(self.unwrapped_amount_out, 256),
-                    DynSolValue::Uint(U256::ZERO, 160),
-                ],
+                    DynSolValue::Uint(fee.to_val(), 24),
+                    DynSolValue::Uint(U256::from(0), 160),
+                ])],
                 true,
             );
         }
-        println!("1");
         // let result: Vec<U256> = mc.call().await;
         let result = mc.call().await?;
-        println!("1");
         let (best_input_pool, input_value) = pools
             .iter()
             .zip(result.iter().take(4))
             .filter_map(|(a, v)| {
                 if v.is_ok() {
-                    // TODO! get rid of clones
-                    Some((a, v.clone().unwrap().as_uint().unwrap().0))
+                    match v.as_ref().unwrap() {
+                        DynSolValue::Tuple(decoded) => {
+                            Some((a, decoded[0].clone().as_uint().unwrap().0))
+                        }
+                        _ => unreachable!(),
+                    }
                 } else {
                     None
                 }
@@ -106,8 +106,12 @@ impl MultipoolChoise {
             .zip(result.iter().skip(4))
             .filter_map(|(a, v)| {
                 if v.is_ok() {
-                    // TODO! get rid of clones
-                    Some((a, v.clone().unwrap().as_uint().unwrap().0))
+                    match v.as_ref().unwrap() {
+                        DynSolValue::Tuple(decoded) => {
+                            Some((a, decoded[0].clone().as_uint().unwrap().0))
+                        }
+                        _ => unreachable!(),
+                    }
                 } else {
                     None
                 }

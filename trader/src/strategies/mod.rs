@@ -1,6 +1,7 @@
 use alloy::{
     dyn_abi::DynSolValue,
     primitives::{Address, I256, U256},
+    providers::Provider,
 };
 use anyhow::{anyhow, bail, Result};
 use std::ops::Shr;
@@ -10,8 +11,8 @@ use crate::{
     trade::{AssetsChoise, MultipoolChoise, WrapperCall},
 };
 
-impl AssetsChoise {
-    pub async fn estimate_multipool(self) -> Result<MultipoolChoise> {
+impl<P: Provider + Clone> AssetsChoise<P> {
+    pub async fn estimate_multipool(self) -> Result<MultipoolChoise<P>> {
         let price1 = self
             .trading_data
             .multipool
@@ -39,6 +40,9 @@ impl AssetsChoise {
             .map_err(|v| anyhow!("{v:?}"))?
             .any_age();
 
+        println!("{} -> {}", self.asset1, self.asset2);
+        println!("{} -> {}", amount1, amount2);
+
         if (amount1.is_positive() && amount2.is_positive())
             || (amount1.is_negative() && amount2.is_negative())
         {
@@ -65,47 +69,8 @@ impl AssetsChoise {
 
         let amount_to_use = (quote_to_use << 96) / price1;
 
-        // let mut swap_args = vec![
-        //     AssetArgs {
-        //         asset_address: self.asset1,
-        //         amount: I256::from_raw(amount_to_use),
-        //     },
-        //     AssetArgs {
-        //         asset_address: self.asset2,
-        //         amount: I256::from(-1000000i128),
-        //     },
-        // ];
-
-        println!("{} -> {}", self.asset1, self.asset2);
-        println!("{} -> {}", amount1, amount2);
-        let fee: I256 = I256::unchecked_from(100000000_u128);
-        // let (fee, amounts): (I256, Vec<I256>) = self
-        //     .trading_data
-        //     .rpc
-        //     .aquire(
-        //         |provider, _| async {
-        //             let swap_args = swap_args.clone();
-        //             let force_push = self.trading_data.force_push.clone();
-        //             let force_push = ForcePushArgs {
-        //                 contract_address: force_push.contract_address,
-        //                 share_price: force_push.share_price,
-        //                 timestamp: force_push.timestamp,
-        //                 signatures: force_push.signatures,
-        //             };
-
-        //             MultipoolContract::new(self.trading_data.multipool.contract_address(), provider)
-        //                 .check_swap(force_push, swap_args, true)
-        //                 .call()
-        //                 .await
-        //         },
-        //         RETRIES,
-        //     )
-        //     .await
-        //     .map_err(|e| anyhow!(e))?;
-
-        // println!("out {:?}", amounts);
-
         // TODO: calculate fee
+        let fee: I256 = I256::unchecked_from(100000000_u128);
 
         let amount_of_in = I256::from_raw(amount_to_use);
         let amount_of_out = I256::unchecked_from(-1000000);

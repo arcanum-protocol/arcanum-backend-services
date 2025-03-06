@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use alloy::primitives::{Bytes, I256};
+use alloy::providers::Provider;
 use clickhouse::Click;
 use contracts::{trader::Trader::OraclePrice, WETH_ADDRESS};
 use multipool::expiry::MayBeExpired;
@@ -8,7 +9,7 @@ use multipool::expiry::{StdTimeExtractor, TimeExtractor};
 use multipool_storage::hook::HookInitializer;
 use prices::get_asset_prices;
 use tokio::{runtime::Handle, time::timeout};
-use trade::{AssetsChoise, HttpProvider, TradingData};
+use trade::{AssetsChoise, TradingData};
 
 pub mod cashback;
 pub mod clickhouse;
@@ -20,14 +21,14 @@ pub mod trade;
 pub mod uniswap;
 
 #[derive(Clone)]
-pub struct TraderHook {
+pub struct TraderHook<P: Provider + Clone + 'static> {
     pub click: Arc<Click>,
     pub handle: Handle,
-    pub rpc: HttpProvider,
+    pub rpc: P,
     pub task_timeout: Duration,
 }
 
-impl HookInitializer for TraderHook {
+impl<P: Provider + Clone> HookInitializer for TraderHook<P> {
     async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
         &mut self,
         getter: F,
@@ -42,7 +43,7 @@ impl HookInitializer for TraderHook {
                 let res =
                     get_asset_prices(&hook_data.rpc, multipool.contract_address, assets).await;
                 if let Err(e) = res {
-                    println!("price error: {e:?}");
+                    println!("Get price error: {e:?}");
                     continue;
                 }
                 res.unwrap()
@@ -82,14 +83,14 @@ impl HookInitializer for TraderHook {
                                 Ok(v) => {
                                     let r =
                                         timeout(hook_data.task_timeout.clone(), v.execute()).await;
-                                    println!("task result: {r:?}");
+                                    println!("Send trade result: {r:?}");
                                 }
                                 Err(e) => {
-                                    println!("estimate uni: {e:?}");
+                                    println!("Estimate Uniswap error: {e:?}");
                                 }
                             },
                             Err(e) => {
-                                println!("estimate mp error: {e:?}");
+                                println!("Estimate mp swap error: {e:?}");
                             }
                         }
                     });

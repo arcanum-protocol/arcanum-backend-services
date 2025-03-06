@@ -77,7 +77,7 @@ impl MultipoolCache {
             .unwrap_or(U256::ZERO);
 
         self.stats.current_price = candle.close;
-        self.stats.multipool_tvl = self.stats.total_supply * candle.close << 96;
+        self.stats.multipool_tvl = (self.stats.total_supply * candle.close) << 96;
         self.last_queried_time = candle.time;
         self.stats.previous_candle = self.stats.current_candle.replace(candle);
     }

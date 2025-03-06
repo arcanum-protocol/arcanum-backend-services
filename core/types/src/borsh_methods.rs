@@ -71,7 +71,7 @@ pub mod serialize {
         writer: &mut W,
     ) -> ::core::result::Result<(), borsh::io::Error> {
         borsh::BorshSerialize::serialize(
-            &obj.into_iter()
+            &obj.iter()
                 .map(|a| <[u8; 20]>::from(a.0))
                 .collect::<Vec<_>>(),
             writer,
