@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS events
     chain_id            NUMERIC     NOT NULL,
     emitter_address     TEXT        NOT NULL,
     block_number        NUMERIC     NOT NULL,
-    block_timestamp     BIGINT      NOT NULL,
+    block_timestamp     BIGINT          NULL,
     transaction_hash    TEXT        NOT NULL,
     event_index         BIGINT      NOT NULL,
     event               JSON        NOT NULL,
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS trades
 (
     chain_id            BIGSERIAL   NOT NULL,
     multipool_address   TEXT        NOT NULL,
-    block_number        BIGDECIMAL  NOT NULL,
-    block_timestamp     BIGDECMALL  NOT NULL,
+    block_number        NUMERIC  NOT NULL,
+    block_timestamp     NUMERIC  NOT NULL,
     transaction_hash    TEXT        NOT NULL,
     event_index         BIGINT      NOT NULL,
 
@@ -79,12 +79,12 @@ CREATE TABLE IF NOT EXISTS multipool_assets
     logo_url        TEXT        NULL,
     description     TEXT        NULL,
 
-    PRIMARY KEY (chain_id, address)
+    PRIMARY KEY (chain_id, asset_address)
 );
 
 CREATE TABLE IF NOT EXISTS candles
 (
-    multipool_address   VARCHAR NOT NULL,
+    multipool_id        INT     NOT NULL,
     ts                  BIGINT  NOT NULL,
     resolution          INT     NOT NULL,
     open                NUMERIC NOT NULL,

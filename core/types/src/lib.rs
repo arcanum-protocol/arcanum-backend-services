@@ -1,6 +1,7 @@
 use alloy::sol;
 
 pub mod borsh_methods;
+pub mod kafka;
 
 sol!(
     #[allow(clippy::too_many_arguments)]

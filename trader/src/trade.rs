@@ -3,8 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use crate::contracts::trader::Trader::OraclePrice;
 use alloy::{
     primitives::{Address, I256, U256},
-    providers::RootProvider,
-    transports::http::{Client, Http},
+    providers::Provider,
 };
 use multipool::Multipool;
 use serde::{Deserialize, Serialize};
@@ -23,18 +22,16 @@ pub struct AssetPools {
     pub pools: Vec<PoolInfo>,
 }
 
-pub type HttpProvider = RootProvider<Http<Client>>;
-
-pub struct TradingData {
-    pub rpc: RootProvider<Http<Client>>,
+pub struct TradingData<P: Provider> {
+    pub rpc: P,
     pub multipool: Multipool,
     pub oracle_price: OraclePrice,
     pub silo_assets: HashMap<Address, (Address, Address)>,
     pub weth: Address,
 }
 
-pub struct AssetsChoise {
-    pub trading_data: Arc<TradingData>,
+pub struct AssetsChoise<P: Provider> {
+    pub trading_data: Arc<TradingData<P>>,
     pub asset1: Address,
     pub asset2: Address,
     pub deviation_bound: I256,
@@ -45,8 +42,8 @@ pub struct WrapperCall {
     pub data: Vec<u8>,
 }
 
-pub struct MultipoolChoise {
-    pub trading_data_with_assets: AssetsChoise,
+pub struct MultipoolChoise<P: Provider> {
+    pub trading_data_with_assets: AssetsChoise<P>,
 
     pub unwrapped_amount_in: U256,
     pub unwrapped_amount_out: U256,
@@ -70,8 +67,8 @@ pub struct SwapOutcome {
     pub best_fee: u32,
 }
 
-pub struct UniswapChoise {
-    pub trading_data: MultipoolChoise,
+pub struct UniswapChoise<P: Provider> {
+    pub trading_data: MultipoolChoise<P>,
     pub input: SwapOutcome,
     pub output: SwapOutcome,
 }

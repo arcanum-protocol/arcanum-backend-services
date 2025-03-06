@@ -4,31 +4,27 @@ use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use alloy::dyn_abi::DynSolValue;
-use alloy::transports::http::Client;
-use alloy::{
-    primitives::{Address, U256},
-    providers::RootProvider,
-    transports::http::Http,
-};
+use alloy::primitives::{Address, U256};
 
+use crate::hook::HookInitializer;
+use alloy::providers::Provider;
 use anyhow::anyhow;
 use itertools::Itertools;
 use multipool::expiry::StdTimeExtractor;
 use sqlx::types::BigDecimal;
 use sqlx::PgPool;
 
-use crate::hook::HookInitializer;
-
 #[derive(Clone)]
-pub struct PricePush {
+pub struct PricePush<P: Provider + Clone + 'static> {
     pool: PgPool,
     delay: Duration,
     multicall_chunk_size: usize,
     multicall_address: Address,
-    rpc: RootProvider<Http<Client>>,
+    // rpc: RootProvider<Http<Client>>,
+    rpc: P,
 }
 
-impl PricePush {
+impl<P: Provider + Clone + 'static> PricePush<P> {
     pub async fn get_asset_prices(
         &self,
         mp: Address,
@@ -47,7 +43,7 @@ impl PricePush {
         for chunk in chunked_assets {
             let mut mc = alloy_multicall::Multicall::new(&self.rpc, self.multicall_address);
             for asset in chunk {
-                mc.add_call(mp, &get_price_func, &[DynSolValue::Address(*asset)], true);
+                mc.add_call(mp, get_price_func, &[DynSolValue::Address(*asset)], true);
             }
             let result = mc
                 .call()
@@ -60,7 +56,7 @@ impl PricePush {
     }
 }
 
-impl HookInitializer for PricePush {
+impl<P: Provider + Clone + 'static> HookInitializer for PricePush<P> {
     async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
         &mut self,
         multipool: F,
