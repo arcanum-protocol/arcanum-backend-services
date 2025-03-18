@@ -1,19 +1,10 @@
 use crate::hook::HookInitializer;
 use crate::storage::MultipoolStorage;
-use alloy::primitives::{Address, U256};
 use anyhow::{anyhow, Context};
 use futures::StreamExt;
-use multipool::expiry::{EmptyTimeExtractor, MayBeExpired};
-use multipool_types::messages::{self, KafkaTopics};
+use multipool_types::messages::{self, KafkaTopics, MsgPack, PriceData};
 use rdkafka::consumer::{CommitMode, Consumer, StreamConsumer};
 use rdkafka::Message;
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-pub struct PriceData {
-    address: Address,
-    prices: Vec<(Address, MayBeExpired<U256, EmptyTimeExtractor>)>,
-}
 
 pub async fn into_fetching_task<HI: HookInitializer>(
     storage: &mut MultipoolStorage<HI>,
@@ -28,14 +19,14 @@ pub async fn into_fetching_task<HI: HookInitializer>(
                     let bytes = message
                         .payload()
                         .context(anyhow!("Received message with no payload"))?;
-                    let blocks = serde_json::from_slice::<messages::Block>(bytes).unwrap();
+                    let blocks = messages::Block::unpack(bytes);
                     storage.apply_events(vec![blocks].try_into()?).await?;
                 }
                 KafkaTopics::MpPrices(_chain_id) => {
                     let bytes = message
                         .payload()
                         .context(anyhow!("Received message with no payload"))?;
-                    let data = serde_json::from_slice::<PriceData>(bytes).unwrap();
+                    let data = PriceData::unpack(bytes);
                     storage.apply_prices(data.address, data.prices).await?;
                 }
             }

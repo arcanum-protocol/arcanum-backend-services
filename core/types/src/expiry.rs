@@ -3,8 +3,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use crate::borsh_methods::{deserialize, serialize};
 use borsh::{BorshDeserialize, BorshSerialize};
-use multipool_types::borsh_methods::{deserialize, serialize};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub trait TimeExtractor {

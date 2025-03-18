@@ -13,7 +13,7 @@ use multipool::Multipool;
 use multipool_storage::storage::MultipoolStorage;
 use multipool_types::MultipoolFactory::{self, MultipoolCreationParams};
 
-use crate::{EmbededProcessor, EmptyHookInitialiser};
+use crate::processors::{EmbededProcessor, EmptyHookInitialiser};
 
 #[sqlx::test]
 async fn happy_path(pool: sqlx::SqlitePool) -> Result<()> {

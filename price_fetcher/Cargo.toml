@@ -21,3 +21,4 @@ sled.workspace = true
 multipool-storage = { path = "../core/storage" }
 multipool-types = { path = "../core/types/" }
 multipool = { path = "../core/multipool" }
+backend-service = { path = "../service" }

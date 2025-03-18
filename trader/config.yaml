@@ -1,0 +1,14 @@
+service_name: "trader"
+health_check: "0.0.0.0:3030"
+environment: "dev"
+config:
+  clickhouse:
+    url: localhost:9000
+    user: googrand
+    password: googrand
+    database: trades
+  rpc_url: http://127.0.0.1:8545
+  kafka_url: localhost:9092
+  pk_file: ./trader_pk.txt
+  kafka_group: trader
+  chain_id: 1

@@ -5,9 +5,9 @@ use alloy::{
 };
 use multipool_types::Multipool::MultipoolEvents;
 
-use crate::expiry::EmptyTimeExtractor;
+use multipool_types::expiry::{EmptyTimeExtractor, MayBeExpired};
 
-use super::{expiry::MayBeExpired, Multipool, MultipoolAsset};
+use super::{Multipool, MultipoolAsset};
 
 impl Multipool {
     pub fn update_prices(

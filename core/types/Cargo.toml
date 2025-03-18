@@ -11,3 +11,4 @@ anyhow.workspace = true
 borsh.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rmp-serde.workspace = true
