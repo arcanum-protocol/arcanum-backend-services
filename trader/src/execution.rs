@@ -219,7 +219,7 @@ pub async fn check_and_send<P: Provider>(rpc: &P, args: Args) -> Result<Executio
             // } else {
             //     println!("Simulation FAILED, error: {:?}", e);
             // }
-            Err(e.to_string().into())
+            Err(e.to_string())
         }
     }
 }

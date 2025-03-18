@@ -21,9 +21,8 @@ pub async fn into_fetching_task<HI: HookInitializer>(
         .await?
         .into_iter()
         .map(|v: PgRow| serde_json::from_value(v.get::<Value, _>("row_event")).unwrap());
-
         storage
-            .apply_events(logs, last_seen_block + 1, None)
+            .apply_events(logs)
             .await?;
 
         tokio::time::sleep(interval).await;

@@ -4,6 +4,7 @@ use alloy::{
     providers::Provider,
 };
 use anyhow::{anyhow, bail, Result};
+use multipool::expiry::StdTimeExtractor;
 use std::ops::Shr;
 
 use crate::{
@@ -31,14 +32,16 @@ impl<P: Provider + Clone> AssetsChoise<P> {
             .multipool
             .quantity_to_deviation(&self.asset1, self.deviation_bound)
             .map_err(|v| anyhow!("{v:?}"))?
-            .any_age();
+            .not_older_than::<StdTimeExtractor>(180)
+            .ok_or(anyhow!("Price is too old"))?;
 
         let amount2 = self
             .trading_data
             .multipool
             .quantity_to_deviation(&self.asset2, self.deviation_bound)
             .map_err(|v| anyhow!("{v:?}"))?
-            .any_age();
+            .not_older_than::<StdTimeExtractor>(180)
+            .ok_or(anyhow!("Price is too old"))?;
 
         println!("{} -> {}", self.asset1, self.asset2);
         println!("{} -> {}", amount1, amount2);

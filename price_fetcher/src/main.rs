@@ -1,12 +1,11 @@
 use std::time::Duration;
 
 use alloy::primitives::address;
-use alloy::providers::MULTICALL3_ADDRESS;
 use alloy::{primitives::Address, providers::ProviderBuilder};
-use multipool_storage::{kafka::into_fetching_task as kafka_task, storage::MultipoolStorage};
+use multipool_storage::{kafka::into_fetching_task, storage::MultipoolStorage};
 use multipool_types::kafka::KafkaTopics;
 use rdkafka::{
-    consumer::{BaseConsumer, Consumer},
+    consumer::{Consumer, StreamConsumer},
     producer::FutureProducer,
     ClientConfig,
 };
@@ -33,7 +32,6 @@ async fn main() -> anyhow::Result<()> {
         producer,
         delay: Duration::from_secs(2),
         multicall_chunk_size: 5,
-        multicall_address: MULTICALL3_ADDRESS,
         rpc: ProviderBuilder::new().on_http(Url::parse(&http_url).unwrap()),
     };
     let db = sled::open("sled_db").unwrap();
@@ -41,9 +39,10 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap();
 
-    let consumer: BaseConsumer = ClientConfig::new()
+    let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", &group)
         .set("bootstrap.servers", &kafka_url)
+        .set("enable.auto.commit", "false")
         .set("auto.offset.reset", "earliest")
         .create()
         .expect("Creation failed");
@@ -52,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         .subscribe(&[KafkaTopics::ChainEvents.as_ref()])
         .expect("Failed to subscribe to topic");
 
-    kafka_task(&mut storage, consumer, Duration::from_secs(1)).await?;
+    into_fetching_task(&mut storage, consumer).await?;
 
     Ok(())
 }

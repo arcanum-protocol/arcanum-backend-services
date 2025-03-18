@@ -11,11 +11,11 @@ pub struct Click {
 
 impl Click {
     pub fn new() -> Result<Self> {
-        let url = std::env::var("CLICKHOUSE_URL").context("Database url is not provided")?;
-        let user = std::env::var("CLICKHOUSE_USER").context("Database user is not provided")?;
+        let url = std::env::var("CLICKHOUSE_URL").context("Clickhouse url is not provided")?;
+        let user = std::env::var("CLICKHOUSE_USER").context("Clickhouse user is not provided")?;
         let pass =
-            std::env::var("CLICKHOUSE_PASSWORD").context("Database password is not provided")?;
-        let db = std::env::var("CLICKHOUSE_DB").context("Database password is not provided")?;
+            std::env::var("CLICKHOUSE_PASSWORD").context("Clickhouse password is not provided")?;
+        let db = std::env::var("CLICKHOUSE_DB").context("Clickhouse password is not provided")?;
         let client = Client::default()
             .with_url(url)
             .with_user(user)

@@ -42,7 +42,7 @@ services:
       DATABASE_URL: postgresql://user:pass@postgres:5432/main_db
       HTTP_URL: https://arb-sepolia.g.alchemy.com/v2/c_34X8mrHf2CeUbKJyRn9El7loLauTbU
       WS_URL: wss://arb-sepolia.g.alchemy.com/v2/c_34X8mrHf2CeUbKJyRn9El7loLauTbU
-      KAFKA_URL: http://0.0.0.0:9092
+      KAFKA_URL: kafka:9092
       KAFKA_TOPIC: chain_events
     depends_on:
       - postgres
@@ -64,7 +64,7 @@ services:
       CLICKHOUSE_USER: trader
       CLICKHOUSE_PASSWORD: trader
       KAFKA_GROUP: trader
-      KAFKA_URL: https://localhost:9092
+      KAFKA_URL: kafka:9092
       KAFKA_TOPIC: chain_events
     depends_on:
       - postgres
@@ -73,14 +73,7 @@ services:
     networks:
       - database
     secrets:
-      - pk
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - '2181:2181'
+      - trader_pk
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
@@ -107,8 +100,8 @@ volumes:
   db: {}
   clickhouse: {}
 secrets:
-   pk: 
-    file: pk.txt
+   trader_pk: 
+    file: trader_pk.txt
 
 networks:
   database:

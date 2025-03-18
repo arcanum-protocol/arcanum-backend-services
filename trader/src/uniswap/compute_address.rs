@@ -34,7 +34,7 @@ impl FeeAmount {
         }
     }
 
-    pub fn to_val(&self) -> U256 {
+    pub fn to_val(self) -> U256 {
         U256::from(match self {
             FeeAmount::LOWEST => 100,
             FeeAmount::LOW => 500,
