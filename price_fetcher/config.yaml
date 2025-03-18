@@ -1,0 +1,8 @@
+service_name: "price_fetcher"
+health_check: "0.0.0.0:3030"
+environment: "dev"
+config:
+  rpc_url: http://127.0.0.1:8545
+  kafka_url: localhost:9092
+  kafka_group: price_fetcher
+  chain_id: 1

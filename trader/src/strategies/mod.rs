@@ -4,7 +4,7 @@ use alloy::{
     providers::Provider,
 };
 use anyhow::{anyhow, bail, Result};
-use multipool::expiry::StdTimeExtractor;
+use multipool_types::expiry::StdTimeExtractor;
 use std::ops::Shr;
 
 use crate::{

@@ -1,8 +1,9 @@
+use price_fetcher::PriceFetcherService;
 use backend_service::ServiceConfig;
-use multipool_trader::TraderService;
+
 
 fn main() {
-    ServiceConfig::<TraderService>::from_file(
+    ServiceConfig::<PriceFetcherService>::from_file(
         std::env::var("CONFIG_PATH")
             .expect("CONFIG_PATH not set")
             .as_str(),

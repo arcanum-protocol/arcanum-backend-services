@@ -5,6 +5,7 @@ members = [
     "gateway",
     "indexer", 
     "price_fetcher",
+    "service"
 ]
 resolver = "2"
 
@@ -14,19 +15,26 @@ strip = true
 
 [workspace.dependencies]
 tokio = { version = "1.34.0", features = ["full"] }
-anyhow = "1.0.79"
+futures = "0.3.30"
+axum = "0.8.1"
+reqwest = { version = "0.11.12", default-features = false, features = ["rustls", "rustls-tls", "json"] }
+
 alloy = { version = "0.11.1", default-features = false, features = ["serde", "reqwest-rustls-tls", "essentials", "std", "json"] }
 alloy-multicall = "0.11.1"
-borsh = { version = "1.5.5", features = ["derive"] }
-sqlx = { version = "0.8.2", features = ["tls-rustls", "runtime-tokio", "postgres", "sqlite", "bigdecimal"] }
-reqwest = { version = "0.11.12", default-features = false, features = ["rustls", "rustls-tls", "json"] }
-axum = "0.8.1"
-sled = "0.34.7"
-serde = { version = "1.0.192", features = ["derive"] }
-# to match u128 values to json
-serde_json={version = "1.0.108", features = ["arbitrary_precision"]}
+
 log = "0.4.20"
 dashmap = "6.1.0"
 itertools = "0.14.0"
+anyhow = "1.0.79"
+
 rdkafka = {version = "0.37.0", default-features = false, features = ["tokio", "cmake_build"] }
 indexer1 = "0.2.6"
+sqlx = { version = "0.8.2", features = ["tls-rustls", "runtime-tokio", "postgres", "sqlite", "bigdecimal"] }
+sled = "0.34.7"
+
+serde_yaml = "0.9.27"
+rmp-serde = "1.3.0"
+borsh = { version = "1.5.5", features = ["derive"] }
+serde = { version = "1.0.192", features = ["derive"] }
+# to match u128 values to json
+serde_json={version = "1.0.108", features = ["arbitrary_precision"]}
