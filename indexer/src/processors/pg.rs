@@ -18,7 +18,7 @@ impl Processor<Transaction<'static, Postgres>> for PgEventProcessor {
     ) -> anyhow::Result<()> {
         for log in logs.iter() {
             let parsed_log = parse_log(log.to_owned());
-            if let Some(parsed_log) = parsed_log.map(|v| to_value(v).ok()).flatten() {
+            if let Some(parsed_log) = parsed_log.and_then(|v| to_value(v).ok()) {
                 sqlx::query(
                     "INSERT INTO events(
                     chain_id, 
@@ -31,9 +31,9 @@ impl Processor<Transaction<'static, Postgres>> for PgEventProcessor {
                     row_event
                     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);",
                 )
-                .bind::<BigDecimal>(chain_id.try_into()?)
+                .bind::<BigDecimal>(chain_id.into())
                 .bind(log.inner.address.to_checksum(None).to_lowercase())
-                .bind::<BigDecimal>(log.block_number.unwrap().try_into()?)
+                .bind::<BigDecimal>(log.block_number.unwrap().into())
                 .bind::<Option<i64>>(log.block_timestamp.map(|v| v as i64))
                 .bind::<String>(log.transaction_hash.unwrap().encode_hex())
                 .bind::<i64>(log.log_index.unwrap().try_into()?)

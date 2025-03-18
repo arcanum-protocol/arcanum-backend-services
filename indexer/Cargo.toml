@@ -15,13 +15,11 @@ rdkafka.workspace = true
 
 serde.workspace = true
 serde_json.workspace = true
+borsh.workspace = true
+
+indexer1.workspace = true
 
 multipool-types = { path = "../core/types/" }
 multipool-storage = { path = "../core/storage/" }
 multipool = { path = "../core/multipool/" }
 
-
-indexer1 = "0.2.5"
-env_logger = "0.11.6"
-
-#indexer1 = { path = "../../indexer1/" }

@@ -1,4 +1,4 @@
-use std::{ops::Shl, u64};
+use std::ops::Shl;
 
 use alloy::primitives::{Address, I256, U256, U512};
 

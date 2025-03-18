@@ -12,7 +12,10 @@ use multipool::{
     expiry::{EmptyTimeExtractor, MayBeExpired},
     Multipool,
 };
-use multipool_types::Multipool::MultipoolEvents;
+use multipool_types::{
+    kafka::{ChainBlock, ChainEvent},
+    Multipool::MultipoolEvents,
+};
 use sled::{transaction::ConflictableTransactionResult, Transactional};
 use tokio::task::JoinHandle;
 
@@ -88,56 +91,45 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             .transpose()?)
     }
 
-    pub async fn apply_events<I: IntoIterator<Item = Log>>(
-        &mut self,
-        logs: I,
-        from_block: u64,
-        // In case of none uses last block from logs
-        to_block: Option<u64>,
-    ) -> anyhow::Result<()> {
-        let value = self
+    pub async fn apply_events(&mut self, blocks: Vec<ChainBlock>) -> anyhow::Result<()> {
+        let current_block = self
             .index_data
             .get(b"current_block")?
-            .map(|value| u64::deserialize(&mut &value[..]).unwrap())
-            .unwrap_or(from_block - 1);
+            .map(|value| u64::deserialize(&mut &value[..]).unwrap());
 
-        if from_block != value + 1 {
+        let next_block = blocks.iter().map(|log| log.block_number).min();
+
+        if current_block.is_some() && current_block != next_block.map(|v| v - 1) {
             return Err(anyhow!("data potentially skipped"));
         }
 
-        let logs = logs.into_iter().collect::<Vec<_>>();
-
-        let to_block = match to_block {
+        let to_block = match blocks.iter().map(|log| log.block_number).max() {
             Some(b) => b,
-            None => match logs
-                .clone()
-                .into_iter()
-                .map(|log| log.block_number.unwrap())
-                .max()
-            {
-                Some(b) => b,
-                None => return Ok(()),
-            },
+            None => return Ok(()),
         };
 
+        let logs = blocks
+            .into_iter()
+            .flat_map(|v|v.events)
+            .collect::<Vec<ChainEvent>>();
         let grouped_events = logs
             .into_iter()
-            .chunk_by(|log| log.inner.address)
+            .chunk_by(|log| log.row_event.inner.address)
             .into_iter()
             .map(|(address, events)| {
                 (
                     address,
                     events
                         .filter_map(|e| {
-                            println!(
-                                "value {}, bn {}",
-                                value,
-                                e.block_number.expect("log should contain block number")
-                            );
-                            if value > e.block_number.expect("log should contain block number") {
+                            if current_block.is_some()
+                                && current_block.unwrap()
+                                    > e.row_event
+                                        .block_number
+                                        .expect("log should contain block number")
+                            {
                                 None
                             } else {
-                                parse_log(e)
+                                parse_log(e.row_event)
                             }
                         })
                         .collect::<Vec<MultipoolEvents>>(),
@@ -148,7 +140,6 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
         let new_pools = (&self.multipools, &self.index_data)
             .transaction(|(multipools, index_data)| -> ConflictableTransactionResult<Vec<Address>, anyhow::Error> {
                 let mut new_pools = Vec::new();
-                let to_block = to_block;
 
                 for (address, events) in &grouped_events {
                     let mut mp = match multipools.get(address)? {

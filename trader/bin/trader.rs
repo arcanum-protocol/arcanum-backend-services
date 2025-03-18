@@ -4,11 +4,11 @@ use alloy::network::EthereumWallet;
 use alloy::primitives::address;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::{primitives::Address, providers::ProviderBuilder};
-use multipool_storage::{kafka::into_fetching_task as kafka_task, storage::MultipoolStorage};
+use multipool_storage::{kafka::into_fetching_task, storage::MultipoolStorage};
 use multipool_trader::{clickhouse::Click, TraderHook};
 use multipool_types::kafka::KafkaTopics;
 use rdkafka::{
-    consumer::{BaseConsumer, Consumer},
+    consumer::{Consumer, StreamConsumer},
     ClientConfig,
 };
 use reqwest::Url;
@@ -40,7 +40,7 @@ async fn main() -> anyhow::Result<()> {
     let mut storage = MultipoolStorage::init(db, th, FACTORY_ADDRESS)
         .await
         .unwrap();
-    let consumer: BaseConsumer = ClientConfig::new()
+    let consumer: StreamConsumer = ClientConfig::new()
         .set("group.id", &group)
         .set("bootstrap.servers", &kafka_url)
         .set("auto.offset.reset", "earliest")
@@ -55,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
 
     // into_fetching_task(&mut storage, pool, Duration::from_secs(1)).await?;
 
-    kafka_task(&mut storage, consumer, Duration::from_secs(1)).await?;
+    into_fetching_task(&mut storage, consumer).await?;
 
     Ok(())
 }

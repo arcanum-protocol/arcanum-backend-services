@@ -46,13 +46,13 @@ impl<T, R: HookInitializer> Processor<T> for EmbededProcessor<R> {
         _chain_id: u64,
     ) -> anyhow::Result<()> {
         println!("logs {:?}", logs);
-        self.storage
-            .apply_events(
-                logs.into_iter().cloned(),
-                prev_saved_block,
-                Some(new_saved_block),
-            )
-            .await?;
+        // self.storage
+        //     .apply_events(
+        //         logs.into_iter().cloned(),
+        //         prev_saved_block,
+        //         Some(new_saved_block),
+        //     )
+        //     .await?;
         Ok(())
     }
 }
