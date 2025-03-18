@@ -42,7 +42,7 @@ impl<P: Provider> MultipoolChoise<P> {
             });
             mc.add_call(
                 QUOTERV2_ADDRESS,
-                &inp,
+                inp,
                 &[DynSolValue::Tuple(vec![
                     DynSolValue::Address(WETH_ADDRESS),
                     DynSolValue::Address(asset1),
@@ -70,7 +70,7 @@ impl<P: Provider> MultipoolChoise<P> {
             });
             mc.add_call(
                 QUOTERV2_ADDRESS,
-                &out,
+                out,
                 &[DynSolValue::Tuple(vec![
                     DynSolValue::Address(asset2),
                     DynSolValue::Address(WETH_ADDRESS),
@@ -86,36 +86,14 @@ impl<P: Provider> MultipoolChoise<P> {
         let (best_input_pool, input_value) = pools
             .iter()
             .zip(result.iter().take(4))
-            .filter_map(|(a, v)| {
-                if v.is_ok() {
-                    match v.as_ref().unwrap() {
-                        DynSolValue::Tuple(decoded) => {
-                            Some((a, decoded[0].clone().as_uint().unwrap().0))
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(a, v)| Some(a).zip(decode_mc_quoter_result(v)))
             .min_by(|x, y| x.1.cmp(&y.1))
             .ok_or(anyhow!("Pools not found"))?;
 
         let (best_output_pool, output_value) = pools
             .iter()
             .zip(result.iter().skip(4))
-            .filter_map(|(a, v)| {
-                if v.is_ok() {
-                    match v.as_ref().unwrap() {
-                        DynSolValue::Tuple(decoded) => {
-                            Some((a, decoded[0].clone().as_uint().unwrap().0))
-                        }
-                        _ => unreachable!(),
-                    }
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(a, v)| Some(a).zip(decode_mc_quoter_result(v)))
             .min_by(|x, y| x.1.cmp(&y.1))
             .ok_or(anyhow!("Pools not found"))?;
 
@@ -134,5 +112,18 @@ impl<P: Provider> MultipoolChoise<P> {
                 best_fee: best_output_pool.fee,
             },
         })
+    }
+}
+
+fn decode_mc_quoter_result(
+    call_result: &Result<DynSolValue, alloy::primitives::Bytes>,
+) -> Option<U256> {
+    if call_result.is_ok() {
+        match call_result.as_ref().unwrap() {
+            DynSolValue::Tuple(decoded) => Some(decoded[0].clone().as_uint().unwrap().0),
+            _ => unreachable!(),
+        }
+    } else {
+        None
     }
 }

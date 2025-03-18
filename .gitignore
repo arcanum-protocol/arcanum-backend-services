@@ -6,4 +6,6 @@ clickhouse
 *.db
 sled_db/
 *.DS_store
-pk.txt
+trader_pk.txt
+metadata
+preprocessed_configs

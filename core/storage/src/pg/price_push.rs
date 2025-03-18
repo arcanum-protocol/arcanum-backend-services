@@ -1,15 +1,11 @@
-use std::collections::HashMap;
 use std::ops::Div;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use alloy::dyn_abi::DynSolValue;
-use alloy::primitives::{Address, U256};
-
 use crate::hook::HookInitializer;
+use crate::price_fetch::get_asset_prices;
 use alloy::providers::Provider;
 use anyhow::anyhow;
-use itertools::Itertools;
 use multipool::expiry::StdTimeExtractor;
 use sqlx::types::BigDecimal;
 use sqlx::PgPool;
@@ -19,41 +15,7 @@ pub struct PricePush<P: Provider + Clone + 'static> {
     pool: PgPool,
     delay: Duration,
     multicall_chunk_size: usize,
-    multicall_address: Address,
-    // rpc: RootProvider<Http<Client>>,
     rpc: P,
-}
-
-impl<P: Provider + Clone + 'static> PricePush<P> {
-    pub async fn get_asset_prices(
-        &self,
-        mp: Address,
-        assets: Vec<Address>,
-    ) -> anyhow::Result<HashMap<Address, U256>> {
-        let multipool_functions = multipool_types::Multipool::abi::functions();
-        let get_price_func = &multipool_functions.get("getPrice").unwrap()[0];
-
-        let mut prices = Vec::new();
-        let chunked_assets = assets
-            .iter()
-            .chunks(self.multicall_chunk_size)
-            .into_iter()
-            .map(|chunk| chunk.into_iter().collect_vec())
-            .collect_vec();
-        for chunk in chunked_assets {
-            let mut mc = alloy_multicall::Multicall::new(&self.rpc, self.multicall_address);
-            for asset in chunk {
-                mc.add_call(mp, get_price_func, &[DynSolValue::Address(*asset)], true);
-            }
-            let result = mc
-                .call()
-                .await?
-                .into_iter()
-                .map(|p| p.unwrap().as_uint().unwrap().0);
-            prices.extend(result);
-        }
-        Ok(assets.into_iter().zip(prices.into_iter()).collect())
-    }
 }
 
 impl<P: Provider + Clone + 'static> HookInitializer for PricePush<P> {
@@ -65,9 +27,13 @@ impl<P: Provider + Clone + 'static> HookInitializer for PricePush<P> {
         vec![tokio::spawn(async move {
             loop {
                 let mut mp = multipool();
-                let asset_prices = instance
-                    .get_asset_prices(mp.contract_address(), mp.asset_list())
-                    .await?;
+                let asset_prices = get_asset_prices(
+                    mp.contract_address(),
+                    mp.asset_list(),
+                    instance.multicall_chunk_size,
+                    &instance.rpc,
+                )
+                .await?;
                 mp.update_prices(
                     asset_prices,
                     SystemTime::now()

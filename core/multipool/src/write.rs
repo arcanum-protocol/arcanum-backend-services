@@ -45,13 +45,13 @@ impl Multipool {
             OwnershipTransferred::SIGNATURE,
             PriceFeedChange::SIGNATURE,
             Swap::SIGNATURE,
+            ShareTransfer::SIGNATURE,
         ])
     }
 
     pub fn apply_events(&mut self, events: &[MultipoolEvents]) {
         events.iter().for_each(|v| match v {
             MultipoolEvents::PoolCreated(e) => {
-                println!("pool created {:?}", e.initialSharePrice);
                 self.initial_share_price = e.initialSharePrice;
             }
             MultipoolEvents::AssetChange(e) => {
@@ -87,14 +87,14 @@ impl Multipool {
                 self.owner = e.newOwner;
             }
             MultipoolEvents::TargetShareChange(e) => {
-                self.total_target_shares = e.newTotalTargetShares;
+                self.total_target_shares = e.newTotalTargetShares.to::<u16>();
                 match self.assets.iter().position(|a| a.address.eq(&e.asset)) {
                     Some(idx) => {
-                        self.assets[idx].share = e.newTargetShare;
+                        self.assets[idx].share = e.newTargetShare.to::<u16>();
                     }
                     None => {
                         let mut asset = MultipoolAsset::new(e.asset);
-                        asset.share = e.newTargetShare;
+                        asset.share = e.newTargetShare.to::<u16>();
                         self.assets.push(asset);
                     }
                 }

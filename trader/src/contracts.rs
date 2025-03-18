@@ -39,45 +39,15 @@ pub mod trader {
 sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
-    contract UniswapPool {
-        function slot0() external view returns (uint160,int24,uint16,uint16,uint16,uint8,bool);
-        function observe(uint32[] secondsAgos) external view returns (int56[],uint160[]);
-    }
+    IUniswapV3Pool,
+    "../arcanum-contracts/out/IUniswapV3Pool.sol/IUniswapV3Pool.json"
 );
 
 sol!(
     #[allow(missing_docs)]
     #[sol(abi)]
-    contract Quoter {
-
-        struct QuoteExactInputSingleParams {
-            address tokenIn;
-            address tokenOut;
-            uint256 amountIn;
-            uint24 fee;
-            uint160 sqrtPriceLimitX96;
-        }
-
-        function quoteExactInputSingle(QuoteExactInputSingleParams calldata params) external returns (
-            uint256 amountOut,
-            uint160 sqrtPriceX96After,
-            uint32 initializedTicksCrossed,
-            uint256 gasEstimate
-        );
-
-        struct QuoteExactOutputSingleParams {
-            address tokenIn;
-            address tokenOut;
-            uint256 amount;
-            uint24 fee;
-            uint160 sqrtPriceLimitX96;
-        }
-        function quoteExactOutputSingle(QuoteExactOutputSingleParams calldata params) external returns (
-            uint256 amountIn,
-            uint160 sqrtPriceX96After,
-            uint32 initializedTicksCrossed,
-            uint256 gasEstimate);
-    }
+    Quoter,
+    "../arcanum-contracts/out/IQuoterV2.sol/IQuoterV2.json"
 );
 
 sol!(
