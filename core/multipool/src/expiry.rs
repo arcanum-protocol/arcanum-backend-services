@@ -82,6 +82,13 @@ impl<V, T: TimeExtractor> MayBeExpired<V, T> {
         }
     }
 
+    pub fn build<T1: TimeExtractor<TimeMeasure = T::TimeMeasure>>(value: V) -> Self {
+        MayBeExpired {
+            value,
+            timestamp: T1::now(),
+        }
+    }
+
     pub fn with_time(value: V, timestamp: T::TimeMeasure) -> Self {
         Self { value, timestamp }
     }
