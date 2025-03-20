@@ -1,7 +1,7 @@
 use indexer1::Indexer;
 use multipool::Multipool;
 use multipool_indexer::processors::KafkaEventProcessor;
-use multipool_types::kafka::KafkaTopics;
+use multipool_types::messages::KafkaTopics;
 use sqlx::PgPool;
 use std::{env, time::Duration};
 
@@ -12,6 +12,7 @@ async fn main() -> anyhow::Result<()> {
     // let ws_url = env::var("WS_URL").expect("WS_URL must be set");
     let kafka_url = std::env::var("KAFKA_URL").expect("KAFKA_URL must be set");
     let from_block = std::env::var("FROM_BLOCK").expect("FROM_BLOCK must be set");
+    let chain_id = std::env::var("CHAIN_ID").expect("CHAIN_ID must be set");
 
     let pool = PgPool::connect(&database_url).await?;
 
@@ -26,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .set_processor(KafkaEventProcessor::new(
             &kafka_url,
-            KafkaTopics::ChainEvents,
+            KafkaTopics::ChainEvents(chain_id.parse().unwrap()),
         ))
         .build()
         .await?

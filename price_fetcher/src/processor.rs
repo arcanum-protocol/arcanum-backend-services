@@ -2,7 +2,7 @@ use alloy::providers::Provider;
 use anyhow::anyhow;
 use multipool_storage::hook::HookInitializer;
 use multipool_storage::price_fetch::get_asset_prices;
-use multipool_types::kafka::KafkaTopics;
+use multipool_types::messages::KafkaTopics;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 use std::time::Duration;
@@ -13,6 +13,8 @@ pub struct PriceFetcher<P: Provider + Clone + 'static> {
     pub delay: Duration,
     pub multicall_chunk_size: usize,
     pub rpc: P,
+    //TOOD: in a lot of places chain id can be gained from RPC
+    pub chain_id: u64,
 }
 
 impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
@@ -20,6 +22,7 @@ impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
         &mut self,
         multipool: F,
     ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        let chain_id = self.chain_id.clone();
         let instance = self.clone();
         vec![tokio::spawn(async move {
             loop {
@@ -36,7 +39,7 @@ impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
                     .producer
                     .send(
                         // Somehow fix all transitions
-                        FutureRecord::to(KafkaTopics::MpPrices.as_ref())
+                        FutureRecord::to(KafkaTopics::MpPrices(chain_id).to_string().as_str())
                             .key(&format!("{}|{}", 1, mp.contract_address()))
                             .payload(
                                 &serde_json::json!({

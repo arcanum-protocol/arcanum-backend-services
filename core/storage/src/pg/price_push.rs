@@ -1,12 +1,12 @@
 use std::ops::Div;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use crate::hook::HookInitializer;
 use crate::price_fetch::get_asset_prices;
 use alloy::providers::Provider;
 use anyhow::anyhow;
-use multipool::expiry::StdTimeExtractor;
+use multipool::expiry::{MayBeExpired, StdTimeExtractor};
 use sqlx::types::BigDecimal;
 use sqlx::PgPool;
 
@@ -35,11 +35,12 @@ impl<P: Provider + Clone + 'static> HookInitializer for PricePush<P> {
                 )
                 .await?;
                 mp.update_prices(
-                    asset_prices,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    &asset_prices
+                        .into_iter()
+                        .map(|(address, price)| {
+                            (address, MayBeExpired::build::<StdTimeExtractor>(price))
+                        })
+                        .collect(),
                 );
                 let price = mp
                     .get_price(&mp.contract_address())
