@@ -2,14 +2,13 @@ use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
 use itertools::Itertools;
-use std::collections::HashMap;
 
 pub async fn get_asset_prices<P: Provider + Clone + 'static>(
     mp: Address,
     assets: Vec<Address>,
     chunk_size: usize,
     provider: &P,
-) -> anyhow::Result<HashMap<Address, U256>> {
+) -> anyhow::Result<Vec<(Address, U256)>> {
     let multipool_functions = multipool_types::Multipool::abi::functions();
     let get_price_func = &multipool_functions.get("getPrice").unwrap()[0];
 

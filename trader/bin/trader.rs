@@ -6,7 +6,7 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::{primitives::Address, providers::ProviderBuilder};
 use multipool_storage::{kafka::into_fetching_task, storage::MultipoolStorage};
 use multipool_trader::{clickhouse::Click, TraderHook};
-use multipool_types::kafka::KafkaTopics;
+use multipool_types::messages::KafkaTopics;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     ClientConfig,
@@ -22,6 +22,10 @@ async fn main() -> anyhow::Result<()> {
     let pk_file = std::env::var("PRIVATE_KEY_FILE").expect("PRIVATE_KEY must be set");
     let group = std::env::var("KAFKA_GROUP").expect("KAFKA_GROUP must be set");
     let kafka_url = std::env::var("KAFKA_URL").expect("KAFKA_URL must be set");
+    let chain_id = std::env::var("CHAIN_ID")
+        .expect("CHAIN_ID must be set")
+        .parse()
+        .unwrap();
 
     let pk = std::fs::read_to_string(pk_file).expect("Should have been able to read the file");
     let signer: PrivateKeySigner = pk.parse().expect("should parse private key");
@@ -48,8 +52,8 @@ async fn main() -> anyhow::Result<()> {
         .expect("Creation failed");
     consumer
         .subscribe(&[
-            KafkaTopics::ChainEvents.as_ref(),
-            KafkaTopics::MpPrices.as_ref(),
+            &KafkaTopics::ChainEvents(chain_id).to_string(),
+            &KafkaTopics::MpPrices(chain_id).to_string(),
         ])
         .expect("Failed to subscribe to topic");
 

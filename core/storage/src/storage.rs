@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use alloy::{
     primitives::{aliases::U128, keccak256, Address, U256},
@@ -7,15 +7,11 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
-use itertools::Itertools;
 use multipool::{
     expiry::{EmptyTimeExtractor, MayBeExpired},
     Multipool,
 };
-use multipool_types::{
-    kafka::{ChainBlock, ChainEvent},
-    Multipool::MultipoolEvents,
-};
+use multipool_types::{messages::Block, Multipool::MultipoolEvents};
 use sled::{transaction::ConflictableTransactionResult, Transactional};
 use tokio::task::JoinHandle;
 
@@ -37,6 +33,52 @@ pub fn parse_log(log: Log) -> Option<MultipoolEvents> {
     MultipoolEvents::decode_log(&log, false)
         .ok()
         .map(|l| l.data)
+}
+
+pub struct MultipoolsUpdates {
+    from_block_number: u64,
+    to_block_number: u64,
+    updates: Vec<MultipoolUpdates>,
+}
+
+pub struct MultipoolUpdates {
+    address: Address,
+    logs: Vec<MultipoolEvents>,
+}
+
+impl TryFrom<Vec<Block>> for MultipoolsUpdates {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Vec<Block>) -> Result<Self, Self::Error> {
+        let from_block_number = value
+            .first()
+            .map(|v| v.number)
+            .ok_or(anyhow!("Empty batch"))?;
+        let to_block_number = value
+            .last()
+            .map(|v| v.number)
+            .ok_or(anyhow!("Empty batch"))?;
+
+        let mut updates = BTreeMap::<Address, Vec<MultipoolEvents>>::new();
+
+        for block in value {
+            for transaction in block.transactions {
+                for event in transaction.events {
+                    let entry = updates.entry(event.log.address).or_default();
+                    let parsed_log = MultipoolEvents::decode_log(&event.log, false)?;
+                    entry.push(parsed_log.data);
+                }
+            }
+        }
+        Ok(MultipoolsUpdates {
+            from_block_number,
+            to_block_number,
+            updates: updates
+                .into_iter()
+                .map(|(address, logs)| MultipoolUpdates { address, logs })
+                .collect(),
+        })
+    }
 }
 
 impl<HI: HookInitializer> MultipoolStorage<HI> {
@@ -91,57 +133,21 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             .transpose()?)
     }
 
-    pub async fn apply_events(&mut self, blocks: Vec<ChainBlock>) -> anyhow::Result<()> {
+    pub async fn apply_events(&mut self, updates: MultipoolsUpdates) -> anyhow::Result<()> {
         let current_block = self
             .index_data
             .get(b"current_block")?
             .map(|value| u64::deserialize(&mut &value[..]).unwrap());
 
-        let next_block = blocks.iter().map(|log| log.block_number).min();
-
-        if current_block.is_some() && current_block != next_block.map(|v| v - 1) {
-            return Err(anyhow!("data potentially skipped"));
+        if current_block.is_some() && current_block.unwrap() >= updates.from_block_number {
+            return Err(anyhow!("Data invalid"));
         }
-
-        let to_block = match blocks.iter().map(|log| log.block_number).max() {
-            Some(b) => b,
-            None => return Ok(()),
-        };
-
-        let logs = blocks
-            .into_iter()
-            .flat_map(|v|v.events)
-            .collect::<Vec<ChainEvent>>();
-        let grouped_events = logs
-            .into_iter()
-            .chunk_by(|log| log.row_event.inner.address)
-            .into_iter()
-            .map(|(address, events)| {
-                (
-                    address,
-                    events
-                        .filter_map(|e| {
-                            if current_block.is_some()
-                                && current_block.unwrap()
-                                    > e.row_event
-                                        .block_number
-                                        .expect("log should contain block number")
-                            {
-                                None
-                            } else {
-                                parse_log(e.row_event)
-                            }
-                        })
-                        .collect::<Vec<MultipoolEvents>>(),
-                )
-            })
-            .collect::<Vec<_>>();
 
         let new_pools = (&self.multipools, &self.index_data)
             .transaction(|(multipools, index_data)| -> ConflictableTransactionResult<Vec<Address>, anyhow::Error> {
                 let mut new_pools = Vec::new();
 
-                for (address, events) in &grouped_events {
+                for MultipoolUpdates { address, logs } in &updates.updates {
                     let mut mp = match multipools.get(address)? {
                         Some(mp) => Multipool::deserialize(&mut &mp[..]).unwrap(),
                         None => {
@@ -165,14 +171,14 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
                         },
                     };
 
-                    mp.apply_events(events);
+                    mp.apply_events(logs.as_slice());
                     let mut w = Vec::new();
                     Multipool::serialize(&mp, &mut w).unwrap();
                     multipools.insert(address.as_slice(), w)?;
                 }
-                let mut current_block = Vec::new();
-                to_block.serialize(&mut current_block).unwrap();
-                index_data.insert(b"current_block", current_block)?;
+                let mut new_current_block = Vec::new();
+                updates.to_block_number.serialize(&mut new_current_block).unwrap();
+                index_data.insert(b"current_block", new_current_block)?;
                 Ok(new_pools)
             })
             .unwrap();
@@ -197,14 +203,14 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
     pub async fn apply_prices(
         &mut self,
         address: Address,
-        prices: HashMap<Address, MayBeExpired<U256, EmptyTimeExtractor>>,
+        prices: Vec<(Address, MayBeExpired<U256, EmptyTimeExtractor>)>,
     ) -> Result<()> {
         self.multipools
             .transaction(
                 |multipools| -> ConflictableTransactionResult<(), anyhow::Error> {
                     if let Some(mp) = multipools.get(address)? {
                         let mut mp = Multipool::deserialize(&mut &mp[..]).unwrap();
-                        mp.update_maybe_prices(&prices);
+                        mp.update_prices(&prices);
                         let mut w = Vec::new();
                         Multipool::serialize(&mp, &mut w).unwrap();
                         multipools.insert(address.as_slice(), w)?;

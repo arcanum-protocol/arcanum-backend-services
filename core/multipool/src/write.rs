@@ -8,27 +8,28 @@ use multipool_types::Multipool::MultipoolEvents;
 use crate::expiry::EmptyTimeExtractor;
 
 use super::{expiry::MayBeExpired, Multipool, MultipoolAsset};
-use std::collections::HashMap;
 
 impl Multipool {
-    /// Prices are updated if these assets present in pool. Otherwhise there is no effect
-    pub fn update_prices(&mut self, prices_set: HashMap<Address, U256>, timestamp: u64) {
-        //TODO: replase with 0(max(len(prices), len(self.assets)))
-        for asset in self.assets.iter_mut() {
-            if let Some(new_price) = prices_set.get(&asset.address).cloned() {
-                asset.price = Some(MayBeExpired::with_time(new_price, timestamp));
-            }
-        }
-    }
-
-    pub fn update_maybe_prices(
+    pub fn update_prices(
         &mut self,
-        prices_set: &HashMap<Address, MayBeExpired<U256, EmptyTimeExtractor>>,
+        prices: &Vec<(Address, MayBeExpired<U256, EmptyTimeExtractor>)>,
     ) {
-        //TODO: replase with 0(max(len(prices), len(self.assets)))
-        for asset in self.assets.iter_mut() {
-            if let Some(new_price) = prices_set.get(&asset.address).cloned() {
-                asset.price = Some(new_price);
+        let mut assets = self.assets.iter_mut().peekable();
+        let mut prices = prices.into_iter().peekable();
+
+        while let (Some(asset), Some(price)) = (assets.peek_mut(), prices.peek()) {
+            match asset.address.cmp(&price.0) {
+                std::cmp::Ordering::Greater => {
+                    prices.next();
+                }
+                std::cmp::Ordering::Less => {
+                    assets.next();
+                }
+                std::cmp::Ordering::Equal => {
+                    asset.price = Some(price.1.clone());
+                    prices.next();
+                    assets.next();
+                }
             }
         }
     }
@@ -114,7 +115,13 @@ impl Multipool {
                     None => {
                         let mut asset = MultipoolAsset::new(e.targetAsset);
                         asset.price_data = e.newFeed;
-                        self.assets.push(asset);
+                        let position = self
+                            .assets
+                            .iter()
+                            .rev()
+                            .take_while(|a| a.address.gt(&asset.address))
+                            .count();
+                        self.assets.insert(position, asset);
                     }
                 }
             }
