@@ -2,11 +2,11 @@ use std::ops::Shl;
 
 use alloy::primitives::{Address, I256, U256, U512};
 
-use crate::expiry::EmptyTimeExtractor;
+use multipool_types::expiry::{EmptyTimeExtractor, MayBeExpired};
 
 use super::{
-    errors::MultipoolErrors, errors::MultipoolOverflowErrors, expiry::MayBeExpired, Merge,
-    Multipool, MultipoolAsset, X32, X96,
+    errors::MultipoolErrors, errors::MultipoolOverflowErrors, Merge, Multipool, MultipoolAsset,
+    X32, X96,
 };
 
 impl Multipool {

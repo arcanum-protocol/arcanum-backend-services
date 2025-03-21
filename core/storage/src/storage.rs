@@ -7,11 +7,12 @@ use alloy::{
 };
 use anyhow::{anyhow, Result};
 use borsh::{BorshDeserialize, BorshSerialize};
-use multipool::{
+use multipool::Multipool;
+use multipool_types::{
     expiry::{EmptyTimeExtractor, MayBeExpired},
-    Multipool,
+    messages::Block,
+    Multipool::MultipoolEvents,
 };
-use multipool_types::{messages::Block, Multipool::MultipoolEvents};
 use sled::{transaction::ConflictableTransactionResult, Transactional};
 use tokio::task::JoinHandle;
 

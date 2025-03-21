@@ -1,7 +1,6 @@
 pub mod errors;
 pub mod read;
 
-pub mod expiry;
 #[cfg(test)]
 pub mod tests;
 pub mod write;
@@ -14,14 +13,13 @@ use alloy::primitives::Address;
 use alloy::primitives::B256;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
-use expiry::EmptyTimeExtractor;
 
 use std::ops::Shr;
 
-use self::expiry::{MayBeExpired, Merge};
 use errors::MultipoolErrors;
 use errors::MultipoolErrors::*;
 use errors::MultipoolOverflowErrors::*;
+use multipool_types::expiry::{EmptyTimeExtractor, MayBeExpired, Merge};
 
 use multipool_types::borsh_methods::{deserialize, serialize};
 

@@ -1,10 +1,11 @@
 use alloy::providers::Provider;
 use anyhow::anyhow;
-use multipool_storage::hook::HookInitializer;
-use multipool_storage::price_fetch::get_asset_prices;
-use multipool_types::messages::KafkaTopics;
-use rdkafka::producer::FutureProducer;
-use rdkafka::producer::FutureRecord;
+use multipool_storage::{hook::HookInitializer, price_fetch::get_asset_prices};
+use multipool_types::{
+    expiry::{MayBeExpired, StdTimeExtractor},
+    messages::{KafkaTopics, MsgPack, PriceData},
+};
+use rdkafka::producer::{FutureProducer, FutureRecord};
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -35,19 +36,22 @@ impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
                     &instance.rpc,
                 )
                 .await?;
+                let data = PriceData {
+                    address: mp_address,
+                    prices: asset_prices
+                        .into_iter()
+                        .map(|(address, price)| {
+                            (address, MayBeExpired::build::<StdTimeExtractor>(price))
+                        })
+                        .collect(),
+                };
                 instance
                     .producer
                     .send(
                         // Somehow fix all transitions
                         FutureRecord::to(KafkaTopics::MpPrices(chain_id).to_string().as_str())
                             .key(&format!("{}|{}", 1, mp.contract_address()))
-                            .payload(
-                                &serde_json::json!({
-                                    "address": mp_address,
-                                    "prices": asset_prices,
-                                })
-                                .to_string(),
-                            ),
+                            .payload(&data.pack()),
                         Duration::from_secs(1),
                     )
                     .await

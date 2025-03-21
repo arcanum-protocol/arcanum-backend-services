@@ -1,5 +1,8 @@
-use alloy::primitives::LogData;
+use crate::expiry::{EmptyTimeExtractor, MayBeExpired};
+use alloy::primitives::{Address, LogData, U256};
+use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
+use std::io::Cursor;
 
 #[derive(Clone)]
 pub enum KafkaTopics {
@@ -135,3 +138,28 @@ pub struct Event {
     pub log: alloy::primitives::Log<LogData>,
     pub index: u64,
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct PriceData {
+    pub address: Address,
+    pub prices: Vec<(Address, MayBeExpired<U256, EmptyTimeExtractor>)>,
+}
+
+pub trait MsgPack<'de>
+where
+    Self: Serialize + Deserialize<'de>,
+{
+    fn pack(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        buf
+    }
+
+    fn unpack(buf: &[u8]) -> Self {
+        let cur = Cursor::new(buf);
+        let mut de = Deserializer::new(cur);
+        Deserialize::deserialize(&mut de).unwrap()
+    }
+}
+
+impl<'de, T: Serialize + Deserialize<'de>> MsgPack<'de> for T {}

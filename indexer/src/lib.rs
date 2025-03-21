@@ -1,58 +1,43 @@
-use std::time::Duration;
-
-use anyhow::Result;
-use indexer1::Processor;
+use crate::processors::KafkaEventProcessor;
+use backend_service::ServiceData;
+use indexer1::Indexer;
 use multipool::Multipool;
-use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
+use multipool_types::messages::KafkaTopics;
+use serde::Deserialize;
+use sqlx::PgPool;
+use std::time::Duration;
 
 pub mod processors;
 
 #[cfg(test)]
 pub mod test;
 
-pub struct EmptyHookInitialiser;
-
-impl HookInitializer for EmptyHookInitialiser {
-    async fn initialize_hook<F: Fn() -> Multipool + Send + 'static>(
-        &mut self,
-        _multipool: F,
-    ) -> Vec<tokio::task::JoinHandle<Result<()>>> {
-        vec![tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-        })]
-    }
+#[derive(Deserialize)]
+pub struct IndexerService {
+    database_url: String,
+    rpc_url: String,
+    kafka_url: String,
+    from_block: u64,
+    chain_id: u64,
 }
 
-pub struct EmbededProcessor<T: HookInitializer> {
-    storage: MultipoolStorage<T>,
-}
+impl ServiceData for IndexerService {
+    async fn run(self) -> anyhow::Result<()> {
+        let pool = PgPool::connect(&self.database_url).await?;
 
-impl<T: HookInitializer> EmbededProcessor<T> {
-    pub fn from_storage(storage: MultipoolStorage<T>) -> Self {
-        println!("processor initialized");
-        Self { storage }
-    }
-}
-
-impl<T, R: HookInitializer> Processor<T> for EmbededProcessor<R> {
-    async fn process(
-        &mut self,
-        logs: &[indexer1::alloy::rpc::types::Log],
-        _transaction: &mut T,
-        prev_saved_block: u64,
-        new_saved_block: u64,
-        _chain_id: u64,
-    ) -> anyhow::Result<()> {
-        println!("logs {:?}", logs);
-        // self.storage
-        //     .apply_events(
-        //         logs.into_iter().cloned(),
-        //         prev_saved_block,
-        //         Some(new_saved_block),
-        //     )
-        //     .await?;
-        Ok(())
+        Indexer::builder()
+            .pg_storage(pool)
+            .http_rpc_url(self.rpc_url.parse()?)
+            // .ws_rpc_url(ws_url.parse()?)
+            .fetch_interval(Duration::from_millis(2000))
+            .filter(Multipool::filter().from_block(self.from_block))
+            .set_processor(KafkaEventProcessor::new(
+                &self.kafka_url,
+                KafkaTopics::ChainEvents(self.chain_id),
+            ))
+            .build()
+            .await?
+            .run()
+            .await
     }
 }

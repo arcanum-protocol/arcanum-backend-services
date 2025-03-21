@@ -3,17 +3,17 @@ use anyhow::{anyhow, Result};
 use colored::Colorize;
 use std::time::Duration;
 
-use tokio::time::sleep;
-
 use crate::clickhouse::{Click, TradeStats};
 use crate::contracts::trader::Trader::{self, Args, Call};
 use crate::contracts::TRADER_ADDRESS;
 use crate::trade::UniswapChoise;
 use alloy::hex::ToHexExt;
 use alloy::primitives::{Address, TxHash, U256};
+use std::sync::Arc;
+use tokio::time::sleep;
 
 impl<P: Provider> UniswapChoise<P> {
-    pub async fn execute(&self) -> Result<()> {
+    pub async fn execute(&self, click: Arc<Click>) -> Result<()> {
         let multipool = &self
             .trading_data
             .trading_data_with_assets
@@ -108,7 +108,6 @@ impl<P: Provider> UniswapChoise<P> {
         .map_err(|e| anyhow!("{e:?}"))?;
 
         // insert post trade
-        let click = Click::new()?;
         click.insert(stats).await?;
         Ok(())
     }

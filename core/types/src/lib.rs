@@ -1,6 +1,7 @@
 use alloy::sol;
 
 pub mod borsh_methods;
+pub mod expiry;
 pub mod messages;
 
 sol!(

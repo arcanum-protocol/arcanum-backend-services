@@ -1,0 +1,10 @@
+service_name: "indexer"
+health_check: "0.0.0.0:3030"
+environment: "dev"
+config:
+  rpc_url: http://127.0.0.1:8545
+  kafka_url: localhost:9092
+  from_block: 21974596
+  chain_id: 1
+  database_url: postgresql://googrand:googrand@localhost:5432/indexer
+  

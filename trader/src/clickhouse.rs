@@ -1,7 +1,15 @@
 use alloy::primitives::{I256, U256};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clickhouse::{Client, Row};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize)]
+pub struct ClickhouseConfig {
+    url: String,
+    user: String,
+    password: String,
+    database: String,
+}
 
 const TABLE_NAME: &str = "trades";
 
@@ -10,17 +18,12 @@ pub struct Click {
 }
 
 impl Click {
-    pub fn new() -> Result<Self> {
-        let url = std::env::var("CLICKHOUSE_URL").context("Clickhouse url is not provided")?;
-        let user = std::env::var("CLICKHOUSE_USER").context("Clickhouse user is not provided")?;
-        let pass =
-            std::env::var("CLICKHOUSE_PASSWORD").context("Clickhouse password is not provided")?;
-        let db = std::env::var("CLICKHOUSE_DB").context("Clickhouse password is not provided")?;
+    pub fn new(config: ClickhouseConfig) -> Result<Self> {
         let client = Client::default()
-            .with_url(url)
-            .with_user(user)
-            .with_password(pass)
-            .with_database(db);
+            .with_url(config.url)
+            .with_user(config.user)
+            .with_password(config.password)
+            .with_database(config.database);
         Ok(Self { client })
     }
 

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
 use anyhow::anyhow;
@@ -6,8 +5,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 
 use indexer1::Processor;
-use multipool_types::messages::{self, Blocks, KafkaTopics};
-use serde_json::to_value;
+use multipool_types::messages::{Blocks, KafkaTopics, MsgPack};
 use sqlx::{Postgres, Transaction};
 
 pub struct KafkaEventProcessor {
@@ -34,16 +32,16 @@ impl Processor<Transaction<'static, Postgres>> for KafkaEventProcessor {
         _transaction: &mut Transaction<'static, Postgres>,
         _prev_saved_block: u64,
         _new_saved_block: u64,
-        chain_id: u64,
+        _chain_id: u64,
     ) -> anyhow::Result<()> {
-        let blocks = Blocks::try_from(logs).map_err(|e| anyhow!("ParseErrror"))?;
+        let blocks = Blocks::try_from(logs).map_err(|_e| anyhow!("ParseErrror"))?;
         for block in blocks.0 {
             self.producer
                 .send(
                     // Somehow fix all transitions
                     FutureRecord::to(self.topic.to_string().as_str())
                         .key(&block.number.to_string())
-                        .payload(&to_value(&block).unwrap().to_string()),
+                        .payload(&block.pack()),
                     Duration::from_secs(1),
                 )
                 .await

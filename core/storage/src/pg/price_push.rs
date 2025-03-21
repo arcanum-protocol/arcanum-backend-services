@@ -6,7 +6,7 @@ use crate::hook::HookInitializer;
 use crate::price_fetch::get_asset_prices;
 use alloy::providers::Provider;
 use anyhow::anyhow;
-use multipool::expiry::{MayBeExpired, StdTimeExtractor};
+use multipool_types::expiry::{MayBeExpired, StdTimeExtractor};
 use sqlx::types::BigDecimal;
 use sqlx::PgPool;
 

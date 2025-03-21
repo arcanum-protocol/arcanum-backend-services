@@ -1,7 +1,7 @@
 use alloy::primitives::{Address, U128, U256};
 use multipool_types::Multipool::MultipoolEvents;
 
-use crate::expiry::StdTimeExtractor;
+use multipool_types::expiry::StdTimeExtractor;
 
 use std::cmp::Ordering;
 
