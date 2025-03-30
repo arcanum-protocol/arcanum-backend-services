@@ -34,16 +34,10 @@ pub struct Stats {
     low_24h: U256,
     #[serde(rename(serialize = "h"))]
     hight_24h: U256,
-    #[serde(rename(serialize = "b"))]
-    base_volume: U256,
-    #[serde(rename(serialize = "q"))]
-    quote_volume: U256,
     #[serde(rename(serialize = "p"))]
     current_price: U256,
     #[serde(rename(serialize = "t"))]
     total_supply: U256,
-    #[serde(rename(serialize = "tvl"))]
-    multipool_tvl: U256,
     #[serde(rename(serialize = "pr"))]
     current_candle: Option<Candle>,
     #[serde(rename(serialize = "cu"))]
@@ -59,6 +53,10 @@ pub struct MultipoolCache {
 }
 
 impl MultipoolCache {
+    pub fn insert_total_supply(&mut self, total_supply: U256) {
+        self.stats.total_supply = total_supply;
+    }
+
     pub fn insert_candle(&mut self, candle: Candle) {
         self.daily_candles[candle.time as usize % RESOLUTION] = Some(candle.clone());
         self.stats.hight_24h = self

@@ -1,0 +1,24 @@
+[package]
+name = "etl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rdkafka.workspace = true
+alloy.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+dashmap.workspace = true
+itertools.workspace = true
+alloy-multicall.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+
+sled.workspace = true
+
+multipool-storage = { path = "../core/storage" }
+multipool-types = { path = "../core/types/" }
+multipool = { path = "../core/multipool" }
+backend-service = { path = "../service" }
