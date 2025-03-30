@@ -26,7 +26,7 @@ async fn main() {
     // build our application with a route
     let app = Router::new()
         .route("/charts/history", get(history))
-        .route("/charts/stats", get(stats))
+        .route("/charts/stats", get(history))
         .route("/portfolios/list", get(history))
         .route("/portfolios/portfolio", get(history))
         .route("/portfolios/price", get(history))
@@ -43,11 +43,6 @@ async fn main() {
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-#[derive(Deserialize)]
-pub struct SymbolRequest {
-    symbol: String,
 }
 
 #[derive(Deserialize)]

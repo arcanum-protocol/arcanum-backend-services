@@ -1,24 +1,19 @@
-use alloy::providers::Provider;
-use anyhow::anyhow;
-use multipool_storage::{hook::HookInitializer, price_fetch::get_asset_prices};
-use multipool_types::{
-    expiry::{MayBeExpired, StdTimeExtractor},
-    messages::{KafkaTopics, MsgPack, PriceData},
-};
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use std::time::Duration;
+use alloy::{hex::ToHexExt, primitives::U256};
+use multipool_storage::hook::HookInitializer;
+use rdkafka::producer::FutureProducer;
+use sqlx::{types::BigDecimal, PgPool};
+use std::{ops::Div, str::FromStr, time::Duration};
 
 #[derive(Clone)]
-pub struct PriceFetcher<P: Provider + Clone + 'static> {
+pub struct Etl {
     pub producer: FutureProducer,
     pub delay: Duration,
-    pub multicall_chunk_size: usize,
-    pub rpc: P,
     //TOOD: in a lot of places chain id can be gained from RPC
     pub chain_id: u64,
+    pub pool: PgPool,
 }
 
-impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
+impl HookInitializer for Etl {
     async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
         &mut self,
         multipool: F,
@@ -28,36 +23,34 @@ impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
         vec![tokio::spawn(async move {
             loop {
                 let mp = multipool();
-                let mp_address = mp.contract_address();
-                let asset_prices = get_asset_prices(
-                    mp_address,
-                    mp.asset_list(),
-                    instance.multicall_chunk_size,
-                    &instance.rpc,
-                )
-                .await?;
-                let data = PriceData {
-                    address: mp_address,
-                    prices: asset_prices
-                        .into_iter()
-                        .map(|(address, price)| {
-                            (address, MayBeExpired::build::<StdTimeExtractor>(price))
-                        })
-                        .collect(),
-                };
-                instance
-                    .producer
-                    .send(
-                        // Somehow fix all transitions
-                        FutureRecord::to(KafkaTopics::MpPrices(chain_id).to_string().as_str())
-                            .key(&format!("{}|{}", 1, mp.contract_address()))
-                            .payload(&data.pack()),
-                        Duration::from_secs(1),
+
+                let price = mp.get_price(&mp.contract_address()).unwrap();
+                //todo can fail: retry
+
+                let value = price.clone().any_age();
+                let timestamp = price.time();
+
+                while sqlx::query("call insert_price($1, $2, $3, $4);")
+                    .bind::<i64>(chain_id as i64)
+                    .bind::<String>(format!("\\x{}", mp.contract_address().encode_hex()))
+                    .bind::<i64>(timestamp as i64)
+                    .bind::<BigDecimal>(
+                        BigDecimal::from_str(value.to_string().as_str())
+                            .unwrap()
+                            .div(
+                                BigDecimal::from_str(
+                                    U256::from(2).pow(U256::from(96)).to_string().as_str(),
+                                )
+                                .unwrap(),
+                            ),
                     )
+                    .execute(&mut *instance.pool.acquire().await?)
                     .await
-                    .map_err(|(e, msg)| {
-                        anyhow!("Failed to send log to kafka: {e} ; \n Message: {:?}", msg)
-                    })?;
+                    .is_err()
+                {
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+                // POSTGRES
                 tokio::time::sleep(instance.delay).await;
             }
         })]
