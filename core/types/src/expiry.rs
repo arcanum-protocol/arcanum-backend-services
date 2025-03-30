@@ -44,8 +44,8 @@ impl TimeExtractor for StdTimeExtractor {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MayBeExpired<V, T: TimeExtractor> {
-    pub value: V,
-    pub timestamp: T::TimeMeasure,
+    pub(crate) value: V,
+    pub(crate) timestamp: T::TimeMeasure,
 }
 
 impl BorshDeserialize for MayBeExpired<alloy::primitives::U256, EmptyTimeExtractor> {
@@ -107,6 +107,10 @@ impl<V, T: TimeExtractor> MayBeExpired<V, T> {
 
     pub fn any_age(self) -> V {
         self.value
+    }
+
+    pub fn time(&self) -> T::TimeMeasure {
+        self.timestamp
     }
 
     pub fn map<U, F: FnOnce(V) -> U>(self, f: F) -> MayBeExpired<U, T> {

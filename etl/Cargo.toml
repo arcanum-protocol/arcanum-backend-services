@@ -13,6 +13,9 @@ dashmap.workspace = true
 itertools.workspace = true
 alloy-multicall.workspace = true
 
+futures.workspace = true
+sqlx.workspace = true
+
 serde.workspace = true
 serde_json.workspace = true
 
