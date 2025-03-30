@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 use axum::{
     extract::{Query, State},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use sqlx::{postgres::PgRow, Row};
@@ -25,9 +25,18 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/charts/config", get(config))
-        .route("/charts/symbols", get(symbols))
         .route("/charts/history", get(history))
+        .route("/charts/stats", get(stats))
+        .route("/portfolios/list", get(history))
+        .route("/portfolios/portfolio", get(history))
+        .route("/portfolios/price", get(history))
+        .route("/assets/list", get(history))
+        .route("/account/positions", get(history))
+        .route("/account/history", get(history))
+        .route("/account/pnl", post(history))
+        .route("/account/login", post(history))
+        .route("/account/settings", get(history))
+        .route("/chains", get(history))
         .with_state(Arc::new(pool));
     // `GET /` goes to `root`
 
@@ -47,39 +56,6 @@ pub struct HistoryRequest {
     countback: i64,
     resolution: String,
     symbol: Address,
-}
-
-async fn config() -> Json<Value> {
-    json!({
-        "supported_resolutions": ["1", "3", "5", "15", "30", "60", "720", "1D"],
-        "has_intraday": true,
-        "supports_group_request": false,
-        "supports_marks": false,
-        "supports_search": true,
-        "supports_timescale_marks": false,
-    })
-    .into()
-}
-
-async fn symbols(Query(query_params): Query<SymbolRequest>) -> Json<Value> {
-    let symbol = &query_params.symbol;
-    json!({
-        "description": " ",
-        "supported_resolutions": ["1", "3", "5", "15", "30", "60", "720", "1D"],
-        "exchange": "no",
-        "full_name": symbol.to_string(),
-        "name": symbol.to_string(),
-        "symbol": symbol.to_string(),
-        "ticker": symbol.to_string(),
-        "type": "Spot",
-        "session": "24x7",
-        "listed_exchange": "no",
-        "timezone": "Etc/UTC",
-        "has_intraday": true,
-        "minmov": 1,
-        "pricescale": 1000,
-    })
-    .into()
 }
 
 async fn history(

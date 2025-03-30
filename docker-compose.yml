@@ -76,8 +76,6 @@ services:
       - trader_pk
   kafka:
     image: confluentinc/cp-kafka:latest
-    depends_on:
-      - zookeeper
     ports:
       - '9092:9092'
     environment:

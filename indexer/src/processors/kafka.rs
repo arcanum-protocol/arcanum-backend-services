@@ -26,7 +26,7 @@ impl KafkaEventProcessor {
 }
 
 impl Processor<Transaction<'static, Postgres>> for KafkaEventProcessor {
-    async fn process(
+    async fn proces(
         &mut self,
         logs: &[indexer1::alloy::rpc::types::Log],
         _transaction: &mut Transaction<'static, Postgres>,
