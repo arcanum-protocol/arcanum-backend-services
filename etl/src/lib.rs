@@ -95,13 +95,17 @@ impl ServiceData for EtlService {
                         let bytes = message
                             .payload()
                             .context(anyhow!("Received message with no payload"))?;
-                        let blocks = messages::Block::unpack(bytes);
+                        let block = messages::Block::unpack(bytes);
 
                         storage
-                            .apply_events(vec![blocks.clone()].try_into()?)
+                            .create_multipools(vec![block.clone()].as_slice().try_into()?)
                             .await?;
 
-                        let actions: Vec<TradingAction> = blocks
+                        storage
+                            .apply_events(vec![block.clone()].try_into()?)
+                            .await?;
+
+                        let actions: Vec<TradingAction> = block
                             .transactions
                             .iter()
                             .map(|txn| {
@@ -123,7 +127,7 @@ impl ServiceData for EtlService {
                                                     quanitty: e.amount.to_string(),
                                                     quote_quanitty: None,
                                                     transaction_hash: pg_bytes(txn.hash.as_slice()),
-                                                    timestamp: blocks.timestamp as i64,
+                                                    timestamp: block.timestamp as i64,
                                                 });
                                             }
                                             if e.from != Address::ZERO {
@@ -137,7 +141,7 @@ impl ServiceData for EtlService {
                                                     quanitty: e.amount.to_string(),
                                                     quote_quanitty: None,
                                                     transaction_hash: pg_bytes(txn.hash.as_slice()),
-                                                    timestamp: blocks.timestamp as i64,
+                                                    timestamp: block.timestamp as i64,
                                                 });
                                             }
                                         }

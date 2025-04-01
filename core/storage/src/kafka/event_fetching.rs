@@ -19,8 +19,13 @@ pub async fn into_fetching_task<HI: HookInitializer>(
                     let bytes = message
                         .payload()
                         .context(anyhow!("Received message with no payload"))?;
-                    let blocks = messages::Block::unpack(bytes);
-                    storage.apply_events(vec![blocks].try_into()?).await?;
+                    let blocks = vec![messages::Block::unpack(bytes)];
+
+                    storage
+                        .create_multipools(blocks.as_slice().try_into()?)
+                        .await?;
+
+                    storage.apply_events(blocks.try_into()?).await?;
                 }
                 KafkaTopics::MpPrices(_chain_id) => {
                     let bytes = message

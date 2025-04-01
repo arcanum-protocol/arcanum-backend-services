@@ -37,6 +37,7 @@ impl Multipool {
     pub fn filter() -> Filter {
         use multipool_types::Multipool::*;
         Filter::new().events([
+            multipool_types::MultipoolFactory::MultipoolCreated::SIGNATURE,
             PoolCreated::SIGNATURE,
             TargetShareChange::SIGNATURE,
             AssetChange::SIGNATURE,
