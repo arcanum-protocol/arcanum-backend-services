@@ -5,21 +5,6 @@ use indexer1::Processor;
 use multipool::Multipool;
 use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
 
-pub struct EmptyHookInitialiser;
-
-impl HookInitializer for EmptyHookInitialiser {
-    async fn initialize_hook<F: Fn() -> Multipool + Send + 'static>(
-        &mut self,
-        _multipool: F,
-    ) -> Vec<tokio::task::JoinHandle<Result<()>>> {
-        vec![tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-        })]
-    }
-}
-
 pub struct EmbededProcessor<T: HookInitializer> {
     pub storage: MultipoolStorage<T>,
 }

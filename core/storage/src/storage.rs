@@ -12,11 +12,23 @@ use multipool_types::{
     expiry::{EmptyTimeExtractor, MayBeExpired},
     messages::Block,
     Multipool::MultipoolEvents,
+    MultipoolFactory::MultipoolFactoryEvents,
 };
 use sled::{transaction::ConflictableTransactionResult, Transactional};
 use tokio::task::JoinHandle;
 
 use crate::hook::HookInitializer;
+
+pub struct EmptyHookInitialiser;
+
+impl HookInitializer for EmptyHookInitialiser {
+    async fn initialize_hook<F: Fn() -> Multipool + Send + 'static>(
+        &mut self,
+        _multipool: F,
+    ) -> Vec<tokio::task::JoinHandle<Result<()>>> {
+        vec![]
+    }
+}
 
 pub struct MultipoolStorage<HI: HookInitializer> {
     multipools: sled::Tree,
@@ -47,10 +59,40 @@ pub struct MultipoolUpdates {
     logs: Vec<MultipoolEvents>,
 }
 
-impl TryFrom<Vec<Block>> for MultipoolsUpdates {
+pub struct MultipoolsCreation(pub Vec<MultipoolCreation>);
+
+pub struct MultipoolCreation {
+    address: Address,
+    multipool_address: Address,
+}
+
+impl TryFrom<&[Block]> for MultipoolsCreation {
     type Error = anyhow::Error;
 
-    fn try_from(value: Vec<Block>) -> Result<Self, Self::Error> {
+    fn try_from(value: &[Block]) -> Result<Self, Self::Error> {
+        let mut multipools = Vec::new();
+
+        for block in value {
+            for transaction in block.transactions.iter() {
+                for event in transaction.events.iter() {
+                    let mp = MultipoolFactoryEvents::decode_log(&event.log, false)?;
+                    if let MultipoolFactoryEvents::MultipoolCreated(multipool_address) = mp.data {
+                        multipools.push(MultipoolCreation {
+                            address: event.log.address,
+                            multipool_address: multipool_address.multipoolAddress,
+                        });
+                    }
+                }
+            }
+        }
+        Ok(MultipoolsCreation(multipools))
+    }
+}
+
+impl TryFrom<&[Block]> for MultipoolsUpdates {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[Block]) -> Result<Self, Self::Error> {
         let from_block_number = value
             .first()
             .map(|v| v.number)
@@ -63,8 +105,8 @@ impl TryFrom<Vec<Block>> for MultipoolsUpdates {
         let mut updates = BTreeMap::<Address, Vec<MultipoolEvents>>::new();
 
         for block in value {
-            for transaction in block.transactions {
-                for event in transaction.events {
+            for transaction in block.transactions.iter() {
+                for event in transaction.events.iter() {
                     let entry = updates.entry(event.log.address).or_default();
                     let parsed_log = MultipoolEvents::decode_log(&event.log, false)?;
                     entry.push(parsed_log.data);
@@ -134,6 +176,36 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             .transpose()?)
     }
 
+    pub async fn create_multipools(&mut self, creations: MultipoolsCreation) -> anyhow::Result<()> {
+        for creation in creations.0 {
+            if creation.address != self.factory_address {
+                continue;
+            }
+            let multipool = Multipool::new(creation.address);
+
+            let mut w = Vec::new();
+            Multipool::serialize(&multipool, &mut w).unwrap();
+            self.multipools
+                .insert(creation.multipool_address.as_slice(), w)?;
+
+            let tree = self.multipools.clone();
+            let multipool_getter = move || {
+                let mp = tree
+                    .get(creation.multipool_address.as_slice())
+                    .unwrap()
+                    .unwrap();
+                Multipool::deserialize(&mut &mp[..]).unwrap()
+            };
+            let mut handles = self
+                .hook_initializer
+                .initialize_hook(multipool_getter)
+                .await;
+            self.hooks.append(&mut handles);
+        }
+        self.multipools.flush()?;
+        Ok(())
+    }
+
     pub async fn apply_events(&mut self, updates: MultipoolsUpdates) -> anyhow::Result<()> {
         let current_block = self
             .index_data
@@ -144,60 +216,33 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
             return Err(anyhow!("Data invalid"));
         }
 
-        let new_pools = (&self.multipools, &self.index_data)
-            .transaction(|(multipools, index_data)| -> ConflictableTransactionResult<Vec<Address>, anyhow::Error> {
-                let mut new_pools = Vec::new();
+        (&self.multipools, &self.index_data)
+            .transaction(
+                |(multipools, index_data)| -> ConflictableTransactionResult<(), anyhow::Error> {
+                    for MultipoolUpdates { address, logs } in &updates.updates {
+                        let mp = multipools
+                            .get(address)?
+                            .ok_or(anyhow!("Multipool not found"))
+                            .unwrap(); // should retrun error
+                        let mut mp = Multipool::deserialize(&mut &mp[..]).unwrap();
 
-                for MultipoolUpdates { address, logs } in &updates.updates {
-                    let mut mp = match multipools.get(address)? {
-                        Some(mp) => Multipool::deserialize(&mut &mp[..]).unwrap(),
-                        None => {
-                            let nonce = index_data
-                                .get(b"factory_nonce")?
-                                .map(|value| u64::deserialize(&mut &value[..]).unwrap())
-                                .unwrap_or(1);
-
-                            let expected_address = self.factory_address.create(nonce);
-                            if *address != expected_address {
-                                continue;
-                            } else {
-                                let mut serialized_nonce = Vec::new();
-                                u64::serialize(&(nonce + 1), &mut serialized_nonce).unwrap();
-
-                                index_data.insert(b"factory_nonce", serialized_nonce)?;
-                                new_pools.push(*address);
-                                Multipool::new(*address)
-                            }
-
-                        },
-                    };
-
-                    mp.apply_events(logs.as_slice());
-                    let mut w = Vec::new();
-                    Multipool::serialize(&mp, &mut w).unwrap();
-                    multipools.insert(address.as_slice(), w)?;
-                }
-                let mut new_current_block = Vec::new();
-                updates.to_block_number.serialize(&mut new_current_block).unwrap();
-                index_data.insert(b"current_block", new_current_block)?;
-                Ok(new_pools)
-            })
+                        mp.apply_events(logs.as_slice());
+                        let mut w = Vec::new();
+                        Multipool::serialize(&mp, &mut w).unwrap();
+                        multipools.insert(address.as_slice(), w)?;
+                    }
+                    let mut new_current_block = Vec::new();
+                    updates
+                        .to_block_number
+                        .serialize(&mut new_current_block)
+                        .unwrap();
+                    index_data.insert(b"current_block", new_current_block)?;
+                    Ok(())
+                },
+            )
             .unwrap();
         self.index_data.flush()?;
         self.multipools.flush()?;
-
-        for mp_address in new_pools {
-            let tree = self.multipools.clone();
-            let multipool_getter = move || {
-                let mp = tree.get(mp_address.as_slice()).unwrap().unwrap();
-                Multipool::deserialize(&mut &mp[..]).unwrap()
-            };
-            let mut handles = self
-                .hook_initializer
-                .initialize_hook(multipool_getter)
-                .await;
-            self.hooks.append(&mut handles);
-        }
         Ok(())
     }
 

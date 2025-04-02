@@ -40,8 +40,8 @@ impl<P: Provider + Clone> HookInitializer for TraderHook<P> {
                 silo_assets: HashMap::new(),
                 oracle_price: OraclePrice {
                     contractAddress: contract_address,
-                    timestamp: price.timestamp as u128,
-                    sharePrice: price.value.to::<u128>(),
+                    timestamp: price.time() as u128,
+                    sharePrice: price.any_age().to::<u128>(),
                     signature: signed_price,
                 },
                 weth: WETH_ADDRESS,

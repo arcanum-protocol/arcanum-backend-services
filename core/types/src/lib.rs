@@ -1,8 +1,13 @@
-use alloy::sol;
+use alloy::{
+    primitives::{address, Address},
+    sol,
+};
 
 pub mod borsh_methods;
 pub mod expiry;
 pub mod messages;
+
+pub const FACTORY_ADDRESS: Address = address!("1A9071F29731088650DbbB21a7bD7248a91d33cA");
 
 sol!(
     #[allow(clippy::too_many_arguments)]

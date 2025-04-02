@@ -5,6 +5,7 @@ use alloy::{primitives::Address, providers::ProviderBuilder};
 use backend_service::ServiceData;
 use multipool_storage::{kafka::into_fetching_task, storage::MultipoolStorage};
 use multipool_types::messages::KafkaTopics;
+use multipool_types::FACTORY_ADDRESS;
 use rdkafka::{
     consumer::{Consumer, StreamConsumer},
     producer::FutureProducer,
@@ -16,8 +17,6 @@ use serde::Deserialize;
 use crate::processor::PriceFetcher;
 
 mod processor;
-
-const FACTORY_ADDRESS: Address = address!("1A9071F29731088650DbbB21a7bD7248a91d33cA");
 
 #[derive(Deserialize)]
 pub struct PriceFetcherService {
