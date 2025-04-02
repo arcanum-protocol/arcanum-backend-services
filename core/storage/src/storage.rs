@@ -78,10 +78,10 @@ impl TryFrom<&[Block]> for MultipoolsCreation {
     }
 }
 
-impl TryFrom<Vec<Block>> for MultipoolsUpdates {
+impl TryFrom<&[Block]> for MultipoolsUpdates {
     type Error = anyhow::Error;
 
-    fn try_from(value: Vec<Block>) -> Result<Self, Self::Error> {
+    fn try_from(value: &[Block]) -> Result<Self, Self::Error> {
         let from_block_number = value
             .first()
             .map(|v| v.number)
@@ -94,8 +94,8 @@ impl TryFrom<Vec<Block>> for MultipoolsUpdates {
         let mut updates = BTreeMap::<Address, Vec<MultipoolEvents>>::new();
 
         for block in value {
-            for transaction in block.transactions {
-                for event in transaction.events {
+            for transaction in block.transactions.iter() {
+                for event in transaction.events.iter() {
                     let entry = updates.entry(event.log.address).or_default();
                     let parsed_log = MultipoolEvents::decode_log(&event.log, false)?;
                     entry.push(parsed_log.data);

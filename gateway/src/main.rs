@@ -2,6 +2,7 @@ use std::env;
 use std::sync::Arc;
 
 use alloy::primitives::Address;
+use routes::portfolio;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -13,6 +14,7 @@ use axum::{
 use sqlx::{postgres::PgRow, Row};
 
 pub mod cache;
+pub mod routes;
 
 #[tokio::main]
 async fn main() {
@@ -25,96 +27,22 @@ async fn main() {
 
     // build our application with a route
     let app = Router::new()
-        .route("/charts/history", get(history))
-        .route("/charts/stats", get(history))
-        .route("/portfolios/list", get(history))
-        .route("/portfolios/portfolio", get(history))
-        .route("/portfolios/price", get(history))
-        .route("/assets/list", get(history))
-        .route("/account/positions", get(history))
-        .route("/account/history", get(history))
-        .route("/account/pnl", post(history))
-        .route("/account/login", post(history))
-        .route("/account/settings", get(history))
-        .route("/chains", get(history))
+        .route("/charts/history", get(routes::charts::history))
+        .route("/charts/stats", get(routes::charts::stats))
+        .route("/portfolio/list", get(portfolio::list))
+        .route("/portfolio", get(portfolio::portfolio))
+        .route("/portfolio/create", post(portfolio::create))
+        //.route("/assets/list", get(history))
+        //.route("/account/positions", get(history))
+        //.route("/account/history", get(history))
+        //.route("/account/pnl", get(history))
+        //.route("/chains", get(history))
         .with_state(Arc::new(pool));
     // `GET /` goes to `root`
 
     // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-#[derive(Deserialize)]
-pub struct HistoryRequest {
-    to: i64,
-    countback: i64,
-    resolution: String,
-    symbol: Address,
-}
-
-async fn history(
-    Query(query_params): Query<HistoryRequest>,
-    State(client): State<Arc<sqlx::PgPool>>,
-) -> Json<Value> {
-    let to = &query_params.to;
-    let symbol = &query_params.symbol;
-    let countback = query_params.countback;
-    let resolution: i32 = if query_params.resolution == "1D" {
-        1440 * 60
-    } else {
-        let parsed_number: Result<i32, _> = query_params.resolution.parse();
-        match parsed_number {
-            Ok(num) => num * 60,
-            Err(err) => return json!({"err":err.to_string()}).into(),
-        }
-    };
-    let result = sqlx::query(
-        "
-        SELECT 
-            open::TEXT as o, 
-            close::TEXT as c, 
-            low::TEXT as l, 
-            high::TEXT as h, 
-            ts::TEXT as t
-        FROM 
-            candles
-        WHERE 
-            ts <= $1
-            AND resolution = $2
-            AND multipool_id = $3
-        ORDER BY 
-            ts DESC
-        LIMIT $4;",
-    )
-    .bind(to)
-    .bind(resolution)
-    .bind(serde_json::to_string(&symbol).unwrap().trim_matches('\"'))
-    .bind(countback)
-    .fetch_all(client.as_ref())
-    .await;
-
-    match result {
-        Ok(rows) => {
-            if rows.is_empty() {
-                json!({"s": "no_data"}).into()
-            } else {
-                json!({
-                    "s":"ok",
-                    "t": rows.iter().rev().map(|r: &PgRow| r.get("t")).collect::<Vec<String>>(),
-                    "o": rows.iter().rev().map(|r: &PgRow| r.get("o") ).collect::<Vec<String>>(),
-                    "c": rows.iter().rev().map(|r: &PgRow| r.get("c") ).collect::<Vec<String>>(),
-                    "l": rows.iter().rev().map(|r: &PgRow| r.get("l") ).collect::<Vec<String>>(),
-                    "h": rows.iter().rev().map(|r: &PgRow| r.get("h") ).collect::<Vec<String>>(),
-                })
-                .into()
-            }
-        }
-        Err(err) => {
-            println!("{:?}", err);
-            json!({"s":"error"}).into()
-        }
-    }
 }
 
 #[derive(Deserialize)]
@@ -156,46 +84,6 @@ pub struct AssetsResponse {
     silo_pools: Vec<SiloPool>,
 }
 
-//async fn stats(
-//    query_params: web::Query<StatsRequest>,
-//    client: web::Data<Arc<Client>>,
-//) -> HttpResponse {
-//    let multipool_id = &query_params.multipool_id;
-//    let query = "
-//                SELECT
-//                    multipool_id,
-//                    change_24h::TEXT,
-//                    low_24h::TEXT,
-//                    high_24h::TEXT,
-//                    current_price::TEXT
-//                FROM multipools
-//                WHERE multipool_id = $1;
-//            ";
-//    let result = client
-//        .query(
-//            query,
-//            &[&serde_json::to_string(&multipool_id)
-//                .unwrap()
-//                .trim_matches('\"')],
-//        )
-//        .await;
-//    match result {
-//        Ok(rows) => {
-//            if let Some(row) = rows.first() {
-//                let mp_id: String = row.get("multipool_id");
-//                let change_24h: String = row.get("change_24h");
-//                let low_24h: String = row.get("low_24h");
-//                let high_24h: String = row.get("high_24h");
-//                let current_price: String = row.get("current_price");
-//                HttpResponse::Ok().json(json!({"multipool_id":mp_id,"change_24h":change_24h,"low_24h":low_24h,"high_24h":high_24h,"current_price":current_price}))
-//            } else {
-//                HttpResponse::Ok().json(json!({"err":"no_data"}))
-//            }
-//        }
-//        Err(err) => HttpResponse::Ok().json(json!({"err":err.to_string()})),
-//    }
-//}
-//
 //#[actix_web::main]
 //async fn main() -> std::io::Result<()> {
 //    let bind_address = env::var("BIND_ADDRESS").unwrap_or("0.0.0.0:8080".into());
