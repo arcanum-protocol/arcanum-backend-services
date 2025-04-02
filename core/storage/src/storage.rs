@@ -19,6 +19,17 @@ use tokio::task::JoinHandle;
 
 use crate::hook::HookInitializer;
 
+pub struct EmptyHookInitialiser;
+
+impl HookInitializer for EmptyHookInitialiser {
+    async fn initialize_hook<F: Fn() -> Multipool + Send + 'static>(
+        &mut self,
+        _multipool: F,
+    ) -> Vec<tokio::task::JoinHandle<Result<()>>> {
+        vec![]
+    }
+}
+
 pub struct MultipoolStorage<HI: HookInitializer> {
     multipools: sled::Tree,
     index_data: sled::Tree,
@@ -167,6 +178,9 @@ impl<HI: HookInitializer> MultipoolStorage<HI> {
 
     pub async fn create_multipools(&mut self, creations: MultipoolsCreation) -> anyhow::Result<()> {
         for creation in creations.0 {
+            if creation.address != self.factory_address {
+                continue;
+            }
             let multipool = Multipool::new(creation.address);
 
             let mut w = Vec::new();

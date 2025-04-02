@@ -2602,8 +2602,13 @@ dependencies = [
  "axum 0.8.1",
  "dashmap 6.1.0",
  "log",
+ "multipool",
+ "multipool-storage",
+ "multipool-types",
+ "rdkafka",
  "serde",
  "serde_json",
+ "sled",
  "sqlx",
  "tokio",
 ]

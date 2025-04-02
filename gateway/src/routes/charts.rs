@@ -20,7 +20,7 @@ pub struct HistoryRequest {
 
 pub async fn history(
     Query(query): Query<HistoryRequest>,
-    State(client): State<Arc<sqlx::PgPool>>,
+    State(state): State<Arc<crate::AppState>>,
 ) -> Json<Value> {
     let to = &query.to;
     let countback = query.countback;
@@ -57,7 +57,7 @@ pub async fn history(
     .bind::<&[u8]>(query.multipool_address.as_slice())
     .bind(countback)
     .bind(query.chain_id)
-    .fetch_all(client.as_ref())
+    .fetch_all(&mut *state.pool.acquire().await.unwrap())
     .await;
 
     match result {
@@ -91,7 +91,7 @@ pub struct StatsRequest {
 
 pub async fn stats(
     Query(query): Query<StatsRequest>,
-    State(client): State<Arc<sqlx::PgPool>>,
+    State(state): State<Arc<crate::AppState>>,
 ) -> Json<Value> {
     let result = sqlx::query(
         "
@@ -109,7 +109,7 @@ pub async fn stats(
     )
     .bind::<&[u8]>(query.multipool_address.as_slice())
     .bind(query.chain_id)
-    .fetch_all(client.as_ref())
+    .fetch_all(&mut *state.pool.acquire().await.unwrap())
     .await;
 
     match result {
