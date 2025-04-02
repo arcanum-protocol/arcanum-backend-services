@@ -96,14 +96,13 @@ impl ServiceData for EtlService {
                             .payload()
                             .context(anyhow!("Received message with no payload"))?;
                         let block = messages::Block::unpack(bytes);
+                        let blocks: [messages::Block; 1] = [block.clone()];
 
                         storage
-                            .create_multipools(vec![block.clone()].as_slice().try_into()?)
+                            .create_multipools(blocks.as_slice().try_into()?)
                             .await?;
 
-                        storage
-                            .apply_events(vec![block.clone()].try_into()?)
-                            .await?;
+                        storage.apply_events(blocks.as_slice().try_into()?).await?;
 
                         let actions: Vec<TradingAction> = block
                             .transactions

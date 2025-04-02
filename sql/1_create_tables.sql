@@ -87,6 +87,10 @@ CREATE TABLE IF NOT EXISTS trading_history
 
 CREATE TABLE IF NOT EXISTS multipools
 (
+    name                TEXT    NOT NULL,
+    symbol              TEXT    NOT NULL,
+    description         TEXT    NOT NULL,
+
     chain_id            BIGINT  NOT NULL,
     multipool           ADDRESS NOT NULL,
     change_24h          NUMERIC     NULL,

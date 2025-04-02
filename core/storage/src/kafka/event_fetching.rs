@@ -25,7 +25,7 @@ pub async fn into_fetching_task<HI: HookInitializer>(
                         .create_multipools(blocks.as_slice().try_into()?)
                         .await?;
 
-                    storage.apply_events(blocks.try_into()?).await?;
+                    storage.apply_events(blocks.as_slice().try_into()?).await?;
                 }
                 KafkaTopics::MpPrices(_chain_id) => {
                     let bytes = message
