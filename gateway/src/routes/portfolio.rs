@@ -12,6 +12,8 @@ use anyhow::anyhow;
 use std::sync::Arc;
 use tokio::{fs::File, io::AsyncWriteExt};
 
+use crate::MultipoolGettersStorage;
+
 #[derive(Deserialize)]
 pub struct PortfolioListRequest {
     to: i64,
@@ -24,7 +26,7 @@ pub struct PortfolioListRequest {
 // TODO: portfolio list
 pub async fn list(
     Query(query): Query<PortfolioListRequest>,
-    State(client): State<Arc<sqlx::PgPool>>,
+    State(state): State<Arc<crate::AppState>>,
 ) -> Json<Value> {
     let to = &query.to;
     let countback = query.countback;
@@ -61,7 +63,7 @@ pub async fn list(
     .bind::<&[u8]>(query.multipool_address.as_slice())
     .bind(countback)
     .bind(query.chain_id)
-    .fetch_all(client.as_ref())
+    .fetch_all(&mut *state.pool.acquire().await.unwrap())
     .await;
 
     match result {
@@ -103,7 +105,7 @@ fn stringify<E: ToString>(e: E) -> String {
 }
 
 pub async fn create(
-    State(client): State<Arc<sqlx::PgPool>>,
+    State(state): State<Arc<crate::AppState>>,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, String> {
     let mut logo = None;
@@ -171,12 +173,21 @@ pub async fn create(
         .bind(name)
         .bind(symbol)
         .bind(description)
-        .execute(client.as_ref())
+        .execute(&mut *state.pool.acquire().await.unwrap())
         .await.map_err(stringify)
         .map(|_| json!(()).into())
 }
 
+#[derive(Deserialize)]
+pub struct PortfolioRequest {
+    multipool_address: Address,
+}
+
 // TODO portfolio info from storage
-pub async fn portfolio(State(_client): State<Arc<sqlx::PgPool>>) -> Json<Value> {
-    json!(()).into()
+pub async fn portfolio(
+    Query(query): Query<PortfolioRequest>,
+    State(state): State<Arc<crate::AppState>>,
+) -> Json<Value> {
+    let multipool_data = state.getters.getters.get(&query.multipool_address).unwrap()();
+    json!(multipool_data).into()
 }

@@ -2,6 +2,11 @@ use std::env;
 use std::sync::Arc;
 
 use alloy::primitives::Address;
+use dashmap::DashMap;
+use multipool_storage::kafka::into_fetching_task;
+use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
+use multipool_types::messages::KafkaTopics;
+use multipool_types::FACTORY_ADDRESS;
 use routes::portfolio;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -11,21 +16,96 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use sqlx::{postgres::PgRow, Row};
+use rdkafka::{
+    consumer::{Consumer, StreamConsumer},
+    producer::FutureProducer,
+    ClientConfig,
+};
+use sqlx::{postgres::PgRow, PgPool, Row};
 
 pub mod cache;
 pub mod routes;
 
+#[derive(Clone, Default)]
+pub struct MultipoolGettersStorage {
+    pub getters:
+        DashMap<Address, Arc<Box<dyn Fn() -> multipool::Multipool + Send + Sync + 'static>>>,
+}
+
+impl HookInitializer for MultipoolGettersStorage {
+    async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
+        &mut self,
+        multipool: F,
+    ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
+        let address = multipool().contract_address();
+        self.getters.insert(address, Arc::new(Box::new(multipool)));
+        vec![]
+    }
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: PgPool,
+    pub getters: MultipoolGettersStorage,
+}
+
 #[tokio::main]
 async fn main() {
-    // initialize tracing
-    //tracing_subscriber::fmt::init();
     let bind_address = env::var("BIND_ADDRESS").unwrap_or("0.0.0.0:8080".into());
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let kafka_group = env::var("KAFKA_GROUP").expect("KAFKA_GROUP must be set");
+    let kafka_url = env::var("KAFKA_URL").expect("KAFKA_URL must be set");
+    // can get from postgres??
+    let chain_ids: Vec<u64> =
+        serde_json::from_str(&env::var("CHAIN_IDS").expect("CHAIN_IDS must be set")).unwrap();
 
     let pool = sqlx::PgPool::connect(&database_url).await.unwrap();
 
-    // build our application with a route
+    let getters_hook = MultipoolGettersStorage::default();
+
+    let db = sled::open("sled_db").unwrap();
+    let mut storage = MultipoolStorage::init(db, getters_hook.clone(), FACTORY_ADDRESS)
+        .await
+        .unwrap();
+
+    tokio::spawn(async move {
+        let consumer: StreamConsumer = ClientConfig::new()
+            .set("group.id", &kafka_group)
+            .set("bootstrap.servers", &kafka_url)
+            .set("enable.auto.commit", "false")
+            .set("auto.offset.reset", "earliest")
+            .create()
+            .expect("Creation failed");
+
+        let topics = &chain_ids
+            .into_iter()
+            .map(|chain_id| {
+                vec![
+                    KafkaTopics::ChainEvents(chain_id).to_string(),
+                    KafkaTopics::MpPrices(chain_id).to_string(),
+                ]
+                .into_iter()
+            })
+            .flatten()
+            .collect::<Vec<String>>();
+        consumer
+            .subscribe(
+                topics
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<&str>>()
+                    .as_slice(),
+            )
+            .expect("Failed to subscribe to topic");
+
+        into_fetching_task(&mut storage, consumer).await.unwrap();
+    });
+
+    let app_state = AppState {
+        pool,
+        getters: getters_hook,
+    };
+
     let app = Router::new()
         .route("/charts/history", get(routes::charts::history))
         .route("/charts/stats", get(routes::charts::stats))
@@ -37,10 +117,8 @@ async fn main() {
         //.route("/account/history", get(history))
         //.route("/account/pnl", get(history))
         //.route("/chains", get(history))
-        .with_state(Arc::new(pool));
-    // `GET /` goes to `root`
+        .with_state(Arc::new(app_state));
 
-    // run our app with hyper, listening globally on port 3000
     let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

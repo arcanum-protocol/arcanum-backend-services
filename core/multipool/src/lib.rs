@@ -20,10 +20,11 @@ use errors::MultipoolErrors;
 use errors::MultipoolErrors::*;
 use errors::MultipoolOverflowErrors::*;
 use multipool_types::expiry::{EmptyTimeExtractor, MayBeExpired, Merge};
+use serde::Serialize;
 
 use multipool_types::borsh_methods::{deserialize, serialize};
 
-#[derive(Debug, Clone, Default, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, Default, BorshSerialize, BorshDeserialize, Serialize)]
 pub struct Multipool {
     #[borsh(
         deserialize_with = "deserialize::address",
@@ -72,7 +73,7 @@ pub struct Multipool {
     pub initial_share_price: U96,
 }
 
-#[derive(Debug, Clone, BorshSerialize, BorshDeserialize)]
+#[derive(Debug, Clone, BorshSerialize, BorshDeserialize, Serialize)]
 pub struct MultipoolAsset {
     #[borsh(
         deserialize_with = "deserialize::address",
