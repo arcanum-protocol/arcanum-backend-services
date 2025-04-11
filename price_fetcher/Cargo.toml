@@ -3,6 +3,10 @@ name = "price_fetcher"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "price_fetcher"
+path = "./bin/price_fetcher.rs"
+
 [dependencies]
 rdkafka.workspace = true
 alloy.workspace = true

@@ -7,9 +7,10 @@ use multipool_storage::kafka::into_fetching_task;
 use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
 use multipool_types::messages::KafkaTopics;
 use multipool_types::FACTORY_ADDRESS;
-use routes::portfolio;
+use routes::{account, assets, portfolio};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tower_http::cors::{Any, CorsLayer};
 
 use axum::{
     extract::{Query, State},
@@ -24,12 +25,13 @@ use rdkafka::{
 use sqlx::{postgres::PgRow, PgPool, Row};
 
 pub mod cache;
+pub mod error;
 pub mod routes;
 
 #[derive(Clone, Default)]
 pub struct MultipoolGettersStorage {
     pub getters:
-        DashMap<Address, Arc<Box<dyn Fn() -> multipool::Multipool + Send + Sync + 'static>>>,
+        Arc<DashMap<Address, Arc<Box<dyn Fn() -> multipool::Multipool + Send + Sync + 'static>>>>,
 }
 
 impl HookInitializer for MultipoolGettersStorage {
@@ -38,6 +40,7 @@ impl HookInitializer for MultipoolGettersStorage {
         multipool: F,
     ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
         let address = multipool().contract_address();
+        println!("Got mp {address}");
         self.getters.insert(address, Arc::new(Box::new(multipool)));
         vec![]
     }
@@ -63,7 +66,7 @@ async fn main() {
 
     let getters_hook = MultipoolGettersStorage::default();
 
-    let db = sled::open("sled_db").unwrap();
+    let db = sled::open("gateway_sled_db").unwrap();
     let mut storage = MultipoolStorage::init(db, getters_hook.clone(), FACTORY_ADDRESS)
         .await
         .unwrap();
@@ -105,6 +108,7 @@ async fn main() {
         pool,
         getters: getters_hook,
     };
+    let cors = CorsLayer::permissive();
 
     let app = Router::new()
         .route("/charts/history", get(routes::charts::history))
@@ -112,11 +116,13 @@ async fn main() {
         .route("/portfolio/list", get(portfolio::list))
         .route("/portfolio", get(portfolio::portfolio))
         .route("/portfolio/create", post(portfolio::create))
-        //.route("/assets/list", get(history))
-        //.route("/account/positions", get(history))
-        //.route("/account/history", get(history))
-        //.route("/account/pnl", get(history))
-        //.route("/chains", get(history))
+        .route("/assets/list", get(assets::list))
+        .route("/assets", get(assets::asset))
+        .route("/account/positions", get(account::positions))
+        // .route("/account/history", get(history))
+        .route("/account/pnl", get(account::pnl))
+        // .route("/chains", get(history)) // do we really
+        .layer(cors)
         .with_state(Arc::new(app_state));
 
     let listener = tokio::net::TcpListener::bind(bind_address).await.unwrap();

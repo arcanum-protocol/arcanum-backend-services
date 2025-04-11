@@ -1,5 +1,10 @@
 use crate::expiry::{EmptyTimeExtractor, MayBeExpired};
-use alloy::primitives::{Address, LogData, U256};
+use alloy::{
+    primitives::{Address, LogData, U256},
+    providers::Provider,
+    rpc::types::BlockTransactionsKind,
+};
+use anyhow::Context;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
@@ -42,71 +47,94 @@ impl TryFrom<&str> for KafkaTopics {
 
 pub struct Blocks(pub Vec<Block>);
 
-pub struct ParseError;
-
-impl TryFrom<&[alloy::rpc::types::Log]> for Blocks {
-    type Error = ParseError;
-
-    fn try_from(value: &[alloy::rpc::types::Log]) -> Result<Self, Self::Error> {
+impl Blocks {
+    pub async fn parse_logs<P: Provider + Clone + 'static>(
+        logs: &[alloy::rpc::types::Log],
+        rpc: P,
+    ) -> anyhow::Result<Self> {
         let mut blocks = Vec::new();
-        for log in value {
-            let block_number = log.block_number.ok_or(ParseError)?;
-            let transaction_index = log.transaction_index.ok_or(ParseError)?;
+
+        for log in logs {
+            // println!("{blocks:?}");
+            let block_number = log.block_number.context("Block number is absent")?;
+            let transaction_index = log
+                .transaction_index
+                .context("Transaction index is absent")?;
             match blocks
                 .iter()
-                .rev()
+                // .rev()
                 .position(|block: &Block| block.number.eq(&block_number))
             {
                 Some(index) => match blocks[index]
                     .transactions
                     .iter()
-                    .rev()
+                    // .rev()
                     .position(|txn| txn.index.eq(&transaction_index))
                 {
                     None => {
                         blocks[index].transactions.push(Transaction {
-                            hash: log.transaction_hash.ok_or(ParseError)?.into(),
-                            index: log.transaction_index.ok_or(ParseError)?,
+                            hash: log
+                                .transaction_hash
+                                .context("Transaction hash is absent")?
+                                .into(),
+                            index: log
+                                .transaction_index
+                                .context("Transaction index is absent")?,
                             events: vec![Event {
                                 log: log.inner.clone(),
-                                index: log.log_index.ok_or(ParseError)?,
+                                index: log.log_index.context("Log index is absent")?,
                             }],
                         });
                     }
                     Some(txn_index) => {
-                        let position = blocks[index]
-                            .transactions
+                        let position = blocks[index].transactions[txn_index]
+                            .events
                             .iter()
-                            .rev()
+                            // .rev()
                             .take_while(|t| t.index.gt(&(txn_index as u64)))
                             .count();
                         blocks[index].transactions[txn_index].events.insert(
                             position,
                             Event {
                                 log: log.inner.clone(),
-                                index: log.log_index.ok_or(ParseError)?,
+                                index: log.log_index.context("Log index is absent")?,
                             },
                         );
                     }
                 },
                 None => {
+                    let block = rpc
+                        .get_block_by_hash(
+                            log.block_hash.context("Block hash is absent")?.into(),
+                            BlockTransactionsKind::Hashes,
+                        )
+                        .await?;
+
+                    let timestamp = block
+                        .map(|b| b.header.timestamp)
+                        .context("Block timestamp is absent")?;
                     let position = blocks
                         .iter()
-                        .rev()
+                        // .rev()
                         .take_while(|t| t.number.gt(&block_number))
                         .count();
                     blocks.insert(
                         position,
                         Block {
                             number: block_number,
-                            hash: log.block_hash.ok_or(ParseError)?.into(),
-                            timestamp: log.block_timestamp.ok_or(ParseError)?,
+                            hash: log.block_hash.context("Block hash is absent")?.into(),
+                            timestamp,
                             transactions: vec![Transaction {
-                                hash: log.transaction_hash.ok_or(ParseError)?.into(),
-                                index: log.transaction_index.ok_or(ParseError)?,
+                                hash: log
+                                    .transaction_hash
+                                    .context("Transaction hash is absent")?
+                                    .into(),
+                                index: log
+                                    .transaction_index
+                                    .context("Transaction index is absent")?,
                                 events: vec![Event {
                                     log: log.inner.clone(),
-                                    index: log.log_index.ok_or(ParseError)?,
+                                    index: log.log_index.context("Log index is absent")?,
                                 }],
                             }],
                         },
@@ -114,32 +142,41 @@ impl TryFrom<&[alloy::rpc::types::Log]> for Blocks {
                 }
             }
         }
-        Ok(Blocks(blocks))
+        Ok(Blocks(blocks.iter().rev().map(|v| v.to_owned()).collect()))
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Block {
+    #[serde(rename = "n")]
     pub number: u64,
+    #[serde(rename = "h")]
     pub hash: [u8; 32],
+    #[serde(rename = "t")]
     pub timestamp: u64,
+    #[serde(rename = "tx")]
     pub transactions: Vec<Transaction>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Transaction {
+    #[serde(rename = "h")]
     pub hash: [u8; 32],
+    #[serde(rename = "i")]
     pub index: u64,
+    #[serde(rename = "e")]
     pub events: Vec<Event>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Event {
+    #[serde(rename = "l")]
     pub log: alloy::primitives::Log<LogData>,
+    #[serde(rename = "i")]
     pub index: u64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PriceData {
     pub address: Address,
     pub prices: Vec<(Address, MayBeExpired<U256, EmptyTimeExtractor>)>,

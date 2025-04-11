@@ -1,107 +1,74 @@
-use serde_json::{json, Value};
-
+use crate::{error::AppError, routes::stringify};
 use alloy::primitives::Address;
 use axum::{
     extract::{Multipart, Query, State},
     Json,
 };
-use serde::Deserialize;
+use bigdecimal::BigDecimal;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use sqlx::{postgres::PgRow, Row};
 
 use anyhow::anyhow;
-use std::sync::Arc;
+use std::{fs::create_dir_all, sync::Arc};
 use tokio::{fs::File, io::AsyncWriteExt};
-
-use crate::MultipoolGettersStorage;
 
 #[derive(Deserialize)]
 pub struct PortfolioListRequest {
-    to: i64,
-    countback: i64,
-    resolution: String,
-    multipool_address: Address,
+    chain_id: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct MultipoolResponse {
+    name: Option<String>,
+    symbol: Option<String>,
+    description: Option<String>,
     chain_id: i64,
+    multipool: Address,
+    change_24h: BigDecimal,
+    low_24h: BigDecimal,
+    high_24h: BigDecimal,
+    current_price: BigDecimal,
+    total_supply: BigDecimal,
+}
+
+impl sqlx::FromRow<'_, PgRow> for MultipoolResponse {
+    fn from_row(row: &PgRow) -> sqlx::Result<Self> {
+        let address: Vec<u8> = row.try_get("multipool")?;
+        Ok(Self {
+            name: row.try_get("name")?,
+            symbol: row.try_get("symbol")?,
+            description: row.try_get("description")?,
+            chain_id: row.try_get("chain_id")?,
+            multipool: Address::from_slice(address.as_slice()),
+            change_24h: row.try_get("change_24h")?,
+            low_24h: row.try_get("low_24h")?,
+            high_24h: row.try_get("high_24h")?,
+            current_price: row.try_get("current_price")?,
+            total_supply: row.try_get("total_supply")?,
+        })
+    }
 }
 
 // TODO: portfolio list
 pub async fn list(
     Query(query): Query<PortfolioListRequest>,
     State(state): State<Arc<crate::AppState>>,
-) -> Json<Value> {
-    let to = &query.to;
-    let countback = query.countback;
-    let resolution: i32 = if query.resolution == "1D" {
-        1440 * 60
+) -> Result<Json<Vec<MultipoolResponse>>, String> {
+    if let Some(id) = query.chain_id {
+        sqlx::query_as("select * from multipools where chain_id = $1")
+            .bind(id)
+            .fetch_all(&state.pool)
+            .await
+            .map(|v| Json(v))
+            .map_err(stringify)
     } else {
-        let parsed_number: Result<i32, _> = query.resolution.parse();
-        match parsed_number {
-            Ok(num) => num * 60,
-            Err(err) => return json!({"err":err.to_string()}).into(),
-        }
-    };
-    let result = sqlx::query(
-        "
-        SELECT 
-            open::TEXT as o, 
-            close::TEXT as c, 
-            low::TEXT as l, 
-            high::TEXT as h, 
-            ts::TEXT as t
-        FROM 
-            candles
-        WHERE 
-            ts <= $1
-            AND resolution = $2
-            AND multipool = $3
-            AND chain_id = $3
-        ORDER BY 
-            ts DESC
-        LIMIT $4;",
-    )
-    .bind(to)
-    .bind(resolution)
-    .bind::<&[u8]>(query.multipool_address.as_slice())
-    .bind(countback)
-    .bind(query.chain_id)
-    .fetch_all(&mut *state.pool.acquire().await.unwrap())
-    .await;
-
-    match result {
-        Ok(rows) => {
-            if rows.is_empty() {
-                json!({"s": "no_data"}).into()
-            } else {
-                json!({
-                    "s":"ok",
-                    "t": rows.iter().rev().map(|r: &PgRow| r.get("t")).collect::<Vec<String>>(),
-                    "o": rows.iter().rev().map(|r: &PgRow| r.get("o") ).collect::<Vec<String>>(),
-                    "c": rows.iter().rev().map(|r: &PgRow| r.get("c") ).collect::<Vec<String>>(),
-                    "l": rows.iter().rev().map(|r: &PgRow| r.get("l") ).collect::<Vec<String>>(),
-                    "h": rows.iter().rev().map(|r: &PgRow| r.get("h") ).collect::<Vec<String>>(),
-                })
-                .into()
-            }
-        }
-        Err(err) => {
-            println!("{:?}", err);
-            json!({"s":"error"}).into()
-        }
+        sqlx::query_as("select * from multipools")
+            .fetch_all(&state.pool)
+            .await
+            .map(|v| Json(v))
+            .map_err(stringify)
     }
-}
-
-#[derive(Deserialize)]
-struct FormData {
-    multipool_address: Address,
-    chain_id: i64,
-    #[serde(skip)] // Skip for file data
-    logo: Vec<u8>,
-    symol: String,
-    name: String,
-    description: String,
-}
-
-fn stringify<E: ToString>(e: E) -> String {
-    e.to_string()
 }
 
 pub async fn create(
@@ -164,10 +131,11 @@ pub async fn create(
     //TODO: add limits on name, symbol, description + logo size
 
     let file_path = format!("/logos/{multipool_address}");
+    let _ = create_dir_all(&file_path);
     let mut file_handle = File::create(file_path).await.map_err(stringify)?;
     file_handle.write_all(&logo).await.map_err(stringify)?;
 
-    sqlx::query("INSERT INTO multipools(chain_id, multipool, name, symbol, description, logo) VALUES($1,$2,$3,$4,$5,$6);")
+    sqlx::query("INSERT INTO multipools(chain_id, multipool, name, symbol, description) VALUES($1,$2,$3,$4,$5);")
         .bind(chain_id)
         .bind::<&[u8]>(multipool_address.as_slice())
         .bind(name)
@@ -180,6 +148,7 @@ pub async fn create(
 
 #[derive(Deserialize)]
 pub struct PortfolioRequest {
+    chain_id: i64,
     multipool_address: Address,
 }
 
@@ -187,7 +156,38 @@ pub struct PortfolioRequest {
 pub async fn portfolio(
     Query(query): Query<PortfolioRequest>,
     State(state): State<Arc<crate::AppState>>,
-) -> Json<Value> {
-    let multipool_data = state.getters.getters.get(&query.multipool_address).unwrap()();
-    json!(multipool_data).into()
+) -> Result<Json<Value>, AppError> {
+    let multipool_data = state
+        .getters
+        .getters
+        .get(&query.multipool_address)
+        .map(|f| f());
+
+    let data = sqlx::query(
+        "
+    select 
+        name, symbol, description, change_24h, low_24h, high_24h, current_price, total_supply 
+    from 
+        multipools 
+    where 
+        multipool = $1 and chain_id = $2
+        ",
+    )
+    .bind(query.multipool_address.as_slice())
+    .bind(query.chain_id)
+    .fetch_one(&state.pool)
+    .await?;
+
+    Ok(json!({
+        "cache": multipool_data,
+        "name": data.try_get::<String, &str>("name").ok(),
+        "symbol": data.try_get::<String, &str>("symbol").ok(),
+        "description": data.try_get::<String, &str>("description").ok(),
+        "change_24h": data.try_get::<BigDecimal, &str>("change_24h").ok(),
+        "low_24h": data.try_get::<BigDecimal, &str>("low_24h").ok(),
+        "high_24h": data.try_get::<BigDecimal, &str>("high_24h").ok(),
+        "current_price": data.try_get::<BigDecimal, &str>("current_price").ok(),
+        "total_supply": data.try_get::<BigDecimal, &str>("total_supply").ok(),
+    })
+    .into())
 }

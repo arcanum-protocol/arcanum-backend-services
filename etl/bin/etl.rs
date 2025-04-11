@@ -1,9 +1,8 @@
-use price_fetcher::PriceFetcherService;
 use backend_service::ServiceConfig;
-
+use etl::EtlService;
 
 fn main() {
-    ServiceConfig::<PriceFetcherService>::from_file(
+    ServiceConfig::<EtlService>::from_file(
         std::env::var("CONFIG_PATH")
             .expect("CONFIG_PATH not set")
             .as_str(),

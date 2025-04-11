@@ -1324,6 +1324,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6d6fd624c75e18b3b4c6b9caf42b1afe24437daaee904069137d8bab077be8b8"
 dependencies = [
  "axum-core 0.5.0",
+ "axum-macros",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -1387,6 +1388,17 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
 ]
 
 [[package]]
@@ -1465,6 +1477,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -2600,6 +2613,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "axum 0.8.1",
+ "bigdecimal",
  "dashmap 6.1.0",
  "log",
  "multipool",
@@ -2611,6 +2625,7 @@ dependencies = [
  "sled",
  "sqlx",
  "tokio",
+ "tower-http",
 ]
 
 [[package]]
@@ -3546,10 +3561,12 @@ dependencies = [
  "backend-service",
  "borsh",
  "indexer1",
+ "lru",
  "multipool",
  "multipool-storage",
  "multipool-types",
  "rdkafka",
+ "reqwest 0.11.27",
  "serde",
  "serde_json",
  "sled",
@@ -3635,6 +3652,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -6074,6 +6092,20 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "tower-http"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
+dependencies = [
+ "bitflags 2.8.0",
+ "bytes",
+ "http 1.2.0",
+ "pin-project-lite",
+ "tower-layer",
+ "tower-service",
 ]
 
 [[package]]

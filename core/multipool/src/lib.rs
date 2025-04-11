@@ -31,6 +31,7 @@ pub struct Multipool {
         serialize_with = "serialize::address"
     )]
     pub contract_address: Address,
+    pub chain_id: u64,
     pub assets: Vec<MultipoolAsset>,
     #[borsh(
         deserialize_with = "deserialize::u256",
@@ -133,9 +134,10 @@ impl MultipoolAsset {
 }
 
 impl Multipool {
-    pub fn new(contract_address: Address) -> Self {
+    pub fn new(contract_address: Address, chain_id: u64) -> Self {
         Self {
             contract_address,
+            chain_id,
             ..Default::default()
         }
     }

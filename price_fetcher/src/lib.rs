@@ -40,7 +40,7 @@ impl ServiceData for PriceFetcherService {
             multicall_chunk_size: 5,
             rpc: ProviderBuilder::new().on_http(Url::parse(&self.rpc_url).unwrap()),
         };
-        let db = sled::open("sled_db").unwrap();
+        let db = sled::open("price_fetcher_sled_db").unwrap();
         let mut storage = MultipoolStorage::init(db, th, FACTORY_ADDRESS)
             .await
             .unwrap();

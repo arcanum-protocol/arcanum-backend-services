@@ -1,6 +1,5 @@
-use multipool_indexer::IndexerService;
 use backend_service::ServiceConfig;
-
+use multipool_indexer::IndexerService;
 
 fn main() {
     ServiceConfig::<IndexerService>::from_file(

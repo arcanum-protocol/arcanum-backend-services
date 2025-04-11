@@ -17,7 +17,7 @@ strip = true
 [workspace.dependencies]
 tokio = { version = "1.34.0", features = ["full"] }
 futures = "0.3.30"
-axum = { version = "0.8.1", features = ["multipart"] }
+axum = { version = "0.8.1", features = ["multipart", "macros"] }
 reqwest = { version = "0.11.12", default-features = false, features = ["rustls", "rustls-tls", "json"] }
 
 alloy = { version = "0.11.1", default-features = false, features = ["serde", "reqwest-rustls-tls", "essentials", "std", "json"] }
@@ -31,6 +31,7 @@ anyhow = "1.0.79"
 rdkafka = {version = "0.37.0", default-features = false, features = ["tokio", "cmake_build"] }
 indexer1 = "0.2.6"
 sqlx = { version = "0.8.2", features = ["tls-rustls", "runtime-tokio", "postgres", "sqlite", "bigdecimal"] }
+bigdecimal = {version = "0.4.7", features = ["serde"]}
 sled = "0.34.7"
 
 serde_yaml = "0.9.27"

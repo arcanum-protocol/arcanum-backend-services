@@ -1,8 +1,4 @@
-use std::time::Duration;
-
-use anyhow::Result;
 use indexer1::Processor;
-use multipool::Multipool;
 use multipool_storage::{hook::HookInitializer, storage::MultipoolStorage};
 
 pub struct EmbededProcessor<T: HookInitializer> {

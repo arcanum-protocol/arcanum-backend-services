@@ -7,7 +7,7 @@ pub mod borsh_methods;
 pub mod expiry;
 pub mod messages;
 
-pub const FACTORY_ADDRESS: Address = address!("1A9071F29731088650DbbB21a7bD7248a91d33cA");
+pub const FACTORY_ADDRESS: Address = address!("7eFe6656d08f2d6689Ed8ca8b5A3DEA0efaa769f");
 
 sol!(
     #[allow(clippy::too_many_arguments)]
