@@ -15,9 +15,11 @@ sled.workspace = true
 rdkafka.workspace = true
 
 dashmap.workspace = true
+bigdecimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+tower-http = {version= "0.6.2", features=["cors"]}
 multipool-types = { path = "../core/types/" }
 multipool-storage = { path = "../core/storage/" }
 multipool = { path = "../core/multipool/" }

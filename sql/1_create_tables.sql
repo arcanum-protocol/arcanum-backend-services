@@ -8,19 +8,19 @@ CHECK (LENGTH(VALUE) = 20);
 CREATE DOMAIN BYTES32 AS BYTEA
 CHECK (LENGTH(VALUE) = 32);
 
---CREATE TABLE IF NOT EXISTS assets
---(
---    asset           ADDRESS NOT NULL,
---    chain_id        BIGINT  NOT NULL,
---    is_primary      BOOLEAN NOT NULL,
---
---    name            TEXT        NULL,
---    symbol          TEXT        NULL,
---    logo_url        TEXT        NULL,
---    description     TEXT        NULL,
---
---    PRIMARY KEY (chain_id, asset)
---);
+CREATE TABLE IF NOT EXISTS assets
+(
+   asset           ADDRESS NOT NULL,
+   chain_id        BIGINT  NOT NULL,
+   is_primary      BOOLEAN NOT NULL,
+
+   name            TEXT        NULL,
+   symbol          TEXT        NULL,
+   logo_url        TEXT        NULL,
+   description     TEXT        NULL,
+
+   PRIMARY KEY (chain_id, asset)
+);
 
 CREATE TABLE IF NOT EXISTS positions
 (
@@ -80,16 +80,16 @@ CREATE TABLE IF NOT EXISTS trading_history
     action_type         TRADING_ACTION  NOT NULL,
 
     quantity            NUMERIC NOT NULL,
-    quote_quantity      NUMERIC NOT NULL,
+    quote_quantity      NUMERIC NOT NULL default 0,
     transaction_hash    BYTES32 NOT NULL,
     timestamp           BIGINT  NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS multipools
 (
-    name                TEXT    NOT NULL,
-    symbol              TEXT    NOT NULL,
-    description         TEXT    NOT NULL,
+    name                TEXT        NULL,
+    symbol              TEXT        NULL,
+    description         TEXT        NULL,
 
     chain_id            BIGINT  NOT NULL,
     multipool           ADDRESS NOT NULL,

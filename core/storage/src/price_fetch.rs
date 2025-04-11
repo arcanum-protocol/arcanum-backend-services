@@ -1,5 +1,5 @@
 use alloy::dyn_abi::DynSolValue;
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{address, Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
 use itertools::Itertools;
 
@@ -20,7 +20,10 @@ pub async fn get_asset_prices<P: Provider + Clone + 'static>(
         .map(|chunk| chunk.into_iter().collect_vec())
         .collect_vec();
     for chunk in chunked_assets {
-        let mut mc = alloy_multicall::Multicall::new(&provider, MULTICALL3_ADDRESS);
+        let mut mc = alloy_multicall::Multicall::new(
+            &provider,
+            address!("cA11bde05977b3631167028862bE2a173976CA11"),
+        );
         for asset in chunk {
             mc.add_call(mp, get_price_func, &[DynSolValue::Address(*asset)], true);
         }

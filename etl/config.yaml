@@ -2,7 +2,17 @@ service_name: "etl"
 health_check: "0.0.0.0:3030"
 environment: "dev"
 config:
-  rpc_url: http://127.0.0.1:8545
-  kafka_url: localhost:9092
-  kafka_group: price_fetcher
-  chain_id: 1
+  kafka_url: kafka:9092
+  database_url: postgresql://user:pass@postgres:5432/main_db
+  kafka_group: etl_35
+  chain_id: 421614
+  
+# Ok(Array [Object {
+# "account": String("\\x65fc395ec32d69551b3966f8e5323fd233a8c9ec"), 
+# "action_type": String("receive"), 
+# "chain_id": Number(421614), 
+# "multipool": String("\\x46489e10e6e78eafe087fde1bc74e745182a2eab"), 
+# "quantity": String("10000000013969838"), 
+# "quote_quantity": Null, 
+# "timestamp": Number(1743756278), 
+# "transaction_hash": String("\\xe6f28681ce279fff4fc8b5b0c15f6bd313d160dd15b1b5158119664f2724019e")}])

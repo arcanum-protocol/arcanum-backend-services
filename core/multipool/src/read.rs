@@ -22,6 +22,10 @@ impl Multipool {
         self.contract_address
     }
 
+    pub fn chain_id(&self) -> u64 {
+        self.chain_id
+    }
+
     pub fn asset_list(&self) -> Vec<Address> {
         self.assets
             .clone()

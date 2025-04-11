@@ -42,12 +42,12 @@ BEGIN
                 BEGIN
 
                 IF NOT EXISTS (
-                    SELECT * FROM positions_pnl p 
+                    SELECT * FROM positions_pnl
                     WHERE 
-                        p.timestamp = change.timestamp / 3600 * 3600 AND 
-                        p.chain_id = change.chain_id AND 
-                        p.account = change.account AND 
-                        p.multipool = change.multipool
+                        timestamp = change.timestamp / 3600 * 3600 AND 
+                        chain_id = change.chain_id AND 
+                        account = change.account AND 
+                        multipool = change.multipool
                 ) THEN
                     DECLARE 
                         var_last_pnl_record positions_pnl := (SELECT positions_pnl FROM positions_pnl WHERE chain_id = change.chain_id AND account = change.account AND multipool = change.multipool ORDER BY timestamp DESC LIMIT 1);
@@ -71,35 +71,35 @@ BEGIN
                                 0,
                                 var_current_candle.open, 
                                 var_current_candle.close
-                            );
+                            ) ON CONFLICT (chain_id, account, multipool, timestamp) DO NOTHING;
                         END LOOP;
                     END;
                 END IF;
 
-                UPDATE positions_pnl p SET 
-                        acc_profit = p.acc_profit + CASE WHEN change.action_type = 'burn' OR change.action_type = 'send' THEN change.quote_quantity ELSE 0 END,
-                        acc_loss = p.acc_loss + CASE WHEN change.action_type = 'mint' OR change.action_type = 'receive' THEN change.quote_quantity ELSE 0 END,
-                        open_quantity = p.open_quantity + CASE WHEN p.timestamp != change.timestamp / 3600 * 3600 THEN var_quantity_delta ELSE 0 END,
-                        close_quantity = p.close_quantity + var_quantity_delta
+                UPDATE positions_pnl SET 
+                        acc_profit = acc_profit + CASE WHEN change.action_type = 'burn' OR change.action_type = 'send' THEN change.quote_quantity ELSE 0 END,
+                        acc_loss = acc_loss + CASE WHEN change.action_type = 'mint' OR change.action_type = 'receive' THEN change.quote_quantity ELSE 0 END,
+                        open_quantity = open_quantity + CASE WHEN timestamp != change.timestamp / 3600 * 3600 THEN var_quantity_delta ELSE 0 END,
+                        close_quantity = close_quantity + var_quantity_delta
                     WHERE
-                        p.chain_id = change.chain_id 
-                        AND p.account = change.account 
-                        AND p.multipool = change.multipool 
-                        AND p.timestamp >= change.timestamp / 3600 * 3600;
+                        chain_id = change.chain_id 
+                        AND account = change.account 
+                        AND multipool = change.multipool 
+                        AND timestamp >= change.timestamp / 3600 * 3600;
 
                     -- Update positions table
                     DECLARE
-                        var_current_position positions := (SELECT p FROM positions p WHERE p.chain_id = change.chain_id AND p.account = change.account AND p.multipool = change.multipool);
+                        var_current_position positions := (SELECT positions FROM positions WHERE positions.chain_id = change.chain_id AND positions.account = change.account AND positions.multipool = change.multipool);
                     BEGIN
                         IF var_current_position IS NULL THEN
                             INSERT INTO positions(chain_id, account, multipool, quantity, opened_at) 
                             VALUES (change.chain_id, change.account, change.multipool, var_quantity_delta, change.timestamp);
                         ELSIF var_current_position.quantity + var_quantity_delta = 0 THEN
-                            DELETE FROM positions p 
-                            WHERE p.chain_id = change.chain_id AND p.account = change.account AND p.multipool = change.multipool;
+                            DELETE FROM positions
+                            WHERE chain_id = change.chain_id AND account = change.account AND multipool = change.multipool;
                         ELSE
-                            UPDATE positions p SET p.quantity = p.quantity + var_quantity_delta 
-                            WHERE p.chain_id = change.chain_id AND p.account = change.account AND p.multipool = change.multipool;
+                            UPDATE positions SET quantity = quantity + var_quantity_delta 
+                            WHERE chain_id = change.chain_id AND account = change.account AND multipool = change.multipool;
                         END IF;
                     END;
                 END;

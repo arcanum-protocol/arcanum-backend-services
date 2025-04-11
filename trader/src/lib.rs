@@ -28,7 +28,7 @@ pub mod strategies;
 pub mod trade;
 pub mod uniswap;
 
-const FACTORY_ADDRESS: Address = address!("1A9071F29731088650DbbB21a7bD7248a91d33cA");
+const FACTORY_ADDRESS: Address = address!("7eFe6656d08f2d6689Ed8ca8b5A3DEA0efaa769f");
 
 #[derive(Deserialize)]
 pub struct TraderService {

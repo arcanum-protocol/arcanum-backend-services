@@ -1,6 +1,5 @@
-use price_fetcher::PriceFetcherService;
 use backend_service::ServiceConfig;
-
+use price_fetcher::PriceFetcherService;
 
 fn main() {
     ServiceConfig::<PriceFetcherService>::from_file(

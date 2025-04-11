@@ -47,16 +47,16 @@ pub async fn history(
             ts <= $1
             AND resolution = $2
             AND multipool = $3
-            AND chain_id = $3
+            AND chain_id = $4
         ORDER BY 
             ts DESC
-        LIMIT $4;",
+        LIMIT $5;",
     )
     .bind(to)
     .bind(resolution)
     .bind::<&[u8]>(query.multipool_address.as_slice())
-    .bind(countback)
     .bind(query.chain_id)
+    .bind(countback)
     .fetch_all(&mut *state.pool.acquire().await.unwrap())
     .await;
 

@@ -1,13 +1,42 @@
-use indexer1::Processor;
-
 use alloy::hex::ToHexExt;
-use multipool_storage::storage::parse_log;
+use alloy::{
+    primitives::Address,
+    providers::Provider,
+    sol_types::{SolEventInterface, SolValue},
+};
+use anyhow::anyhow;
+use indexer1::Processor;
+use multipool_types::messages::Blocks;
+use multipool_types::Multipool::MultipoolEvents;
+use serde::{Deserialize, Serialize};
 use serde_json::to_value;
+use serde_json::Value;
 use sqlx::{types::BigDecimal, Acquire, Postgres, Transaction};
+use std::time::Duration;
 
-pub struct PgEventProcessor;
+fn pg_bytes(bytes: &[u8]) -> String {
+    format!("\\x{}", bytes.encode_hex())
+}
 
-impl Processor<Transaction<'static, Postgres>> for PgEventProcessor {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TradingAction {
+    account: String,
+    multipool: String,
+    chain_id: i64,
+    action_type: String,
+    quantity: String,
+    quote_quantity: Option<String>,
+    transaction_hash: String,
+    timestamp: i64,
+}
+
+pub struct PgEventProcessor<P: Provider + Clone + 'static> {
+    pub rpc: P,
+}
+
+impl<P: Provider + Clone + 'static> Processor<Transaction<'static, Postgres>>
+    for PgEventProcessor<P>
+{
     async fn process(
         &mut self,
         logs: &[indexer1::alloy::rpc::types::Log],
@@ -16,31 +45,75 @@ impl Processor<Transaction<'static, Postgres>> for PgEventProcessor {
         _new_saved_block: u64,
         chain_id: u64,
     ) -> anyhow::Result<()> {
-        for log in logs.iter() {
-            let parsed_log = parse_log(log.to_owned());
-            if let Some(parsed_log) = parsed_log.and_then(|v| to_value(v).ok()) {
-                sqlx::query(
-                    "INSERT INTO events(
+        let blocks = Blocks::parse_logs(logs, self.rpc.clone())
+            .await
+            .map_err(|_e| anyhow!("ParseLogsErrror"))?;
+
+        for block in blocks.0.iter() {
+            sqlx::query(
+                "INSERT INTO blocks(
                     chain_id, 
-                    emitter_address, 
-                    block_number, 
-                    block_timestamp, 
-                    transaction_hash, 
-                    event_index, 
-                    event,
-                    row_event
-                    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);",
-                )
-                .bind::<BigDecimal>(chain_id.into())
-                .bind(log.inner.address.to_checksum(None).to_lowercase())
-                .bind::<BigDecimal>(log.block_number.unwrap().into())
-                .bind::<Option<i64>>(log.block_timestamp.map(|v| v as i64))
-                .bind::<String>(log.transaction_hash.unwrap().encode_hex())
-                .bind::<i64>(log.log_index.unwrap().try_into()?)
-                .bind(parsed_log)
-                .bind(to_value(log).unwrap())
+                    block_number,
+                    block
+                    ) VALUES ($1,$2, $3);",
+            )
+            .bind::<i64>(chain_id.try_into()?)
+            .bind::<BigDecimal>(block.number.into())
+            .bind::<Value>(to_value(block)?)
+            .execute(transaction.acquire().await?)
+            .await?;
+            let actions: Vec<TradingAction> = block
+                .transactions
+                .iter()
+                .map(|txn| {
+                    txn.events.iter().map(|event| {
+                        let mut res = Vec::new();
+
+                        if let Ok(parsed_log) = MultipoolEvents::decode_log(&event.log, false) {
+                            match parsed_log.data {
+                                MultipoolEvents::ShareTransfer(e) => {
+                                    if e.to != Address::ZERO {
+                                        res.push(TradingAction {
+                                            account: pg_bytes(e.to.as_slice()),
+                                            multipool: pg_bytes(event.log.address.as_slice()),
+                                            chain_id: chain_id as i64,
+                                            action_type: "receive".to_string(),
+                                            quantity: e.amount.to_string(),
+                                            quote_quantity: None,
+                                            transaction_hash: pg_bytes(txn.hash.as_slice()),
+                                            timestamp: block.timestamp as i64,
+                                        });
+                                    }
+                                    if e.from != Address::ZERO {
+                                        res.push(TradingAction {
+                                            account: pg_bytes(e.from.as_slice()),
+                                            multipool: pg_bytes(event.log.address.as_slice()),
+                                            chain_id: chain_id as i64,
+                                            action_type: "send".to_string(),
+                                            quantity: e.amount.to_string(),
+                                            quote_quantity: None,
+                                            transaction_hash: pg_bytes(txn.hash.as_slice()),
+                                            timestamp: block.timestamp as i64,
+                                        });
+                                    }
+                                }
+                                _ => (),
+                            }
+                        }
+                        res
+                    })
+                })
+                .flatten()
+                .flatten()
+                .collect::<Vec<_>>();
+            while let Err(e) = sqlx::query("call insert_history($1::JSON);")
+                .bind::<serde_json::Value>(serde_json::to_value(&actions).unwrap())
                 .execute(transaction.acquire().await?)
-                .await?;
+                .await
+            {
+                println!("{actions:?}");
+                println!("{e}");
+                tokio::time::sleep(Duration::from_secs(2)).await;
             }
 
             //TODO: add trade insert in case

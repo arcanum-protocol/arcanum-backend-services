@@ -15,19 +15,21 @@ pub async fn into_fetching_task<HI: HookInitializer>(
         // add better error handling
         while let Some(Ok(message)) = stream.next().await {
             match message.topic().try_into()? {
-                KafkaTopics::ChainEvents(_chain_id) => {
+                KafkaTopics::ChainEvents(chain_id) => {
                     let bytes = message
                         .payload()
                         .context(anyhow!("Received message with no payload"))?;
                     let blocks = vec![messages::Block::unpack(bytes)];
 
                     storage
-                        .create_multipools(blocks.as_slice().try_into()?)
+                        .create_multipools(&chain_id, blocks.as_slice().try_into()?)
                         .await?;
 
-                    storage.apply_events(blocks.as_slice().try_into()?).await?;
+                    storage
+                        .apply_events(&chain_id, blocks.as_slice().try_into()?)
+                        .await?;
                 }
-                KafkaTopics::MpPrices(_chain_id) => {
+                KafkaTopics::MpPrices(chain_id) => {
                     let bytes = message
                         .payload()
                         .context(anyhow!("Received message with no payload"))?;
