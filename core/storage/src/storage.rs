@@ -62,8 +62,8 @@ pub struct MultipoolUpdates {
 pub struct MultipoolsCreation(pub Vec<MultipoolCreation>);
 
 pub struct MultipoolCreation {
-    address: Address,
-    multipool_address: Address,
+    pub address: Address,
+    pub multipool_address: Address,
 }
 
 impl TryFrom<&[Block]> for MultipoolsCreation {

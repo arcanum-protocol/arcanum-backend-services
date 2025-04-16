@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS multipools
 
     chain_id            BIGINT  NOT NULL,
     multipool           ADDRESS NOT NULL,
+    creator             ADDRESS NOT NULL,
     change_24h          NUMERIC     NULL,
     low_24h             NUMERIC     NULL,
     high_24h            NUMERIC     NULL,
