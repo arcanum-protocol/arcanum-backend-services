@@ -28,5 +28,4 @@ multipool-types = { path = "../core/types/" }
 multipool-storage = { path = "../core/storage/" }
 multipool = { path = "../core/multipool/" }
 backend-service = { path = "../service/" }
-lru = "0.13.0"
 

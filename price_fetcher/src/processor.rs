@@ -1,65 +1,36 @@
-use alloy::providers::Provider;
-use anyhow::anyhow;
-use multipool_storage::{hook::HookInitializer, price_fetch::get_asset_prices};
-use multipool_types::{
-    expiry::{MayBeExpired, StdTimeExtractor},
-    messages::{KafkaTopics, MsgPack, PriceData},
-};
-use rdkafka::producer::{FutureProducer, FutureRecord};
-use std::time::Duration;
+use alloy::dyn_abi::DynSolValue;
+use alloy::primitives::{Address, U256};
+use alloy::providers::{Provider, MULTICALL3_ADDRESS};
+use std::ops::Shl;
 
-#[derive(Clone)]
-pub struct PriceFetcher<P: Provider + Clone + 'static> {
-    pub producer: FutureProducer,
-    pub delay: Duration,
-    pub multicall_chunk_size: usize,
-    pub rpc: P,
-    //TOOD: in a lot of places chain id can be gained from RPC
-    pub chain_id: u64,
-}
-
-impl<P: Provider + Clone + 'static> HookInitializer for PriceFetcher<P> {
-    async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
-        &mut self,
-        multipool: F,
-    ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
-        let chain_id = self.chain_id.clone();
-        let instance = self.clone();
-        vec![tokio::spawn(async move {
-            loop {
-                let mp = multipool();
-                let mp_address = mp.contract_address();
-                let asset_prices = get_asset_prices(
-                    mp_address,
-                    mp.asset_list(),
-                    instance.multicall_chunk_size,
-                    &instance.rpc,
-                )
-                .await?;
-                let data = PriceData {
-                    address: mp_address,
-                    prices: asset_prices
-                        .into_iter()
-                        .map(|(address, price)| {
-                            (address, MayBeExpired::build::<StdTimeExtractor>(price))
-                        })
-                        .collect(),
-                };
-                instance
-                    .producer
-                    .send(
-                        // Somehow fix all transitions
-                        FutureRecord::to(KafkaTopics::MpPrices(chain_id).to_string().as_str())
-                            .key(&format!("{}|{}", 1, mp.contract_address()))
-                            .payload(&data.pack()),
-                        Duration::from_secs(1),
-                    )
-                    .await
-                    .map_err(|(e, msg)| {
-                        anyhow!("Failed to send log to kafka: {e} ; \n Message: {:?}", msg)
-                    })?;
-                tokio::time::sleep(instance.delay).await;
-            }
-        })]
+pub async fn get_mps_prices<P: Provider + Clone + 'static>(
+    mps: Vec<Address>,
+    provider: &P,
+) -> anyhow::Result<(Vec<(Address, U256)>, U256)> {
+    let multipool_functions = multipool_types::Multipool::abi::functions();
+    let get_price_func = &multipool_functions.get("getSharePricePart").unwrap()[0];
+    let mut mc = alloy_multicall::Multicall::new(
+        &provider,
+        MULTICALL3_ADDRESS, // address!("cA11bde05977b3631167028862bE2a173976CA11"),
+    );
+    for mp in mps.iter() {
+        mc.add_call(
+            *mp,
+            get_price_func,
+            &[
+                DynSolValue::Uint(U256::MAX, 256),
+                DynSolValue::Uint(U256::ZERO, 256),
+            ],
+            true,
+        );
     }
+
+    mc.add_get_current_block_timestamp();
+    let mut res = mc.call().await?;
+    let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
+    let prices = res
+        .into_iter()
+        .map(|p| p.unwrap().as_uint().unwrap().0.shl(96));
+
+    Ok((mps.into_iter().zip(prices).collect(), ts))
 }

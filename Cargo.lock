@@ -3561,7 +3561,6 @@ dependencies = [
  "backend-service",
  "borsh",
  "indexer1",
- "lru",
  "multipool",
  "multipool-storage",
  "multipool-types",
@@ -4246,6 +4245,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sled",
+ "sqlx",
  "tokio",
 ]
 

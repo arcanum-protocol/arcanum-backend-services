@@ -1,64 +1,57 @@
-use std::time::Duration;
-
-use alloy::primitives::address;
+use alloy::providers::Provider;
 use alloy::{primitives::Address, providers::ProviderBuilder};
 use backend_service::ServiceData;
-use multipool_storage::{kafka::into_fetching_task, storage::MultipoolStorage};
-use multipool_types::messages::KafkaTopics;
-use multipool_types::FACTORY_ADDRESS;
-use rdkafka::{
-    consumer::{Consumer, StreamConsumer},
-    producer::FutureProducer,
-    ClientConfig,
-};
+use processor::get_mps_prices;
 use reqwest::Url;
 use serde::Deserialize;
-
-use crate::processor::PriceFetcher;
+use sqlx::types::BigDecimal;
+use sqlx::PgPool;
+use sqlx::Row;
+use std::str::FromStr;
+use std::time::Duration;
 
 mod processor;
 
 #[derive(Deserialize)]
 pub struct PriceFetcherService {
     rpc_url: String,
-    kafka_url: String,
-    kafka_group: String,
-    chain_id: u64,
+    db_url: String,
+    block_delay: u64,
+    chain_id: i64,
 }
 
 impl ServiceData for PriceFetcherService {
     async fn run(self) -> anyhow::Result<()> {
-        let producer: FutureProducer = ClientConfig::new()
-            .set("bootstrap.servers", &self.kafka_url)
-            .create()
-            .expect("Cannot create kafka producer");
-
-        let th = PriceFetcher {
-            producer,
-            delay: Duration::from_secs(2),
-            chain_id: self.chain_id,
-            multicall_chunk_size: 5,
-            rpc: ProviderBuilder::new().on_http(Url::parse(&self.rpc_url).unwrap()),
-        };
-        let db = sled::open("price_fetcher_sled_db").unwrap();
-        let mut storage = MultipoolStorage::init(db, th, FACTORY_ADDRESS)
-            .await
-            .unwrap();
-
-        let consumer: StreamConsumer = ClientConfig::new()
-            .set("group.id", &self.kafka_group)
-            .set("bootstrap.servers", &self.kafka_url)
-            .set("enable.auto.commit", "false")
-            .set("auto.offset.reset", "earliest")
-            .create()
-            .expect("Creation failed");
-
-        consumer
-            .subscribe(&[KafkaTopics::ChainEvents(self.chain_id).to_string().as_str()])
-            .expect("Failed to subscribe to topic");
-
-        into_fetching_task(&mut storage, consumer).await?;
-
-        Ok(())
+        let pool = PgPool::connect(&self.db_url).await?;
+        let provider = ProviderBuilder::new().on_http(Url::parse(&self.rpc_url).unwrap());
+        let mut last_checked_block = provider.get_block_number().await?;
+        loop {
+            let new_block = provider.get_block_number().await?;
+            if last_checked_block + self.block_delay >= new_block {
+                let mps: Vec<Address> =
+                    sqlx::query("SELECT multipool FROM multipools WHERE chain_id = $1")
+                        .bind::<i64>(self.chain_id.try_into().unwrap())
+                        .fetch_all(&mut *pool.acquire().await?)
+                        .await?
+                        .into_iter()
+                        .map(|a| {
+                            let bytes: Vec<u8> = a.try_get("multipool").unwrap();
+                            Address::from_slice(bytes.as_slice())
+                        })
+                        .collect();
+                let (prices, ts) = get_mps_prices(mps, &provider).await?;
+                for (mp, price) in prices.into_iter() {
+                    sqlx::query("call insert_price($1, $2, $3, $4)")
+                        .bind(self.chain_id)
+                        .bind::<&[u8]>(mp.as_slice())
+                        .bind::<i64>(ts.to())
+                        .bind::<BigDecimal>(BigDecimal::from_str(price.to_string().as_str())?)
+                        .execute(&mut *pool.acquire().await?)
+                        .await?;
+                }
+                last_checked_block = new_block;
+            }
+            tokio::time::sleep(Duration::from_secs(3)).await;
+        }
     }
 }

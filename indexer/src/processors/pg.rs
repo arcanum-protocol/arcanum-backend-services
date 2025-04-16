@@ -6,6 +6,7 @@ use alloy::{
 };
 use anyhow::anyhow;
 use indexer1::Processor;
+use multipool_storage::storage::MultipoolsCreation;
 use multipool_types::messages::Blocks;
 use multipool_types::Multipool::MultipoolEvents;
 use serde::{Deserialize, Serialize};
@@ -49,6 +50,23 @@ impl<P: Provider + Clone + 'static> Processor<Transaction<'static, Postgres>>
             .await
             .map_err(|_e| anyhow!("ParseLogsErrror"))?;
 
+        let creations: MultipoolsCreation = blocks.0.as_slice().try_into()?;
+        for creation in creations.0.into_iter() {
+            sqlx::query(
+                "INSERT INTO multipools(
+                    chain_id,
+                    multipool,
+                    creator
+                ) VALUES ($1, $2, $3);",
+            )
+            .bind::<i64>(chain_id.try_into()?)
+            .bind::<&[u8]>(creation.multipool_address.as_slice())
+            .bind::<&[u8]>(creation.address.as_slice())
+            .execute(transaction.acquire().await?)
+            .await?;
+        }
+        let creations: MultipoolsCreation = blocks.0.as_slice().try_into()?;
+
         for block in blocks.0.iter() {
             sqlx::query(
                 "INSERT INTO blocks(
@@ -62,6 +80,7 @@ impl<P: Provider + Clone + 'static> Processor<Transaction<'static, Postgres>>
             .bind::<Value>(to_value(block)?)
             .execute(transaction.acquire().await?)
             .await?;
+
             let actions: Vec<TradingAction> = block
                 .transactions
                 .iter()
