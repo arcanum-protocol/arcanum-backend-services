@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 
-use alloy::primitives::Address;
+use alloy::{primitives::Address, providers::Provider};
 use axum::{
     extract::{Query, State},
     Json,
@@ -18,9 +18,9 @@ pub struct HistoryRequest {
     chain_id: i64,
 }
 
-pub async fn history(
+pub async fn history<P: Provider>(
     Query(query): Query<HistoryRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Json<Value> {
     let to = &query.to;
     let countback = query.countback;
@@ -57,7 +57,7 @@ pub async fn history(
     .bind::<&[u8]>(query.multipool_address.as_slice())
     .bind(query.chain_id)
     .bind(countback)
-    .fetch_all(&mut *state.pool.acquire().await.unwrap())
+    .fetch_all(&mut *state.connection.acquire().await.unwrap())
     .await;
 
     match result {
@@ -89,9 +89,9 @@ pub struct StatsRequest {
     multipool_address: Address,
 }
 
-pub async fn stats(
+pub async fn stats<P: Provider>(
     Query(query): Query<StatsRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Json<Value> {
     let result = sqlx::query(
         "
@@ -109,7 +109,7 @@ pub async fn stats(
     )
     .bind::<&[u8]>(query.multipool_address.as_slice())
     .bind(query.chain_id)
-    .fetch_all(&mut *state.pool.acquire().await.unwrap())
+    .fetch_all(&mut *state.connection.acquire().await.unwrap())
     .await;
 
     match result {

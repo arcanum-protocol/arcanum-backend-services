@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 
 use crate::routes::stringify;
-use alloy::primitives::Address;
+use alloy::{primitives::Address, providers::Provider};
 use axum::{
     extract::{Multipart, Query, State},
     Json,
@@ -46,16 +46,16 @@ impl sqlx::FromRow<'_, PgRow> for PnlResponse {
     }
 }
 
-pub async fn pnl(
+pub async fn pnl<P: Provider>(
     Query(query): Query<PnlRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Result<Json<PnlResponse>, String> {
     sqlx::query_as(
         "select * from pnl where account = $1 and chain_id = $2 order by timestamp desc limit 1",
     )
     .bind(query.account.as_slice())
     .bind(query.chain_id)
-    .fetch_one(&state.pool)
+    .fetch_one(&state.connection)
     .await
     .map(Json)
     .map_err(stringify)
@@ -81,9 +81,9 @@ pub struct PositionResponse {
     timestamp: i64,
 }
 
-pub async fn positions(
+pub async fn positions<P: Provider>(
     Query(query): Query<PositionRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Result<Json<Vec<PositionResponse>>, String> {
     let query = if let Some(mp) = query.multipool {
         sqlx::query_as(
@@ -112,7 +112,7 @@ pub async fn positions(
     };
 
     query
-        .fetch_all(&state.pool)
+        .fetch_all(&state.connection)
         .await
         .map(|v| Json(v))
         .map_err(stringify)
@@ -138,9 +138,9 @@ impl sqlx::FromRow<'_, PgRow> for HistoryResponse {
     }
 }
 
-pub async fn history(
+pub async fn history<P: Provider>(
     Query(query): Query<HistoryRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Result<Json<PositionResponse>, String> {
     let query = if let Some(chain_id) = query.chain_id {
         sqlx::query_as("select * from assets where asset = $1 and chain_id = $2")
@@ -150,7 +150,7 @@ pub async fn history(
         sqlx::query_as("select * from assets where asset = $1").bind(query.asset_address.as_slice())
     };
     query
-        .fetch_one(&state.pool)
+        .fetch_one(&state.connection)
         .await
         .map(|v| Json(v))
         .map_err(stringify)
