@@ -20,6 +20,8 @@ pub struct PriceFetcherService {
     chain_id: i64,
 }
 
+//TODO: commit checed blocks into db somehow
+//TODO: make all atomic txn
 impl ServiceData for PriceFetcherService {
     async fn run(self) -> anyhow::Result<()> {
         let pool = PgPool::connect(&self.db_url).await?;

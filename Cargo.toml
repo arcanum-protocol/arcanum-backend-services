@@ -5,7 +5,6 @@ members = [
     "gateway",
     "indexer", 
     "price_fetcher",
-    "etl",
     "service"
 ]
 resolver = "2"

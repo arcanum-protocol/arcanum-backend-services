@@ -1,5 +1,4 @@
 pub mod account;
-pub mod assets;
 // pub mod chains;
 pub mod charts;
 pub mod portfolio;

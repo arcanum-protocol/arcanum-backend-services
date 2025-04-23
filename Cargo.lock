@@ -2321,29 +2321,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "etl"
-version = "0.1.0"
-dependencies = [
- "alloy",
- "alloy-multicall",
- "anyhow",
- "backend-service",
- "dashmap 6.1.0",
- "futures",
- "itertools 0.14.0",
- "multipool",
- "multipool-storage",
- "multipool-types",
- "rdkafka",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "sled",
- "sqlx",
- "tokio",
-]
-
-[[package]]
 name = "event-listener"
 version = "5.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2611,10 +2588,12 @@ name = "gateway"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-multicall",
  "anyhow",
  "axum 0.8.1",
  "bigdecimal",
  "dashmap 6.1.0",
+ "indexer1",
  "log",
  "multipool",
  "multipool-storage",

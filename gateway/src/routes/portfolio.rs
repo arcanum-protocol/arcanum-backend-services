@@ -1,5 +1,5 @@
 use crate::{error::AppError, routes::stringify};
-use alloy::primitives::Address;
+use alloy::{primitives::Address, providers::Provider};
 use axum::{
     extract::{Multipart, Query, State},
     Json,
@@ -51,28 +51,28 @@ impl sqlx::FromRow<'_, PgRow> for MultipoolResponse {
 }
 
 // TODO: portfolio list
-pub async fn list(
+pub async fn list<P: Provider>(
     Query(query): Query<PortfolioListRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Result<Json<Vec<MultipoolResponse>>, String> {
     if let Some(id) = query.chain_id {
         sqlx::query_as("select * from multipools where chain_id = $1")
             .bind(id)
-            .fetch_all(&state.pool)
+            .fetch_all(&state.connection)
             .await
             .map(|v| Json(v))
             .map_err(stringify)
     } else {
         sqlx::query_as("select * from multipools")
-            .fetch_all(&state.pool)
+            .fetch_all(&state.connection)
             .await
             .map(|v| Json(v))
             .map_err(stringify)
     }
 }
 
-pub async fn create(
-    State(state): State<Arc<crate::AppState>>,
+pub async fn create<P: Provider>(
+    State(state): State<Arc<crate::AppState<P>>>,
     mut multipart: Multipart,
 ) -> Result<Json<Value>, String> {
     let mut logo = None;
@@ -141,7 +141,7 @@ pub async fn create(
         .bind(name)
         .bind(symbol)
         .bind(description)
-        .execute(&mut *state.pool.acquire().await.unwrap())
+        .execute(&mut *state.connection.acquire().await.unwrap())
         .await.map_err(stringify)
         .map(|_| json!(()).into())
 }
@@ -153,41 +153,42 @@ pub struct PortfolioRequest {
 }
 
 // TODO portfolio info from storage
-pub async fn portfolio(
+pub async fn portfolio<P: Provider>(
     Query(query): Query<PortfolioRequest>,
-    State(state): State<Arc<crate::AppState>>,
+    State(state): State<Arc<crate::AppState<P>>>,
 ) -> Result<Json<Value>, AppError> {
-    let multipool_data = state
-        .getters
-        .getters
-        .get(&query.multipool_address)
-        .map(|f| f());
+    todo!()
+    // let multipool_data = state
+    //     .getters
+    //     .getters
+    //     .get(&query.multipool_address)
+    //     .map(|f| f());
 
-    let data = sqlx::query(
-        "
-    select 
-        name, symbol, description, change_24h, low_24h, high_24h, current_price, total_supply 
-    from 
-        multipools 
-    where 
-        multipool = $1 and chain_id = $2
-        ",
-    )
-    .bind(query.multipool_address.as_slice())
-    .bind(query.chain_id)
-    .fetch_one(&state.pool)
-    .await?;
+    // let data = sqlx::query(
+    //     "
+    // select
+    //     name, symbol, description, change_24h, low_24h, high_24h, current_price, total_supply
+    // from
+    //     multipools
+    // where
+    //     multipool = $1 and chain_id = $2
+    //     ",
+    // )
+    // .bind(query.multipool_address.as_slice())
+    // .bind(query.chain_id)
+    // .fetch_one(&state.pool)
+    // .await?;
 
-    Ok(json!({
-        "cache": multipool_data,
-        "name": data.try_get::<String, &str>("name").ok(),
-        "symbol": data.try_get::<String, &str>("symbol").ok(),
-        "description": data.try_get::<String, &str>("description").ok(),
-        "change_24h": data.try_get::<BigDecimal, &str>("change_24h").ok(),
-        "low_24h": data.try_get::<BigDecimal, &str>("low_24h").ok(),
-        "high_24h": data.try_get::<BigDecimal, &str>("high_24h").ok(),
-        "current_price": data.try_get::<BigDecimal, &str>("current_price").ok(),
-        "total_supply": data.try_get::<BigDecimal, &str>("total_supply").ok(),
-    })
-    .into())
+    // Ok(json!({
+    //     "cache": multipool_data,
+    //     "name": data.try_get::<String, &str>("name").ok(),
+    //     "symbol": data.try_get::<String, &str>("symbol").ok(),
+    //     "description": data.try_get::<String, &str>("description").ok(),
+    //     "change_24h": data.try_get::<BigDecimal, &str>("change_24h").ok(),
+    //     "low_24h": data.try_get::<BigDecimal, &str>("low_24h").ok(),
+    //     "high_24h": data.try_get::<BigDecimal, &str>("high_24h").ok(),
+    //     "current_price": data.try_get::<BigDecimal, &str>("current_price").ok(),
+    //     "total_supply": data.try_get::<BigDecimal, &str>("total_supply").ok(),
+    // })
+    // .into())
 }

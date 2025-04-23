@@ -9,10 +9,13 @@ log.workspace = true
 axum.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
+indexer1.workspace = true
 sqlx.workspace = true
 alloy.workspace = true
 sled.workspace = true
 rdkafka.workspace = true
+
+alloy-multicall.workspace = true
 
 dashmap.workspace = true
 bigdecimal.workspace = true
