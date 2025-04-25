@@ -1,0 +1,21 @@
+[package]
+name = "arwave_client"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "cl"
+path = "./bin/cl.rs"
+
+[dependencies]
+
+reqwest.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+
+base64 = "0.22.1"
+rs_sha384 = "0.1.3"
+sha256 = "1.6.0"
+rsa = {version = "0.9.8", features = ["sha2"]}

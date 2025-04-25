@@ -1130,6 +1130,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "arwave_client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "reqwest 0.11.27",
+ "rs_sha384",
+ "rsa",
+ "serde",
+ "serde_json",
+ "sha256",
+ "tokio",
+]
+
+[[package]]
 name = "async-channel"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4059,7 +4074,7 @@ dependencies = [
  "hmac",
  "md-5",
  "memchr",
- "rand 0.9.0",
+ "rand 0.9.1",
  "sha2",
  "stringprep",
 ]
@@ -4313,13 +4328,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.2",
- "zerocopy 0.8.20",
 ]
 
 [[package]]
@@ -4647,10 +4661,58 @@ dependencies = [
 ]
 
 [[package]]
-name = "rsa"
-version = "0.9.7"
+name = "rs_hasher_ctx"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47c75d7c5c6b673e58bf54d8544a9f432e3a925b0e80f7cd3602ab5c50c55519"
+checksum = "8a45ae5cc6246fa2666253289d6495e1fb3d125fb83842ff56b747a3b662e28e"
+dependencies = [
+ "rs_internal_hasher",
+ "rs_internal_state",
+ "rs_n_bit_words",
+]
+
+[[package]]
+name = "rs_internal_hasher"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19754b7c13d7fb92e995b1f6330918466e134ba7c3f55bf805c72e6a9727c426"
+dependencies = [
+ "rs_internal_state",
+ "rs_n_bit_words",
+]
+
+[[package]]
+name = "rs_internal_state"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "214a4e27fec5b651d615675874c6a829496cc2aa66e5f1b184ab05cb39fd3625"
+dependencies = [
+ "rs_n_bit_words",
+]
+
+[[package]]
+name = "rs_n_bit_words"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bc1bbb4c2a60f76b331e6ba70b5065e210fa6e72fc966c2d488736755d89cb6"
+
+[[package]]
+name = "rs_sha384"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3c8e55f0816cf7cb67d2add538463b9ce4a7888c9dc46bc96ec81d38a19c3ae"
+dependencies = [
+ "rs_hasher_ctx",
+ "rs_internal_hasher",
+ "rs_internal_state",
+ "rs_n_bit_words",
+]
+
+[[package]]
+name = "rsa"
+version = "0.9.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78928ac1ed176a5ca1d17e578a1825f3d81ca54cf41053a592584b020cfd691b"
 dependencies = [
  "const-oid",
  "digest 0.10.7",
@@ -4660,6 +4722,7 @@ dependencies = [
  "pkcs1",
  "pkcs8",
  "rand_core 0.6.4",
+ "sha2",
  "signature",
  "spki",
  "subtle",
@@ -5070,6 +5133,19 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest 0.10.7",
+]
+
+[[package]]
+name = "sha256"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f880fc8562bdeb709793f00eb42a2ad0e672c4f883bbe59122b926eca935c8f6"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "hex",
+ "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -5809,7 +5885,7 @@ dependencies = [
  "pin-project-lite",
  "postgres-protocol",
  "postgres-types",
- "rand 0.9.0",
+ "rand 0.9.1",
  "socket2",
  "tokio",
  "tokio-util",
@@ -6042,7 +6118,7 @@ dependencies = [
  "http 1.2.0",
  "httparse",
  "log",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rustls 0.23.23",
  "rustls-pki-types",
  "sha1",
