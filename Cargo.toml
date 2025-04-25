@@ -5,7 +5,8 @@ members = [
     "gateway",
     "indexer", 
     "price_fetcher",
-    "service"
+    "service",
+     "arwave_client"
 ]
 resolver = "2"
 
