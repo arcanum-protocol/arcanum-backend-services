@@ -171,15 +171,16 @@ END
 $$;
 
 CREATE OR REPLACE FUNCTION update_positions()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER 
+LANGUAGE plpgsql 
+AS $$
 DECLARE
-    c_pos POSITIONS := SELECT positions FROM positions WHERE account = NEW.account and chain_id = NEW.chain_id and multipool = NEW.multipool;
+    c_pos POSITIONS := (SELECT positions FROM positions WHERE account = NEW.account and chain_id = NEW.chain_id and multipool = NEW.multipool);
 BEGIN
-
     IF c_pos IS NULL THEN
         INSERT INTO positions(chain_id, account, multipool, quantity, profit, loss, opened_at) 
         VALUES (NEW.chain_id, NEW.account, NEW.multipool, NEW.quantity, 0, NEW.quote_quantity, NEW.timestamp);
-    ELSE IF c_pos.quantity + NEW.quantity = 0 THEN
+    ELSIF c_pos.quantity + NEW.quantity = 0 THEN
         INSERT INTO positions_history(chain_id, account, multipool, profit, loss, opened_at, closed_at) 
         VALUES (NEW.chain_id, NEW.account, NEW.multipool, c_pos.profit - NEW.quoted_quantity, c_pos.loss, c_pos.open_ts, NEW.timestamp);
 
@@ -189,21 +190,19 @@ BEGIN
             and chain_id    = NEW.chain_id 
             and multipool   = NEW.multipool;
     ELSE
-        // add pnl
         UPDATE positions 
         SET 
-            quantity += NEW.quantity,
-            profit = profit + CASE WHEN NEW.quantity < 0 -NEW.quote_quantity ELSE 0 END,
-            loss = loss + CASE WHEN NEW.quantity > 0 NEW.quote_quantity ELSE 0 END
+            quantity = quantity + NEW.quantity,
+            profit = profit + CASE WHEN NEW.quantity < 0 THEN -NEW.quote_quantity ELSE 0 END,
+            loss = loss + CASE WHEN NEW.quantity > 0 THEN NEW.quote_quantity ELSE 0 END
         WHERE 
                 account     = NEW.account 
             and chain_id    = NEW.chain_id 
             and multipool   = NEW.multipool;
     END IF;
-
     RETURN NULL; 
-END;
-$$ LANGUAGE plpgsql;
+END 
+$$;
 
 CREATE TRIGGER trigger_trading_history
 AFTER INSERT ON actions_history

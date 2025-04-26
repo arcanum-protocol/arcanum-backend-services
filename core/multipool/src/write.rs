@@ -44,7 +44,7 @@ impl Multipool {
             FeesChange::SIGNATURE,
             PriceOracleChange::SIGNATURE,
             StrategyManagerChange::SIGNATURE,
-            OwnershipTransferred::SIGNATURE,
+            MultipoolOwnerChange::SIGNATURE,
             PriceFeedChange::SIGNATURE,
             Swap::SIGNATURE,
             ShareTransfer::SIGNATURE,

@@ -18,8 +18,6 @@ pub struct PriceFetcherConfig {
     pub retry_delay_ms: u64,
 }
 
-//TODO: commit checed blocks into db somehow
-//TODO: make all atomic txn
 pub async fn run<P: Provider>(
     app_state: Arc<AppState<P>>,
     config: PriceFetcherConfig,
@@ -42,6 +40,7 @@ pub async fn run<P: Provider>(
             .unwrap_or(latest_block);
 
     loop {
+        println!("price tick");
         if indexing_block <= latest_block {
             let mut transaction = connection.begin().await?;
             let multipools = app_state.multipools.read().unwrap().clone();
@@ -50,6 +49,7 @@ pub async fn run<P: Provider>(
                 // Fetch by block number
                 let (prices, ts) = get_mps_prices(chunk, &provider, indexing_block).await?;
                 for (price, mp) in prices.into_iter().zip(chunk) {
+                    println!("{:?}", price);
                     sqlx::query("call insert_price($1, $2, $3, $4)")
                         .bind(chain_id)
                         .bind::<&[u8]>(mp.as_slice())

@@ -64,6 +64,8 @@ pub struct MultipoolsCreation(pub Vec<MultipoolCreation>);
 pub struct MultipoolCreation {
     pub address: Address,
     pub multipool_address: Address,
+    pub name: String,
+    pub symbol: String,
 }
 
 impl TryFrom<&[Block]> for MultipoolsCreation {
@@ -76,11 +78,12 @@ impl TryFrom<&[Block]> for MultipoolsCreation {
             for transaction in block.transactions.iter() {
                 for event in transaction.events.iter() {
                     if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
-                        if let MultipoolFactoryEvents::MultipoolCreated(multipool_address) = mp.data
-                        {
+                        if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
                             multipools.push(MultipoolCreation {
                                 address: event.log.address,
-                                multipool_address: multipool_address.multipoolAddress,
+                                multipool_address: e.multipoolAddress,
+                                name: e.name,
+                                symbol: e.symbol,
                             });
                         }
                     }

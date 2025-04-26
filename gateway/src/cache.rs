@@ -1,9 +1,6 @@
-use std::{ops::Deref, sync::RwLock};
+use std::sync::RwLock;
 
-use alloy::{
-    primitives::{Address, U256},
-    providers::Provider,
-};
+use alloy::{primitives::Address, providers::Provider};
 use anyhow::Result;
 use bigdecimal::BigDecimal;
 use dashmap::DashMap;
@@ -11,7 +8,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use sqlx::{Acquire, PgPool};
+use sqlx::{Executor, PgPool, Postgres};
 
 pub struct AppState<P: Provider> {
     pub stats_cache: DashMap<Address, MultipoolCache>,
@@ -19,6 +16,7 @@ pub struct AppState<P: Provider> {
     pub connection: PgPool,
     pub provider: P,
     pub chain_id: u64,
+    pub factory: Address,
 }
 
 #[derive(sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -26,6 +24,19 @@ struct DbMultipool {
     multipool: [u8; 20],
     total_supply: BigDecimal,
     owner: [u8; 20],
+}
+
+impl DbMultipool {
+    async fn get_with_chain_id<'a, E: Executor<'a, Database = Postgres>>(
+        executor: E,
+        chain_id: u64,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as("select * from multipools where chain_id = $1")
+            .bind(chain_id as i64)
+            .fetch_all(executor)
+            .await
+            .map_err(Into::into)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -38,29 +49,31 @@ struct DbCandle {
     multipool: [u8; 20],
 }
 
+impl DbCandle {
+    async fn get_latest_day<'a, E: Executor<'a, Database = Postgres>>(
+        executor: E,
+    ) -> Result<Vec<Self>> {
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        sqlx::query_as("select * from candles where resolution = 60 and ts >= $1")
+            .bind((current_time * 60 / 60 - RESOLUTION as u64) as i64)
+            .fetch_all(executor)
+            .await
+            .map_err(Into::into)
+    }
+}
+
 impl<P: Provider> AppState<P> {
-    pub async fn initialize(connection: PgPool, provider: P) -> Result<Self> {
+    pub async fn initialize(connection: PgPool, provider: P, factory: Address) -> Result<Self> {
         let chain_id = provider.get_chain_id().await?;
         let stats_cache = DashMap::<Address, MultipoolCache>::default();
         let mut conn = connection.acquire().await?;
-        let multipools: Vec<DbMultipool> =
-            sqlx::query_as("select * from multipools where chain_id = $1")
-                .bind(chain_id as i64)
-                .fetch_all(&mut *conn)
-                .await?;
 
-        let current_time_aligned = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs()
-            / 60
-            * 60;
-
-        let candles: Vec<DbCandle> =
-            sqlx::query_as("select * from candles where resolution = 60 and ts >= $1")
-                .bind((current_time_aligned - RESOLUTION as u64) as i64)
-                .fetch_all(&mut *conn)
-                .await?;
+        let multipools = DbMultipool::get_with_chain_id(&mut *conn, chain_id).await?;
+        let candles = DbCandle::get_latest_day(&mut *conn).await?;
 
         for multipool in multipools.iter() {
             let mut e = stats_cache
@@ -86,6 +99,7 @@ impl<P: Provider> AppState<P> {
         ));
 
         Ok(Self {
+            factory,
             stats_cache,
             connection,
             provider,
