@@ -19,3 +19,5 @@ base64 = "0.22.1"
 rs_sha384 = "0.1.3"
 sha256 = "1.6.0"
 rsa = {version = "0.9.8", features = ["sha2"]}
+hex = "0.4.3"
+rs_merkle = "1.5.0"

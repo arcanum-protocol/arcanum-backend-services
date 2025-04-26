@@ -6,7 +6,7 @@ members = [
     "indexer", 
     "price_fetcher",
     "service",
-     "arwave_client"
+    "arwave_client"
 ]
 resolver = "2"
 

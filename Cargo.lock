@@ -1135,7 +1135,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "hex",
  "reqwest 0.11.27",
+ "rs_merkle",
  "rs_sha384",
  "rsa",
  "serde",
@@ -4688,6 +4690,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "214a4e27fec5b651d615675874c6a829496cc2aa66e5f1b184ab05cb39fd3625"
 dependencies = [
  "rs_n_bit_words",
+]
+
+[[package]]
+name = "rs_merkle"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb09b49230ba22e8c676e7b75dfe2887dea8121f18b530ae0ba519ce442d2b21"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]
