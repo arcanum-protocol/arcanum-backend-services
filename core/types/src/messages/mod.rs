@@ -53,22 +53,20 @@ impl Blocks {
         rpc: P,
     ) -> anyhow::Result<Self> {
         let mut blocks = Vec::new();
+        let mut blocks_timestamps = std::collections::HashMap::<u64, u64>::new();
 
         for log in logs {
-            // println!("{blocks:?}");
             let block_number = log.block_number.context("Block number is absent")?;
             let transaction_index = log
                 .transaction_index
                 .context("Transaction index is absent")?;
             match blocks
                 .iter()
-                // .rev()
                 .position(|block: &Block| block.number.eq(&block_number))
             {
                 Some(index) => match blocks[index]
                     .transactions
                     .iter()
-                    // .rev()
                     .position(|txn| txn.index.eq(&transaction_index))
                 {
                     None => {
@@ -90,7 +88,6 @@ impl Blocks {
                         let position = blocks[index].transactions[txn_index]
                             .events
                             .iter()
-                            // .rev()
                             .take_while(|t| t.index.gt(&(txn_index as u64)))
                             .count();
                         blocks[index].transactions[txn_index].events.insert(
@@ -103,19 +100,24 @@ impl Blocks {
                     }
                 },
                 None => {
-                    let block = rpc
-                        .get_block_by_hash(
-                            log.block_hash.context("Block hash is absent")?.into(),
-                            BlockTransactionsKind::Hashes,
-                        )
-                        .await?;
+                    let timestamp = match blocks_timestamps.get(&block_number) {
+                        Some(v) => *v,
+                        None => {
+                            let timestamp = rpc
+                                .get_block_by_hash(
+                                    log.block_hash.context("Block hash is absent")?.into(),
+                                    BlockTransactionsKind::Hashes,
+                                )
+                                .await?
+                                .map(|b| b.header.timestamp)
+                                .context("Block timestamp is absent")?;
+                            blocks_timestamps.insert(block_number, timestamp);
+                            timestamp
+                        }
+                    };
 
-                    let timestamp = block
-                        .map(|b| b.header.timestamp)
-                        .context("Block timestamp is absent")?;
                     let position = blocks
                         .iter()
-                        // .rev()
                         .take_while(|t| t.number.gt(&block_number))
                         .count();
                     blocks.insert(

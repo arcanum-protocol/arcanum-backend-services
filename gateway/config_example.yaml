@@ -1,0 +1,19 @@
+health_check: '/health'
+service_name: 'monad-testnet-gateway'
+environment: 'prod'
+telemetry:
+  otel_endpoint: '' 
+  otel_sync_interval: 100
+config:
+  price_fetcher:
+    block_delay: 3
+    multipools_in_chunk: 50
+    retry_delay_ms: 3000
+  indexer: 
+    from_block: 0
+    fetch_interval_ms: 3000
+  http_rpc_url: 'https://google.com'
+  ws_rpc_url: 'https://google.com/ws'
+  bind_to: '0.0.0.0:8080'
+  database:
+    env_key: 'DATABASE_URL'

@@ -2591,6 +2591,7 @@ dependencies = [
  "alloy-multicall",
  "anyhow",
  "axum 0.8.1",
+ "backend-service",
  "bigdecimal",
  "dashmap 6.1.0",
  "indexer1",

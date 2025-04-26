@@ -1,22 +1,14 @@
-use alloy::hex::ToHexExt;
-use alloy::{
-    primitives::Address,
-    providers::Provider,
-    sol_types::{SolEventInterface, SolValue},
-};
+use alloy::{providers::Provider, sol_types::SolEventInterface};
 use anyhow::anyhow;
 use indexer1::Processor;
-use multipool_storage::storage::MultipoolsCreation;
 use multipool_types::messages::Blocks;
 use multipool_types::Multipool::MultipoolEvents;
 use multipool_types::MultipoolFactory::MultipoolFactoryEvents;
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
 use serde_json::Value;
-use sqlx::{types::BigDecimal, Acquire, Postgres, Transaction};
+use sqlx::{types::BigDecimal, Postgres, Transaction};
 use std::sync::Arc;
-
-use std::time::Duration;
 
 use crate::cache::AppState;
 
@@ -45,36 +37,43 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
         _new_saved_block: u64,
         chain_id: u64,
     ) -> anyhow::Result<()> {
-        //Add new pools
-        //Update total supply
-        //Update owner
-        //
-        // IN DB + state
-        // Get prices to transfers (use cache to check wether to wait)
-        //
-        // Calculate pnl procedure
-        // Store raw jsonb blocks
-
         let blocks = Blocks::parse_logs(logs, self.app_state.provider.clone())
             .await
             .map_err(|_e| anyhow!("ParseLogsErrror"))?;
 
-        let creations: MultipoolsCreation = blocks.0.as_slice().try_into()?;
-        for creation in creations.0.into_iter() {
-            //NAME
-            //SYMBOL from contracts
-            sqlx::query(
-                "INSERT INTO multipools(
-                    chain_id,
-                    multipool,
-                    owner
-                ) VALUES ($1, $2, $3);",
-            )
-            .bind::<i64>(chain_id.try_into()?)
-            .bind::<&[u8]>(creation.multipool_address.as_slice())
-            .bind::<&[u8]>(creation.address.as_slice())
-            .execute(&mut **db_tx)
-            .await?;
+        for block in blocks.0.iter() {
+            for transaction in block.transactions.iter() {
+                for event in transaction.events.iter() {
+                    if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
+                        if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
+                            if event.log.address != self.app_state.factory {
+                                continue;
+                            }
+                            sqlx::query(
+                                "INSERT INTO multipools(
+                                    chain_id,
+                                    multipool,
+                                    name,
+                                    symbol,
+                                    owner
+                                ) VALUES ($1,$2,$3,$4,$5);",
+                            )
+                            .bind::<i64>(chain_id.try_into()?)
+                            .bind::<&[u8]>(e.multipoolAddress.as_slice())
+                            .bind::<String>(e.name)
+                            .bind::<String>(e.symbol)
+                            .bind::<&[u8]>(event.log.address.as_slice())
+                            .execute(&mut **db_tx)
+                            .await?;
+                            self.app_state
+                                .stats_cache
+                                .insert(e.multipoolAddress, Default::default());
+                            let mut multipools = self.app_state.multipools.write().unwrap();
+                            multipools.push(e.multipoolAddress);
+                        }
+                    }
+                }
+            }
         }
 
         for block in blocks.0.iter() {
@@ -93,9 +92,10 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
 
             for transaction in block.transactions.iter() {
                 for event in transaction.events.iter() {
-                    // match total supply
-                    // match share transfer
-                    // match ownership transfer
+                    let multipool_address = event.log.address;
+                    if self.app_state.stats_cache.get(&multipool_address).is_none() {
+                        continue;
+                    }
                     if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log, false) {
                         match multipool_event.data {
                             MultipoolEvents::ShareTransfer(e) => {
@@ -172,7 +172,7 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                                     .await?;
                                 }
                             }
-                            MultipoolEvents::OwnershipTransferred(e) => {
+                            MultipoolEvents::MultipoolOwnerChange(e) => {
                                 sqlx::query(
                                     "
                                         UPDATE multipools 
