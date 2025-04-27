@@ -1,5 +1,7 @@
+use alloy::primitives::Address;
 use alloy::{providers::Provider, sol_types::SolEventInterface};
-use anyhow::anyhow;
+use anyhow::{anyhow, Result};
+use backend_service::logging::LogTarget;
 use indexer1::Processor;
 use multipool_types::messages::Blocks;
 use multipool_types::Multipool::MultipoolEvents;
@@ -7,6 +9,7 @@ use multipool_types::MultipoolFactory::MultipoolFactoryEvents;
 use serde::{Deserialize, Serialize};
 use serde_json::to_value;
 use serde_json::Value;
+use sqlx::Executor;
 use sqlx::{types::BigDecimal, Postgres, Transaction};
 use std::sync::Arc;
 
@@ -42,41 +45,6 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
             .map_err(|_e| anyhow!("ParseLogsErrror"))?;
 
         for block in blocks.0.iter() {
-            for transaction in block.transactions.iter() {
-                for event in transaction.events.iter() {
-                    if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
-                        if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
-                            if event.log.address != self.app_state.factory {
-                                continue;
-                            }
-                            sqlx::query(
-                                "INSERT INTO multipools(
-                                    chain_id,
-                                    multipool,
-                                    name,
-                                    symbol,
-                                    owner
-                                ) VALUES ($1,$2,$3,$4,$5);",
-                            )
-                            .bind::<i64>(chain_id.try_into()?)
-                            .bind::<&[u8]>(e.multipoolAddress.as_slice())
-                            .bind::<String>(e.name)
-                            .bind::<String>(e.symbol)
-                            .bind::<&[u8]>(event.log.address.as_slice())
-                            .execute(&mut **db_tx)
-                            .await?;
-                            self.app_state
-                                .stats_cache
-                                .insert(e.multipoolAddress, Default::default());
-                            let mut multipools = self.app_state.multipools.write().unwrap();
-                            multipools.push(e.multipoolAddress);
-                        }
-                    }
-                }
-            }
-        }
-
-        for block in blocks.0.iter() {
             sqlx::query(
                 "INSERT INTO blocks(
                     chain_id, 
@@ -92,6 +60,23 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
 
             for transaction in block.transactions.iter() {
                 for event in transaction.events.iter() {
+                    if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
+                        if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
+                            if event.log.address != self.app_state.factory {
+                                continue;
+                            }
+                            MultipoolCreated::new(e.multipoolAddress, chain_id, e.name, e.symbol)
+                                .apply_on_storage(&mut **db_tx)
+                                .await?;
+
+                            self.app_state
+                                .stats_cache
+                                .insert(e.multipoolAddress, Default::default());
+                            let mut multipools = self.app_state.multipools.write().unwrap();
+                            multipools.push(e.multipoolAddress);
+                        }
+                    }
+
                     let multipool_address = event.log.address;
                     if self.app_state.stats_cache.get(&multipool_address).is_none() {
                         continue;
@@ -100,19 +85,18 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                         match multipool_event.data {
                             MultipoolEvents::ShareTransfer(e) => {
                                 let amount: BigDecimal = e.amount.to_string().parse().unwrap();
-                                let multipool = event.log.address;
 
                                 let price = match self
                                     .app_state
                                     .stats_cache
-                                    .get(&multipool)
+                                    .get(&multipool_address)
                                     .unwrap()
                                     .get_price(block.timestamp)
                                 {
                                     Some(p) => p,
                                     None => {
                                         crate::price_fetcher::get_mps_prices(
-                                            &[multipool],
+                                            &[multipool_address],
                                             &self.app_state.provider,
                                             block.number,
                                         )
@@ -120,84 +104,43 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                                         .0[0]
                                     }
                                 };
+
                                 let price: BigDecimal = price.to_string().parse().unwrap();
                                 let price = price / (BigDecimal::from(1u128 << 96));
 
+                                let share_transfer = ShareTransfer {
+                                    chain_id,
+                                    multipool: multipool_address,
+                                    from: e.from,
+                                    to: e.to,
+                                    quantity: amount.clone(),
+                                    quote_quantity: amount * price,
+                                    transaction_hash: transaction.hash,
+                                    block_number: block.number,
+                                    block_timestamp: block.timestamp,
+                                };
+
                                 if !e.from.is_zero() {
-                                    sqlx::query(
-                                        "INSERT INTO actions_history(
-                                            chain_id, 
-                                            account, 
-                                            multipool, 
-                                            quantity,
-                                            quote_quantity,
-                                            transaction_hash,
-                                            block_number,
-                                            timestamp
-                                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);",
-                                    )
-                                    .bind::<i64>(chain_id as i64)
-                                    .bind::<[u8; 20]>(e.from.into())
-                                    .bind::<[u8; 20]>(multipool.into())
-                                    .bind::<BigDecimal>(-amount.clone())
-                                    .bind::<BigDecimal>(-(amount.clone() * price.clone()))
-                                    .bind::<[u8; 32]>(transaction.hash)
-                                    .bind::<i64>(block.number as i64)
-                                    .bind::<i64>(block.timestamp as i64)
-                                    .execute(&mut **db_tx)
-                                    .await?;
+                                    share_transfer
+                                        .apply_on_storage_for_sender(&mut **db_tx)
+                                        .await?;
                                 }
                                 if !e.to.is_zero() {
-                                    sqlx::query(
-                                        "INSERT INTO actions_history(
-                                            chain_id, 
-                                            account, 
-                                            multipool, 
-                                            quantity,
-                                            quote_quantity,
-                                            transaction_hash,
-                                            block_number,
-                                            timestamp
-                                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);",
-                                    )
-                                    .bind::<i64>(chain_id as i64)
-                                    .bind::<[u8; 20]>(e.to.into())
-                                    .bind::<[u8; 20]>(multipool.into())
-                                    .bind::<BigDecimal>(amount.clone())
-                                    .bind::<BigDecimal>(amount * price)
-                                    .bind::<[u8; 32]>(transaction.hash)
-                                    .bind::<i64>(block.number as i64)
-                                    .bind::<i64>(block.timestamp as i64)
-                                    .execute(&mut **db_tx)
-                                    .await?;
+                                    share_transfer
+                                        .apply_on_storage_for_receiver(&mut **db_tx)
+                                        .await?;
                                 }
                             }
                             MultipoolEvents::MultipoolOwnerChange(e) => {
-                                sqlx::query(
-                                    "
-                                        UPDATE multipools 
-                                        SET owner = $1
-                                        WHERE multipool = $2;
-                                    ",
-                                )
-                                .bind::<[u8; 20]>(e.newOwner.into())
-                                .bind::<[u8; 20]>(event.log.address.into())
-                                .execute(&mut **db_tx)
-                                .await?;
+                                OwnerChange::new(e.newOwner, multipool_address)
+                                    .apply_on_storage(&mut **db_tx)
+                                    .await?
                             }
                             MultipoolEvents::AssetChange(e) => {
-                                if e.asset == event.log.address {
-                                    sqlx::query(
-                                        "
-                                        UPDATE multipools 
-                                        SET total_supply = $1::NUMERIC
-                                        WHERE multipool = $2;
-                                    ",
-                                    )
-                                    .bind::<String>(e.quantity.to_string())
-                                    .bind::<[u8; 20]>(event.log.address.into())
-                                    .execute(&mut **db_tx)
-                                    .await?;
+                                if e.asset == multipool_address {
+                                    AssetChange::new(e.quantity.to(), multipool_address)
+                                        .apply_on_storage(&mut **db_tx)
+                                        .await?;
                                     self.app_state
                                         .stats_cache
                                         .get_mut(&e.asset)
@@ -213,5 +156,183 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
         }
 
         Ok(())
+    }
+}
+
+pub struct MultipoolCreated {
+    name: String,
+    symbol: String,
+    multipool: Address,
+    chain_id: u64,
+}
+
+impl MultipoolCreated {
+    fn new(multipool: Address, chain_id: u64, name: String, symbol: String) -> Self {
+        Self {
+            multipool,
+            chain_id,
+            name,
+            symbol,
+        }
+    }
+
+    async fn apply_on_storage<'a, E: Executor<'a, Database = Postgres>>(
+        self,
+        executor: E,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO multipools(
+                chain_id,
+                multipool,
+                name,
+                symbol,
+                owner
+            ) VALUES ($1,$2,$3,$4,$5);",
+        )
+        .bind::<i64>(self.chain_id.try_into()?)
+        .bind::<[u8; 20]>(self.multipool.into())
+        .bind::<String>(self.name)
+        .bind::<String>(self.symbol)
+        .bind::<[u8; 20]>([0u8; 20])
+        .execute(executor)
+        .await
+        .map(|_| ())
+        .map_err(Into::into)
+    }
+}
+
+pub struct OwnerChange {
+    new_owner: Address,
+    multipool: Address,
+}
+
+impl OwnerChange {
+    fn new(new_owner: Address, multipool: Address) -> Self {
+        Self {
+            new_owner,
+            multipool,
+        }
+    }
+
+    async fn apply_on_storage<'a, E: Executor<'a, Database = Postgres>>(
+        self,
+        executor: E,
+    ) -> Result<()> {
+        sqlx::query(
+            "
+            UPDATE multipools 
+            SET owner = $1
+            WHERE multipool = $2;
+        ",
+        )
+        .bind::<[u8; 20]>(self.new_owner.into())
+        .bind::<[u8; 20]>(self.multipool.into())
+        .execute(executor)
+        .await
+        .map(|_| ())
+        .map_err(Into::into)
+    }
+}
+
+pub struct AssetChange {
+    total_supply: u128,
+    multipool: Address,
+}
+
+impl AssetChange {
+    fn new(total_supply: u128, multipool: Address) -> Self {
+        Self {
+            total_supply,
+            multipool,
+        }
+    }
+
+    async fn apply_on_storage<'a, E: Executor<'a, Database = Postgres>>(
+        self,
+        executor: E,
+    ) -> Result<()> {
+        sqlx::query(
+            "
+            UPDATE multipools 
+            SET total_supply = $1::NUMERIC
+            WHERE multipool = $2;
+        ",
+        )
+        .bind::<String>(self.total_supply.to_string())
+        .bind::<[u8; 20]>(self.multipool.into())
+        .execute(executor)
+        .await
+        .map(|_| ())
+        .map_err(Into::into)
+    }
+}
+// chain_id,
+// account,
+// multipool,
+// quantity,
+// quote_quantity,
+// transaction_hash,
+// block_number,
+// timestamp
+pub struct ShareTransfer {
+    pub chain_id: u64,
+    pub multipool: Address,
+    pub from: Address,
+    pub to: Address,
+    pub quantity: BigDecimal,
+    pub quote_quantity: BigDecimal,
+    pub transaction_hash: [u8; 32],
+    pub block_number: u64,
+    pub block_timestamp: u64,
+}
+
+impl ShareTransfer {
+    const QUERY: &str = "INSERT INTO actions_history(
+        chain_id, 
+        account, 
+        multipool, 
+        quantity,
+        quote_quantity,
+        transaction_hash,
+        block_number,
+        timestamp
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8);";
+
+    async fn apply_on_storage_for_sender<'a, E: Executor<'a, Database = Postgres>>(
+        &self,
+        executor: E,
+    ) -> Result<()> {
+        sqlx::query(Self::QUERY)
+            .bind::<i64>(self.chain_id as i64)
+            .bind::<[u8; 20]>(self.from.into())
+            .bind::<[u8; 20]>(self.multipool.into())
+            .bind::<BigDecimal>(-self.quantity.clone())
+            .bind::<BigDecimal>(-self.quote_quantity.clone())
+            .bind::<[u8; 32]>(self.transaction_hash)
+            .bind::<i64>(self.block_number as i64)
+            .bind::<i64>(self.block_timestamp as i64)
+            .execute(executor)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+    }
+
+    async fn apply_on_storage_for_receiver<'a, E: Executor<'a, Database = Postgres>>(
+        &self,
+        executor: E,
+    ) -> Result<()> {
+        sqlx::query(Self::QUERY)
+            .bind::<i64>(self.chain_id as i64)
+            .bind::<[u8; 20]>(self.to.into())
+            .bind::<[u8; 20]>(self.multipool.into())
+            .bind::<BigDecimal>(self.quantity.clone())
+            .bind::<BigDecimal>(self.quote_quantity.clone())
+            .bind::<[u8; 32]>(self.transaction_hash)
+            .bind::<i64>(self.block_number as i64)
+            .bind::<i64>(self.block_timestamp as i64)
+            .execute(executor)
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
     }
 }

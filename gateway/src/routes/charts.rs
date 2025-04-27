@@ -15,23 +15,20 @@ pub struct HistoryRequest {
     countback: i64,
     resolution: String,
     multipool_address: Address,
-    chain_id: i64,
 }
 
-pub async fn history<P: Provider>(
+pub async fn candles<P: Provider>(
     Query(query): Query<HistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
 ) -> Json<Value> {
     let to = &query.to;
     let countback = query.countback;
-    let resolution: i32 = if query.resolution == "1D" {
-        1440 * 60
-    } else {
-        let parsed_number: Result<i32, _> = query.resolution.parse();
-        match parsed_number {
-            Ok(num) => num * 60,
-            Err(err) => return json!({"err":err.to_string()}).into(),
-        }
+
+    let parsed_number: Result<i32, _> = query.resolution.parse();
+
+    let resolution: i32 = match parsed_number {
+        Ok(num) => num * 60,
+        Err(err) => return json!({"err":err.to_string()}).into(),
     };
     let result = sqlx::query(
         "
@@ -47,15 +44,13 @@ pub async fn history<P: Provider>(
             ts <= $1
             AND resolution = $2
             AND multipool = $3
-            AND chain_id = $4
         ORDER BY 
             ts DESC
-        LIMIT $5;",
+        LIMIT $4;",
     )
     .bind(to)
     .bind(resolution)
     .bind::<&[u8]>(query.multipool_address.as_slice())
-    .bind(query.chain_id)
     .bind(countback)
     .fetch_all(&mut *state.connection.acquire().await.unwrap())
     .await;
@@ -85,7 +80,6 @@ pub async fn history<P: Provider>(
 
 #[derive(Deserialize)]
 pub struct StatsRequest {
-    chain_id: i64,
     multipool_address: Address,
 }
 
@@ -93,38 +87,15 @@ pub async fn stats<P: Provider>(
     Query(query): Query<StatsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
 ) -> Json<Value> {
-    let result = sqlx::query(
-        "
-                SELECT
-                    multipool,
-                    change_24h::TEXT,
-                    low_24h::TEXT,
-                    high_24h::TEXT,
-                    current_price::TEXT
-                FROM multipools
-                WHERE 
-                    multipool = $1
-                    AND chain_id = $2;
-            ",
+    serde_json::to_value(
+        state
+            .stats_cache
+            .get(&query.multipool_address)
+            .unwrap()
+            .value()
+            .stats
+            .clone(),
     )
-    .bind::<&[u8]>(query.multipool_address.as_slice())
-    .bind(query.chain_id)
-    .fetch_all(&mut *state.connection.acquire().await.unwrap())
-    .await;
-
-    match result {
-        Ok(rows) => {
-            if let Some(row) = rows.first() {
-                let mp_id: String = row.get("multipool");
-                let change_24h: String = row.get("change_24h");
-                let low_24h: String = row.get("low_24h");
-                let high_24h: String = row.get("high_24h");
-                let current_price: String = row.get("current_price");
-                json!({"multipool_id":mp_id,"change_24h":change_24h,"low_24h":low_24h,"high_24h":high_24h,"current_price":current_price}).into()
-            } else {
-                json!({"err":"no_data"}).into()
-            }
-        }
-        Err(err) => json!({"err":err.to_string()}).into(),
-    }
+    .unwrap()
+    .into()
 }

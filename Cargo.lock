@@ -2595,6 +2595,7 @@ dependencies = [
  "bigdecimal",
  "dashmap 6.1.0",
  "indexer1",
+ "lazy_static",
  "log",
  "multipool",
  "multipool-storage",
