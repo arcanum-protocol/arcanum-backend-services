@@ -1,5 +1,5 @@
 [package]
-name = "arwave_client"
+name = "arweave_client"
 version = "0.1.0"
 edition = "2021"
 

@@ -3,6 +3,7 @@ use crate::{
     transaction::{Tag, Transaction},
 };
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 
 #[derive(Default)]
 pub struct TransactionBuilder {
@@ -29,6 +30,18 @@ impl TransactionBuilder {
 
     pub fn format(mut self, format: u8) -> Self {
         self.format = Some(format);
+        self
+    }
+
+    pub fn tags(mut self, tags: Vec<Tag>) -> Self {
+        self.tags = Some(
+            tags.into_iter()
+                .map(|t| Tag {
+                    name: URL_SAFE_NO_PAD.encode(t.name.as_bytes()),
+                    value: URL_SAFE_NO_PAD.encode(t.value.as_bytes()),
+                })
+                .collect(),
+        );
         self
     }
 

@@ -22,6 +22,7 @@ pub struct Wallet {
     pub qi: String,
 }
 
+#[derive(Clone)]
 pub struct Signer {
     pub address: String,
     key: BlindedSigningKey<Sha256>,

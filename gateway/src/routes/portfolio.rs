@@ -1,7 +1,8 @@
 use crate::{error::AppError, routes::stringify};
 use alloy::{primitives::Address, providers::Provider};
-use axum::extract::{Multipart, Query, State};
+use axum::{extract::{Multipart, Query, State}, Json};
 use axum_msgpack::MsgPack;
+use arweave_client::{Rpc, Tag, Transaction, Uploader};
 use bigdecimal::BigDecimal;
 use serde::Serializer;
 use serde::{Deserialize, Serialize};
@@ -84,22 +85,52 @@ pub async fn create<P: Provider>(
     let description = description
         .ok_or(anyhow!("Invalid form"))
         .map_err(stringify)?;
+    let name_bytes = name.into_bytes();
+    let desc_offset = name_bytes.len();
+    let desc_bytes = description.into_bytes();
+    let logo_offset = desc_offset + desc_bytes.len();
+    let data = name_bytes
+        .into_iter()
+        .chain(desc_bytes)
+        .chain(logo)
+        .collect();
+
+    let mut tx = Transaction::builder(state.arweave_rpc.clone())
+        .tags(vec![
+            Tag {
+                name: "Content-Type".to_string(),
+                value: "MpData".to_string(),
+            },
+            Tag {
+                name: "Address".to_string(),
+                value: multipool_address.to_string(),
+            },
+            Tag {
+                name: "ChainId".to_string(),
+                value: chain_id.to_string(),
+            },
+            Tag {
+                name: "Symbol".to_string(),
+                value: symbol.to_owned(),
+            },
+            Tag {
+                name: "DescriptionOffset".to_string(),
+                value: desc_offset.to_string(),
+            },
+            Tag {
+                name: "LogoOffset".to_string(),
+                value: logo_offset.to_string(),
+            },
+        ])
+        .data(data)
+        .build()
+        .await
+        .map_err(stringify)?;
+    tx.sign(state.arweave_signer.clone()).map_err(stringify)?;
+    let mut uploader = Uploader::new(state.arweave_rpc.clone(), tx);
+    uploader.upload_chunks().await.unwrap();
     //TODO: add limits on name, symbol, description + logo size
-
-    let file_path = format!("/logos/{multipool_address}");
-    let _ = create_dir_all(&file_path);
-    let mut file_handle = File::create(file_path).await.map_err(stringify)?;
-    file_handle.write_all(&logo).await.map_err(stringify)?;
-
-    sqlx::query("INSERT INTO multipools(chain_id, multipool, name, symbol, description) VALUES($1,$2,$3,$4,$5);")
-        .bind(chain_id)
-        .bind::<&[u8]>(multipool_address.as_slice())
-        .bind(name)
-        .bind(symbol)
-        .bind(description)
-        .execute(&mut *state.connection.acquire().await.unwrap())
-        .await.map_err(stringify)
-        .map(|_| json!(()).into())
+    Ok(json!(()).into())
 }
 
 #[derive(Deserialize)]

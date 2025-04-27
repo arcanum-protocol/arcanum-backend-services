@@ -16,12 +16,12 @@ impl Uploader {
             rpc,
             data: tx.data.clone(),
             tx,
-            last_chunk: 1 
+            last_chunk: 1,
         }
     }
 
     pub async fn upload_chunks(&mut self) -> Result<()> {
-        if self.tx.chunks.as_ref().unwrap().chunks.len() < 2 {
+        if self.tx.chunks.as_ref().unwrap().chunks.len() > 2 {
             self.tx.data = Vec::new();
         }
         self.rpc.post_tx(&self.tx).await?;

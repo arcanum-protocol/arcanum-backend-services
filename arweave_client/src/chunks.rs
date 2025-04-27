@@ -160,13 +160,15 @@ fn hash_branch(left: MerkelNode, right: Option<MerkelNode>) -> MerkelNode {
     let right = right.unwrap();
     let branch = BranchNode {
         r#type: "branch".to_string(),
-        id: hash_256(&hash_256(&left.id())
-            .into_iter()
-            .chain(hash_256(&right.id()))
-            .chain(hash_256(&pad_to_32_bytes(
-                &left.max_byte_range().to_be_bytes(),
-            )))
-            .collect::<Vec<u8>>()),
+        id: hash_256(
+            &hash_256(&left.id())
+                .into_iter()
+                .chain(hash_256(&right.id()))
+                .chain(hash_256(&pad_to_32_bytes(
+                    &left.max_byte_range().to_be_bytes(),
+                )))
+                .collect::<Vec<u8>>(),
+        ),
         byte_range: left.max_byte_range(),
         max_byte_range: right.max_byte_range(),
         left_child: Some(Box::new(left)),

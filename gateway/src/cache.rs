@@ -3,6 +3,7 @@ use std::sync::RwLock;
 use alloy::primitives::U256;
 use alloy::{primitives::Address, providers::Provider};
 use anyhow::Result;
+use arweave_client::{Rpc, Signer};
 use bigdecimal::BigDecimal;
 use dashmap::DashMap;
 use serde::Serialize;
@@ -15,6 +16,8 @@ pub struct AppState<P: Provider> {
     pub stats_cache: DashMap<Address, MultipoolCache>,
     pub multipools: Arc<RwLock<Vec<Address>>>,
     pub connection: PgPool,
+    pub arweave_rpc: Rpc,
+    pub arweave_signer: Arc<Signer>,
     pub provider: P,
     pub chain_id: u64,
     pub factory: Address,
@@ -95,7 +98,13 @@ impl DbCandle {
 }
 
 impl<P: Provider> AppState<P> {
-    pub async fn initialize(connection: PgPool, provider: P, factory: Address) -> Result<Self> {
+    pub async fn initialize(
+        connection: PgPool,
+        provider: P,
+        factory: Address,
+        arweave_url: String,
+        wallet_path: &str,
+    ) -> Result<Self> {
         let chain_id = provider.get_chain_id().await?;
         let stats_cache = DashMap::<Address, MultipoolCache>::default();
         let mut conn = connection.acquire().await?;
@@ -127,6 +136,11 @@ impl<P: Provider> AppState<P> {
         ));
 
         Ok(Self {
+            arweave_rpc: Rpc {
+                url: arweave_url,
+                ..Default::default()
+            },
+            arweave_signer: Arc::new(Signer::from_file(wallet_path)?),
             factory,
             stats_cache,
             connection,
