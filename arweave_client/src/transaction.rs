@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::chunks::{generate_transaction_chunks, Chunks};
 use crate::rpc::Rpc;
 use crate::tx_builder::TransactionBuilder;
@@ -129,16 +131,16 @@ impl Transaction {
     pub fn get_chunk(&self, idx: usize, data: &[u8]) -> Result<GetChunk> {
         if let Some(chunks) = &self.chunks {
             if chunks.proofs.len() > idx && chunks.chunks.len() > idx {
-
-            let proof = &chunks.proofs[idx];
-            let chunk = &chunks.chunks[idx];
-            Ok(GetChunk {
-                data_root: self.data_root.clone(),
-                data_size: self.data_size.clone(),
-                data_path: URL_SAFE_NO_PAD.encode(&proof.proof),
-                offset: proof.offset.to_string(),
-                chunk: URL_SAFE_NO_PAD.encode(&data[chunk.min_byte_range..chunk.max_byte_range]),
-            })
+                let proof = &chunks.proofs[idx];
+                let chunk = &chunks.chunks[idx];
+                Ok(GetChunk {
+                    data_root: self.data_root.clone(),
+                    data_size: self.data_size.clone(),
+                    data_path: URL_SAFE_NO_PAD.encode(&proof.proof),
+                    offset: proof.offset.to_string(),
+                    chunk: URL_SAFE_NO_PAD
+                        .encode(&data[chunk.min_byte_range..chunk.max_byte_range]),
+                })
             } else {
                 Err(anyhow!("No chunk for given index"))
             }
@@ -147,7 +149,7 @@ impl Transaction {
         }
     }
 
-    pub fn sign(&mut self, jwk: Signer) -> Result<()> {
+    pub fn sign(&mut self, jwk: Arc<Signer>) -> Result<()> {
         self.set_owner(jwk.address.clone());
 
         let data_to_sign = self.get_signature_data()?;

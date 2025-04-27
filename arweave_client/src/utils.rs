@@ -61,7 +61,6 @@ pub fn deep_hash_chunks(chunks: Vec<DeepHashChunk>, acc: Vec<u8>) -> Vec<u8> {
     deep_hash_chunks(chunks, new_acc)
 }
 
-
 pub fn pad_to_32_bytes(original: &[u8]) -> Vec<u8> {
     let mut padded = vec![0u8; 32];
     let len = original.len();

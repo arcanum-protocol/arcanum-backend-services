@@ -37,11 +37,11 @@ pub struct PgEventProcessor<P: Provider + Clone + 'static> {
     pub app_state: Arc<AppState<P>>,
 }
 
-impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProcessor<P> {
+impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventProcessor<P> {
     async fn process(
         &mut self,
         logs: &[indexer1::alloy::rpc::types::Log],
-        db_tx: &mut Transaction<'_, Postgres>,
+        db_tx: &mut Transaction<'a, Postgres>,
         _prev_saved_block: u64,
         new_saved_block: u64,
         chain_id: u64,

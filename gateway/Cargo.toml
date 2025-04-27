@@ -29,3 +29,4 @@ tower-http = {version= "0.6.2", features=["cors"]}
 backend-service = { path = "../service/" }
 multipool-types = { path = "../core/types/" }
 multipool = { path = "../core/multipool/" }
+arweave_client = { path = "../arweave_client/" }
