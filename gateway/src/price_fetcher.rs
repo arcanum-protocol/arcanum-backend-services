@@ -1,11 +1,13 @@
+use crate::log_target::GatewayTarget::PriceFetcher;
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
+use backend_service::logging::LogTarget;
 use bigdecimal::{BigDecimal, Num};
 use serde::Deserialize;
+use serde_json::json;
 use sqlx::Acquire;
-use sqlx::{postgres::PgRow, Row};
-use std::ops::Shl;
+use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -26,6 +28,7 @@ pub async fn run<P: Provider>(
     let provider = &app_state.provider;
     let chain_id = provider.get_chain_id().await? as i64;
 
+    //TODO: do something with block competition
     //TODO: maybe different block fetching
     let mut latest_block = provider.get_block_number().await?;
 
@@ -40,8 +43,10 @@ pub async fn run<P: Provider>(
             .unwrap_or(latest_block);
 
     loop {
-        println!("price tick");
         if indexing_block <= latest_block {
+            PriceFetcher
+                .info(json!({"m": "starting to index block", "b": indexing_block}))
+                .log();
             let mut transaction = connection.begin().await?;
             let multipools = app_state.multipools.read().unwrap().clone();
 
@@ -68,6 +73,9 @@ pub async fn run<P: Provider>(
                         .insert_price(price, ts);
                 }
             }
+            PriceFetcher
+                .info(json!({"m": "block data fetched", "b": indexing_block}))
+                .log();
 
             sqlx::query(
                 "INSERT INTO price_indexes(chain_id, block_number) VALUES ($1, $2) ON CONFLICT (chain_id) DO UPDATE SET block_number = $2"
@@ -77,6 +85,9 @@ pub async fn run<P: Provider>(
                 .execute(&mut *transaction).await?;
 
             transaction.commit().await?;
+            PriceFetcher
+                .info(json!({"m": "block data committed", "b": indexing_block}))
+                .log();
 
             indexing_block += config.block_delay;
         }
@@ -112,12 +123,20 @@ pub async fn get_mps_prices<P: Provider>(
         );
     }
 
+    let overflow_error = alloy::primitives::bytes!(
+        "0x4e487b710000000000000000000000000000000000000000000000000000000000000012"
+    );
+
     mc.add_get_current_block_timestamp();
     let mut res = mc.call_with_block(block_number.into()).await?;
     let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
     let prices: Vec<u128> = res
         .into_iter()
-        .map(|p| p.unwrap().as_uint().unwrap().0.to())
+        .filter_map(|p| match p {
+            Ok(p) => Some(p.as_uint().unwrap().0.to()),
+            Err(e) if e == overflow_error => None,
+            Err(_) => panic!("unexpected error in price fetching view method"),
+        })
         .collect();
 
     Ok((prices, ts.to()))
