@@ -39,5 +39,5 @@ sol!(
     #[allow(missing_docs)]
     #[sol(rpc)]
     ERC20,
-    "../../arcanum-contracts/out/ERC20.sol/MockERC20.json"
+    "../../arcanum-contracts/out/MockERC20.sol/MockERC20.json"
 );
