@@ -2,4 +2,4 @@
 [submodule "arcanum-contracts"]
 	path = arcanum-contracts
 	url = https://github.com/arcanum-protocol/arcanum-contracts.git
-    branch = feat/testDeployment
+    branch = feat/OracleTests

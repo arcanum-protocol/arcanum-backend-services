@@ -8,16 +8,12 @@ name = "gateway"
 path = "./bin/gateway.rs"
 
 [dependencies]
-log.workspace = true
-
 axum.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
 indexer1.workspace = true
 sqlx.workspace = true
 alloy.workspace = true
-sled.workspace = true
-rdkafka.workspace = true
 lazy_static.workspace = true
 
 alloy-multicall.workspace = true
@@ -30,5 +26,4 @@ serde_json.workspace = true
 tower-http = {version= "0.6.2", features=["cors"]}
 backend-service = { path = "../service/" }
 multipool-types = { path = "../core/types/" }
-multipool-storage = { path = "../core/storage/" }
 multipool = { path = "../core/multipool/" }
