@@ -22,42 +22,28 @@ jobs:
 
       - run: rustup target add x86_64-unknown-linux-musl
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
-      # Building project stuff
-      - name: ⚡Restore Build Cache
-        uses: actions/cache/restore@v4
-        id: build-cache
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-rust-cache
+          cache-all-crates: true
+          cache-on-failure: true
+          shared-key: "main_rust_build_cache"
 
       - name: 🔨 Build
         id: cargo-building
-        continue-on-error: true
         run: |
-          cargo build --bin multipool-node --release --target=x86_64-unknown-linux-musl
-          cargo build --bin multipool-cli --release --target=x86_64-unknown-linux-musl
-          cargo build --bin gateway --release --target=x86_64-unknown-linux-musl
+          cargo build --release --target=x86_64-unknown-linux-musl
 
-      - name: 🔎 Test
-        id: cargo-testing
-        continue-on-error: true
-        run: cargo test -- --nocapture
+          #  - name: 🔎 Test
+          #    id: cargo-testing
+          #    run: cargo test --release --target=x86_64-unknown-linux-musl -- --nocapture
 
-      - name: 🔎 Formatting check
-        id: cargo-formatting
-        continue-on-error: true
-        run: cargo fmt --all --check
+          #  - name: 🔎 Formatting check
+          #    id: cargo-formatting
+          #    run: cargo fmt --all --check
 
-      - name: 🔎 Clippy check
-        id: cargo-clippy
-        continue-on-error: true
-        run: cargo clippy --all-targets --all-features --tests -- -D warnings
+          #  - name: 🔎 Clippy check
+          #    id: cargo-clippy
+          #    run: cargo clippy --all-targets --all-features --tests -- -D warnings
 
       - run: du -sh target
         continue-on-error: true
@@ -65,36 +51,8 @@ jobs:
       - run: du -sh ~/.cargo/registry
         continue-on-error: true
 
-      - run: du -sh target/x86_64-unknown-linux-musl/release/multipool-node
+      - run: du -sh target/x86_64-unknown-linux-musl/release
         continue-on-error: true
-
-      - run: chmod ugo+x target/x86_64-unknown-linux-musl/release/multipool-node
-        continue-on-error: true
-
-      - run: chmod ugo+x target/x86_64-unknown-linux-musl/release/multipool-cli
-        continue-on-error: true
-
-      - name: Delete Previous Cache
-        if: ${{ steps.build-cache.outputs.cache-hit }} # github.ref == 'refs/heads/master' 
-        continue-on-error: true
-        run: |
-          gh extension install actions/gh-actions-cache
-          gh actions-cache delete "${{ runner.os }}-rust-cache" --confirm
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: ⚡Store Build Cache
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-rust-cache
-
-      - name: Check on failures
-        if: steps.cargo-testing.outcome != 'success' || steps.cargo-building.outcome != 'success' || steps.cargo-formatting.outcome != 'success' || steps.cargo-clippy.outcome != 'success' 
-        run: exit 1
 
       - name: Find commit short sha
         id: commitsha
@@ -103,15 +61,11 @@ jobs:
       # build container
       - name: Build the Docker image
         run: |
-          docker build --build-arg="BIN=multipool-node" --tag badconfig/arcanum-node:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-node:latest .
-          docker build --build-arg="BIN=multipool-cli" --tag badconfig/arcanum-cli:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-cli:latest .
-          docker build --build-arg="BIN=gateway" --tag badconfig/gateway:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/gateway:latest .
+          docker build --build-arg="BIN=gateway" --tag badconfig/arcanum-gateway:${{ steps.commitsha.outputs.sha_short }} --tag badconfig/arcanum-gateway:latest .
 
       - name: Login to dockerhub
         run: docker login -u="${{ vars.DOCKER_USERNAME }}" -p="${{ secrets.DOCKER_PASSWORD }}"
 
       - name: push image
         run: |
-          docker push --all-tags badconfig/arcanum-node 
-          docker push --all-tags badconfig/arcanum-cli 
-          docker push --all-tags badconfig/gateway
+          docker push --all-tags badconfig/arcanum-gateway

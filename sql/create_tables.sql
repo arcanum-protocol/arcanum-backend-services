@@ -1,12 +1,11 @@
---CREATE TABLE IF NOT EXISTS chains (
---    chain_id BIGSERIAL PRIMARY KEY
---);
-
 CREATE DOMAIN ADDRESS AS BYTEA
 CHECK (LENGTH(VALUE) = 20);
 
 CREATE DOMAIN BYTES32 AS BYTEA
 CHECK (LENGTH(VALUE) = 32);
+
+CREATE DOMAIN U256 AS numeric(78,0)
+CONSTRAINT u256_check CHECK (VALUE >= 0);
 
 create table if not exists blocks (
     chain_id            BIGINT  NOT NULL, 
@@ -27,7 +26,7 @@ CREATE TABLE IF NOT EXISTS positions
     account             ADDRESS     NOT NULL,
     multipool           ADDRESS     NOT NULL,
 
-    quantity            NUMERIC NOT NULL,
+    quantity            U256    NOT NULL,
 
     profit              NUMERIC NOT NULL,
     loss                NUMERIC NOT NULL,
@@ -58,8 +57,9 @@ CREATE TABLE IF NOT EXISTS actions_history
     account             ADDRESS         NOT NULL,
     multipool           ADDRESS         NOT NULL,
 
-    quantity            NUMERIC NOT NULL,
-    quote_quantity      NUMERIC NOT NULL,
+    quantity            U256    NOT NULL,
+    receiving           BOOLEAN NOT NULL,
+    price               U256    NOT NULL,
 
     transaction_hash    BYTES32 NOT NULL,
     block_number        BIGINT  NOT NULL,
@@ -75,11 +75,7 @@ CREATE TABLE IF NOT EXISTS multipools
     multipool           ADDRESS NOT NULL,
     owner               ADDRESS NOT NULL,
 
-    change_24h          NUMERIC     NULL,
-    low_24h             NUMERIC     NULL,
-    hight_24h           NUMERIC     NULL,
-    current_price       NUMERIC     NULL,
-    total_supply        NUMERIC NOT NULL DEFAULT '0'
+    total_supply        U256    NOT NULL DEFAULT '0'
 );
 
 CREATE TABLE IF NOT EXISTS candles
@@ -88,28 +84,23 @@ CREATE TABLE IF NOT EXISTS candles
     resolution          INT     NOT NULL,
     ts                  BIGINT  NOT NULL,
 
-    open                NUMERIC NOT NULL,
-    close               NUMERIC NOT NULL,
-    low                 NUMERIC NOT NULL,
-    hight               NUMERIC NOT NULL,
+    open                U256 NOT NULL,
+    close               U256 NOT NULL,
+    low                 U256 NOT NULL,
+    hight               U256 NOT NULL,
 
     CONSTRAINT candles_pkey PRIMARY KEY (multipool, resolution, ts)
 );
 
-CREATE OR REPLACE PROCEDURE insert_price(arg_multipool ADDRESS, arg_timestamp BIGINT, arg_new_price numeric) 
+-- price is decimal with precision 10^6
+CREATE OR REPLACE PROCEDURE insert_price(arg_multipool ADDRESS, arg_timestamp U256, arg_new_price BIGINT) 
 LANGUAGE plpgsql 
 AS $$
 DECLARE
-    highest numeric;
-    min_ts bigint;
-    lowest numeric;
-    earliest numeric;
-    --                         1m 15m 30m  60m   12h   24h    
-    var_resolutions INT[] := '{60,900,1800,3600,43200,86400}';
+    --                         1m 15m 60m  24h    
+    var_resolutions INT[] := '{60,900,3600,86400}';
     var_resol INT;
 BEGIN 
-
-        arg_new_price = ROUND(arg_new_price, 6);
 
         IF (select multipool from multipools where chain_id = arg_chain_id AND multipool=arg_multipool limit 1) IS NULL THEN
             insert into multipools(chain_id, multipool) values (arg_chain_id, arg_multipool);
@@ -134,39 +125,6 @@ BEGIN
                 low = least(candles.low, arg_new_price),
                 hight = greatest(candles.hight, arg_new_price);
         END LOOP;
-        
-        SELECT 
-            MAX(hight),
-            MIN(low)
-        INTO highest, lowest
-        FROM 
-            candles
-        WHERE 
-            chain_id=arg_chain_id and
-            multipool=arg_multipool and 
-            resolution=60 and
-            ts > (arg_timestamp - 1440) / 60 * 60;
-
-        SELECT open 
-        INTO earliest 
-        FROM candles  
-        WHERE 
-            chain_id=arg_chain_id and
-            multipool=arg_multipool and 
-            resolution=60 and
-            ts > (arg_timestamp - 1440) / 60 * 60
-        ORDER BY ts ASC
-        LIMIT 1;
-
-        UPDATE multipools 
-        SET
-            change_24h=CASE WHEN earliest <> 0 THEN ROUND((arg_new_price-earliest) * '100'::numeric /earliest,6) ELSE '0'::numeric END,
-            low_24h=lowest,
-            hight_24h=highest,
-            current_price=arg_new_price
-        WHERE
-            multipool=arg_multipool AND chain_id=arg_chain_id;
-
 END 
 $$;
 

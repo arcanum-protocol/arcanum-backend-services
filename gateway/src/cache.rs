@@ -1,10 +1,12 @@
 use std::sync::RwLock;
 
+use alloy::primitives::U256;
 use alloy::{primitives::Address, providers::Provider};
 use anyhow::Result;
 use bigdecimal::BigDecimal;
 use dashmap::DashMap;
 use serde::Serialize;
+use serde::Serializer;
 use std::sync::Arc;
 
 use sqlx::{Executor, PgPool, Postgres};
@@ -23,6 +25,8 @@ struct DbMultipool {
     multipool: [u8; 20],
     total_supply: BigDecimal,
     owner: [u8; 20],
+    name: String,
+    symbol: String,
 }
 
 impl DbMultipool {
@@ -49,22 +53,12 @@ struct DbCandle {
     resolution: i64,
 }
 
-const RESOLUTIONS: [i64; 4] = [60, 900, 3600, 86400];
-
-pub fn resolution_to_index(resolution: i64) -> usize {
-    RESOLUTIONS.into_iter().find(|r| r.eq(&resolution)).unwrap() as usize
-}
-
-pub fn index_to_resolution(index: usize) -> i64 {
-    RESOLUTIONS[index]
-}
-
 impl DbCandle {
     async fn get_latest_day<'a, E: Executor<'a, Database = Postgres>>(
         executor: E,
     ) -> Result<Vec<Self>> {
         sqlx::query_as("select * from candles ORDER BY ts DESC LIMIT $1")
-            .bind(RESOLUTION as i64)
+            .bind(BUFFER_SIZE as i64)
             .fetch_all(executor)
             .await
             .map_err(Into::into)
@@ -83,7 +77,10 @@ impl<P: Provider> AppState<P> {
         for multipool in multipools.iter() {
             let mut e = stats_cache
                 .entry(Address::new(multipool.multipool))
-                .or_default();
+                .or_insert(MultipoolCache::new(
+                    multipool.name.clone(),
+                    multipool.symbol.clone(),
+                ));
             for candle in candles
                 .iter()
                 .filter(|c| c.multipool == multipool.multipool)
@@ -120,26 +117,33 @@ impl<P: Provider> AppState<P> {
 #[derive(Serialize, Clone, Default)]
 pub struct Candle {
     #[serde(rename(serialize = "t"))]
-    ts: u64,
+    pub ts: u64,
     #[serde(rename(serialize = "o"))]
-    open: u128,
+    pub open: U256,
     #[serde(rename(serialize = "c"))]
-    close: u128,
+    pub close: U256,
     #[serde(rename(serialize = "l"))]
-    low: u128,
+    pub low: U256,
     #[serde(rename(serialize = "h"))]
-    hight: u128,
+    pub hight: U256,
 }
 
 #[derive(Serialize, Clone, Default)]
 pub struct Stats {
-    #[serde(rename(serialize = "l24"))]
-    low_24h: u128,
-    #[serde(rename(serialize = "h24"))]
-    hight_24h: u128,
-    #[serde(rename(serialize = "p"))]
-    current_price: u128,
-    #[serde(rename(serialize = "ts"))]
+    #[serde(rename(serialize = "n"))]
+    name: String,
+    #[serde(rename(serialize = "s"))]
+    symbol: String,
+    #[serde(rename(serialize = "l"))]
+    low_24h: U256,
+    #[serde(rename(serialize = "h"))]
+    hight_24h: U256,
+    #[serde(rename(serialize = "c"))]
+    current_price: U256,
+    #[serde(rename(serialize = "o"))]
+    open_price: U256,
+    #[serde(rename(serialize = "t"))]
+    #[serde(serialize_with = "serialize_u128")]
     total_supply: u128,
     #[serde(rename(serialize = "cc"))]
     current_candle: Option<Candle>,
@@ -147,36 +151,67 @@ pub struct Stats {
     previous_candle: Option<Candle>,
 }
 
-const RESOLUTION: usize = 1440;
+pub fn serialize_u128<S>(number: &u128, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Convert byte array to Address
+    // Serialize as a hex string with 0x prefix
+    serializer.serialize_str(&number.to_string())
+}
+
+pub fn serialize_u64<S>(number: &u64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Convert byte array to Address
+    // Serialize as a hex string with 0x prefix
+    serializer.serialize_str(&number.to_string())
+}
+
+pub const BUFFER_SIZE: usize = 96;
+pub const TRW_RESOLUTION: usize = 1;
+
+pub const RESOLUTIONS: [i64; 4] = [60, 900, 3600, 86400];
+
+pub fn resolution_to_index(resolution: i64) -> usize {
+    RESOLUTIONS.into_iter().find(|r| r.eq(&resolution)).unwrap() as usize
+}
+
+pub fn index_to_resolution(index: usize) -> i64 {
+    RESOLUTIONS[index]
+}
 
 pub struct MultipoolCache {
-    pub candles: Box<[[Option<Candle>; RESOLUTION]; 4]>,
+    pub candles: Box<[[Option<Candle>; BUFFER_SIZE]; 4]>,
     pub stats: Stats,
 }
 
-impl Default for MultipoolCache {
-    fn default() -> Self {
+impl MultipoolCache {
+    pub fn new(name: String, symbol: String) -> Self {
         Self {
-            candles: Box::new([const { [const { None }; RESOLUTION] }; 4]),
-            stats: Default::default(),
+            candles: Box::new([const { [const { None }; BUFFER_SIZE] }; 4]),
+            stats: Stats {
+                name,
+                symbol,
+                ..Default::default()
+            },
         }
     }
-}
 
-impl MultipoolCache {
     pub fn insert_total_supply(&mut self, total_supply: u128) {
         self.stats.total_supply = total_supply;
     }
 
-    pub fn get_price(&self, ts: u64) -> Option<u128> {
-        self.candles[0][(ts / 60 * 60) as usize % RESOLUTION]
+    pub fn get_price(&self, ts: u64) -> Option<U256> {
+        self.candles[0][(ts / 60 * 60) as usize % BUFFER_SIZE]
             .as_ref()
             .map(|c| c.close)
     }
 
     // can be more optimised
-    pub fn insert_price(&mut self, price: u128, ts: u64) {
-        let c = self.candles[0][(ts / 60 * 60) as usize % RESOLUTION]
+    pub fn insert_price(&mut self, price: U256, ts: u64) {
+        let c = self.candles[0][(ts / 60 * 60) as usize % BUFFER_SIZE]
             .clone()
             .map(|mut c| {
                 c.hight = c.hight.max(price);
@@ -201,24 +236,36 @@ impl MultipoolCache {
     // can be more optimised
     pub fn insert_candle(&mut self, resolution: i64, candle: Candle) {
         let resolution_index = resolution_to_index(resolution);
-        self.candles[resolution_index][candle.ts as usize % RESOLUTION] = Some(candle.clone());
+        self.candles[resolution_index][candle.ts as usize % BUFFER_SIZE] = Some(candle.clone());
 
         if resolution_index == 0 {
-            self.stats.hight_24h = self.candles[0]
+            //NOTICE: search of open can be optimised by knowing where is the oldest or newest element
+            self.stats.open_price = self.candles[TRW_RESOLUTION]
+                .iter()
+                .filter_map(|v| v.as_ref())
+                .min_by_key(|c| c.ts)
+                .map(|c| c.open)
+                .unwrap_or_default();
+            self.stats.hight_24h = self.candles[TRW_RESOLUTION]
                 .iter()
                 .filter_map(|c| c.as_ref().map(|c| c.hight))
                 .max()
                 .map(|h| h.to_owned())
-                .unwrap_or(0);
-            self.stats.low_24h = self.candles[0]
+                .unwrap_or_default();
+            self.stats.low_24h = self.candles[TRW_RESOLUTION]
                 .iter()
                 .filter_map(|c| c.as_ref().map(|c| c.low))
                 .min()
                 .map(|l| l.to_owned())
-                .unwrap_or(0);
+                .unwrap_or_default();
 
             self.stats.current_price = candle.close;
-            self.stats.previous_candle = self.stats.current_candle.replace(candle);
+            match self.stats.current_candle {
+                Some(ref c) if c.ts < candle.ts => {
+                    self.stats.previous_candle = self.stats.current_candle.replace(candle);
+                }
+                _ => (),
+            }
         }
     }
 }
