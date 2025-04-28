@@ -45,6 +45,7 @@ impl TryFrom<&str> for KafkaTopics {
     }
 }
 
+#[derive(Serialize)]
 pub struct Blocks(pub Vec<Block>);
 
 impl Blocks {

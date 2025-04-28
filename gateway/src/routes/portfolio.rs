@@ -5,6 +5,7 @@ use axum::{
     Json,
 };
 use bigdecimal::BigDecimal;
+use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -104,13 +105,12 @@ pub async fn create<P: Provider>(
 }
 
 #[derive(Deserialize)]
-pub struct PortfolioRequest {
+pub struct PositionsRequest {
     account: Address,
 }
 
-// TODO add positions history endpoint
 pub async fn positions<P: Provider>(
-    Query(query): Query<PortfolioRequest>,
+    Query(query): Query<PositionsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
 ) -> Json<Vec<DbPositions>> {
     sqlx::query_as("SELECT * FROM positions WHERE chain_id = $1 and account = $2")
@@ -124,10 +124,48 @@ pub async fn positions<P: Provider>(
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
 pub struct DbPositions {
-    //TOOD: custom deserializer
+    #[serde(serialize_with = "serialize_address")]
     multipool: [u8; 20],
     quantity: BigDecimal,
     profit: BigDecimal,
     los: BigDecimal,
     opened_at: i64,
+}
+
+#[derive(Deserialize)]
+pub struct PositionsHistoryRequest {
+    account: Address,
+}
+
+pub async fn positions_history<P: Provider>(
+    Query(query): Query<PositionsHistoryRequest>,
+    State(state): State<Arc<crate::AppState<P>>>,
+) -> Json<Vec<DbPositions>> {
+    sqlx::query_as("SELECT * FROM positions_history WHERE chain_id = $1 and account = $2")
+        .bind::<i64>(state.chain_id as i64)
+        .bind::<[u8; 20]>(query.account.into())
+        .fetch_all(&mut *state.connection.acquire().await.unwrap())
+        .await
+        .unwrap()
+        .into()
+}
+
+#[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
+pub struct DbPositionsHistory {
+    #[serde(serialize_with = "serialize_address")]
+    multipool: [u8; 20],
+    pnl_quantity: BigDecimal,
+    pnl_percent: BigDecimal,
+    opened_at: i64,
+    closed_at: i64,
+}
+
+pub fn serialize_address<S>(bytes: &[u8; 20], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Convert byte array to Address
+    let address = Address::from(*bytes);
+    // Serialize as a hex string with 0x prefix
+    serializer.serialize_str(&address.to_string())
 }

@@ -1,3 +1,4 @@
+use crate::log_target::GatewayTarget::Indexer;
 use alloy::primitives::Address;
 use alloy::{providers::Provider, sol_types::SolEventInterface};
 use anyhow::{anyhow, Result};
@@ -7,13 +8,13 @@ use multipool_types::messages::Blocks;
 use multipool_types::Multipool::MultipoolEvents;
 use multipool_types::MultipoolFactory::MultipoolFactoryEvents;
 use serde::{Deserialize, Serialize};
-use serde_json::to_value;
 use serde_json::Value;
+use serde_json::{json, to_value};
 use sqlx::Executor;
 use sqlx::{types::BigDecimal, Postgres, Transaction};
 use std::sync::Arc;
 
-use crate::cache::AppState;
+use crate::cache::{AppState, MultipoolCache};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TradingAction {
@@ -40,9 +41,16 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
         _new_saved_block: u64,
         chain_id: u64,
     ) -> anyhow::Result<()> {
+        Indexer.info(json!({ "m": "processing started" })).log();
         let blocks = Blocks::parse_logs(logs, self.app_state.provider.clone())
             .await
             .map_err(|_e| anyhow!("ParseLogsErrror"))?;
+        Indexer
+            .info(json!({
+                "m": "blocks processed",
+                "b": blocks,
+            }))
+            .log();
 
         for block in blocks.0.iter() {
             sqlx::query(
@@ -62,16 +70,33 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                 for event in transaction.events.iter() {
                     if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
                         if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
+                            Indexer
+                                .info(json!({
+                                    "m": "New multipool found",
+                                    "a": e.multipoolAddress,
+                                }))
+                                .log();
                             if event.log.address != self.app_state.factory {
+                                Indexer
+                                    .info(json!({
+                                        "m": "multipool created not by factory",
+                                        "a": event.log.address,
+                                    }))
+                                    .log();
                                 continue;
                             }
-                            MultipoolCreated::new(e.multipoolAddress, chain_id, e.name, e.symbol)
-                                .apply_on_storage(&mut **db_tx)
-                                .await?;
+                            MultipoolCreated::new(
+                                e.multipoolAddress,
+                                chain_id,
+                                e.name.clone(),
+                                e.symbol.clone(),
+                            )
+                            .apply_on_storage(&mut **db_tx)
+                            .await?;
 
                             self.app_state
                                 .stats_cache
-                                .insert(e.multipoolAddress, Default::default());
+                                .insert(e.multipoolAddress, MultipoolCache::new(e.name, e.symbol));
                             let mut multipools = self.app_state.multipools.write().unwrap();
                             multipools.push(e.multipoolAddress);
                         }
@@ -79,6 +104,12 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
 
                     let multipool_address = event.log.address;
                     if self.app_state.stats_cache.get(&multipool_address).is_none() {
+                        Indexer
+                            .info(json!({
+                                "m": "multipool event is orphan, skipping",
+                                "a": multipool_address,
+                            }))
+                            .log();
                         continue;
                     }
                     if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log, false) {
@@ -266,14 +297,7 @@ impl AssetChange {
         .map_err(Into::into)
     }
 }
-// chain_id,
-// account,
-// multipool,
-// quantity,
-// quote_quantity,
-// transaction_hash,
-// block_number,
-// timestamp
+
 pub struct ShareTransfer {
     pub chain_id: u64,
     pub multipool: Address,

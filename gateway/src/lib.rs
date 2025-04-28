@@ -103,6 +103,10 @@ impl ServiceData for GatewayService {
             .route("/portfolio/list", get(portfolio::list))
             .route("/portfolio/create", post(portfolio::create))
             .route("/account/positions", get(portfolio::positions))
+            .route(
+                "/account/positions_history",
+                get(portfolio::positions_history),
+            )
             .layer(CorsLayer::permissive())
             .with_state(app_state);
 
