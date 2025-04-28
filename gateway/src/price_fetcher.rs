@@ -1,6 +1,6 @@
 use crate::log_target::GatewayTarget::PriceFetcher;
 use alloy::dyn_abi::DynSolValue;
-use alloy::primitives::{Address, U256};
+use alloy::primitives::{bytes, Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
 use backend_service::logging::LogTarget;
 use bigdecimal::{BigDecimal, Num};
@@ -109,18 +109,19 @@ pub async fn get_mps_prices<P: Provider>(
     let get_price_func = &multipool_functions.get("getSharePricePart").unwrap()[0];
     let mut mc = alloy_multicall::Multicall::new(
         &provider,
-        MULTICALL3_ADDRESS, // address!("cA11bde05977b3631167028862bE2a173976CA11"),
+        //MULTICALL3_ADDRESS,
+        alloy::primitives::address!("cA11bde05977b3631167028862bE2a173976CA11"),
     );
     for mp in mps.iter() {
         mc.add_call(
             *mp,
-            get_price_func,
+            &get_price_func,
             &[
                 DynSolValue::Uint(U256::MAX, 256),
                 DynSolValue::Uint(U256::ZERO, 256),
             ],
             true,
-        );
+        )
     }
 
     let overflow_error = alloy::primitives::bytes!(
@@ -128,14 +129,16 @@ pub async fn get_mps_prices<P: Provider>(
     );
 
     mc.add_get_current_block_timestamp();
-    let mut res = mc.call_with_block(block_number.into()).await?;
+    let mut res = mc.call_with_block(block_number.into()).await.unwrap();
+    //let mut res = mc.call().await.unwrap();
     let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
     let prices: Vec<u128> = res
         .into_iter()
         .filter_map(|p| match p {
             Ok(p) => Some(p.as_uint().unwrap().0.to()),
             Err(e) if e == overflow_error => None,
-            Err(_) => panic!("unexpected error in price fetching view method"),
+            //TODO: warning here
+            Err(_) => None,
         })
         .collect();
 
