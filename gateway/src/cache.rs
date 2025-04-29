@@ -81,6 +81,7 @@ impl<P: Provider> AppState<P> {
                     multipool.name.clone(),
                     multipool.symbol.clone(),
                 ));
+            e.insert_total_supply(multipool.total_supply.to_string().parse().unwrap());
             for candle in candles
                 .iter()
                 .filter(|c| c.multipool == multipool.multipool)
@@ -95,7 +96,6 @@ impl<P: Provider> AppState<P> {
                         hight: candle.hight.to_string().parse().unwrap(),
                     },
                 );
-                e.insert_total_supply(multipool.total_supply.to_string().parse().unwrap())
             }
         }
 
@@ -231,22 +231,23 @@ impl MultipoolCache {
 
     // can be more optimised
     pub fn insert_price(&mut self, price: U256, ts: u64) {
-        let c = self.candles[0][(ts / 60 * 60) as usize % BUFFER_SIZE]
-            .clone()
-            .map(|mut c| {
-                c.hight = c.hight.max(price);
-                c.low = c.low.min(price);
-                c.close = price;
-                c
-            })
-            .unwrap_or(Candle {
-                ts,
-                open: price,
-                close: price,
-                low: price,
-                hight: price,
-            });
         for r in RESOLUTIONS {
+            let c = self.candles[resolution_to_index(r)]
+                [(ts / r as u64 * r as u64) as usize % BUFFER_SIZE]
+                .clone()
+                .map(|mut c| {
+                    c.hight = c.hight.max(price);
+                    c.low = c.low.min(price);
+                    c.close = price;
+                    c
+                })
+                .unwrap_or(Candle {
+                    ts,
+                    open: price,
+                    close: price,
+                    low: price,
+                    hight: price,
+                });
             let mut c = c.clone();
             c.ts = c.ts / r as u64 * r as u64;
             self.insert_candle(r, c);
@@ -258,7 +259,7 @@ impl MultipoolCache {
         let resolution_index = resolution_to_index(resolution);
         self.candles[resolution_index][candle.ts as usize % BUFFER_SIZE] = Some(candle.clone());
 
-        if resolution_index == 0 {
+        if resolution_index == TRW_RESOLUTION {
             //NOTICE: search of open can be optimised by knowing where is the oldest or newest element
             self.stats.open_price = self.candles[TRW_RESOLUTION]
                 .iter()
