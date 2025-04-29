@@ -119,12 +119,16 @@ pub struct Candle {
     #[serde(rename(serialize = "t"))]
     pub ts: u64,
     #[serde(rename(serialize = "o"))]
+    #[serde(serialize_with = "serialize_u256")]
     pub open: U256,
     #[serde(rename(serialize = "c"))]
+    #[serde(serialize_with = "serialize_u256")]
     pub close: U256,
     #[serde(rename(serialize = "l"))]
+    #[serde(serialize_with = "serialize_u256")]
     pub low: U256,
     #[serde(rename(serialize = "h"))]
+    #[serde(serialize_with = "serialize_u256")]
     pub hight: U256,
 }
 
@@ -135,12 +139,16 @@ pub struct Stats {
     #[serde(rename(serialize = "s"))]
     symbol: String,
     #[serde(rename(serialize = "l"))]
+    #[serde(serialize_with = "serialize_u256")]
     low_24h: U256,
     #[serde(rename(serialize = "h"))]
+    #[serde(serialize_with = "serialize_u256")]
     hight_24h: U256,
     #[serde(rename(serialize = "c"))]
+    #[serde(serialize_with = "serialize_u256")]
     current_price: U256,
     #[serde(rename(serialize = "o"))]
+    #[serde(serialize_with = "serialize_u256")]
     open_price: U256,
     #[serde(rename(serialize = "t"))]
     #[serde(serialize_with = "serialize_u128")]
@@ -149,6 +157,15 @@ pub struct Stats {
     current_candle: Option<Candle>,
     #[serde(rename(serialize = "pc"))]
     previous_candle: Option<Candle>,
+}
+
+pub fn serialize_u256<S>(number: &U256, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Convert byte array to Address
+    // Serialize as a hex string with 0x prefix
+    serializer.serialize_str(&number.to_string())
 }
 
 pub fn serialize_u128<S>(number: &u128, serializer: S) -> Result<S::Ok, S::Error>
@@ -175,7 +192,10 @@ pub const TRW_RESOLUTION: usize = 1;
 pub const RESOLUTIONS: [i64; 4] = [60, 900, 3600, 86400];
 
 pub fn resolution_to_index(resolution: i64) -> usize {
-    RESOLUTIONS.into_iter().find(|r| r.eq(&resolution)).unwrap() as usize
+    RESOLUTIONS
+        .into_iter()
+        .position(|r| r.eq(&resolution))
+        .unwrap() as usize
 }
 
 pub fn index_to_resolution(index: usize) -> i64 {
