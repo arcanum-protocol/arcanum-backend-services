@@ -50,7 +50,7 @@ struct DbCandle {
     low: BigDecimal,
     hight: BigDecimal,
     multipool: [u8; 20],
-    resolution: i64,
+    resolution: i32,
 }
 
 impl DbCandle {
@@ -189,16 +189,16 @@ where
 pub const BUFFER_SIZE: usize = 96;
 pub const TRW_RESOLUTION: usize = 1;
 
-pub const RESOLUTIONS: [i64; 4] = [60, 900, 3600, 86400];
+pub const RESOLUTIONS: [i32; 4] = [60, 900, 3600, 86400];
 
-pub fn resolution_to_index(resolution: i64) -> usize {
+pub fn resolution_to_index(resolution: i32) -> usize {
     RESOLUTIONS
         .into_iter()
         .position(|r| r.eq(&resolution))
         .unwrap() as usize
 }
 
-pub fn index_to_resolution(index: usize) -> i64 {
+pub fn index_to_resolution(index: usize) -> i32 {
     RESOLUTIONS[index]
 }
 
@@ -254,7 +254,7 @@ impl MultipoolCache {
     }
 
     // can be more optimised
-    pub fn insert_candle(&mut self, resolution: i64, candle: Candle) {
+    pub fn insert_candle(&mut self, resolution: i32, candle: Candle) {
         let resolution_index = resolution_to_index(resolution);
         self.candles[resolution_index][candle.ts as usize % BUFFER_SIZE] = Some(candle.clone());
 

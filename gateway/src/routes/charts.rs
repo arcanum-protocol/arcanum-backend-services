@@ -15,7 +15,7 @@ use crate::cache::{resolution_to_index, RESOLUTIONS};
 pub struct HistoryRequest {
     //to: i64,
     //countback: i64,
-    resolution: i64,
+    resolution: i32,
     multipool_address: Address,
 }
 
@@ -35,7 +35,7 @@ pub async fn candles<P: Provider>(
         .get(&query.multipool_address)
         .unwrap()
         .value()
-        .candles[resolution_to_index(query.resolution as i64)]
+        .candles[resolution_to_index(query.resolution)]
     .clone();
 
     let serialized_candles = json!({

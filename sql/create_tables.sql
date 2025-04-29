@@ -57,9 +57,8 @@ CREATE TABLE IF NOT EXISTS actions_history
     account             ADDRESS         NOT NULL,
     multipool           ADDRESS         NOT NULL,
 
-    quantity            U256    NOT NULL,
-    receiving           BOOLEAN NOT NULL,
-    price               U256    NOT NULL,
+    quantity            NUMERIC NOT NULL,
+    quote_quantity      NUMERIC NOT NULL,
 
     transaction_hash    BYTES32 NOT NULL,
     block_number        BIGINT  NOT NULL,
@@ -102,16 +101,15 @@ DECLARE
     var_resol INT;
 BEGIN 
 
-        IF (select multipool from multipools where chain_id = arg_chain_id AND multipool=arg_multipool limit 1) IS NULL THEN
-            insert into multipools(chain_id, multipool) values (arg_chain_id, arg_multipool);
+        IF (select multipool from multipools where multipool=arg_multipool limit 1) IS NULL THEN
+            insert into multipools(multipool) values (arg_multipool);
         END IF;
 
         -- gen candles
         FOREACH var_resol in array var_resolutions
         LOOP 
-            INSERT INTO candles(chain_id, multipool, ts, resolution, open, close, low, hight)
+            INSERT INTO candles(multipool, ts, resolution, open, close, low, hight)
             VALUES(
-                arg_chain_id,
                 arg_multipool,
                 arg_timestamp / var_resol * var_resol, 
                 var_resol,
@@ -120,7 +118,7 @@ BEGIN
                 arg_new_price,
                 arg_new_price
                 )
-            ON CONFLICT (chain_id, multipool, resolution, ts) DO UPDATE SET
+            ON CONFLICT (multipool, resolution, ts) DO UPDATE SET
                 close = arg_new_price,
                 low = least(candles.low, arg_new_price),
                 hight = greatest(candles.hight, arg_new_price);
