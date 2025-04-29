@@ -125,15 +125,14 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                                     .get_price(block.timestamp)
                                 {
                                     Some(p) => p,
-                                    None => {
-                                        crate::price_fetcher::get_mps_prices(
-                                            &[multipool_address],
-                                            &self.app_state.provider,
-                                            block.number,
-                                        )
-                                        .await?
-                                        .0[0]
-                                    }
+                                    None => crate::price_fetcher::get_mps_prices(
+                                        &[multipool_address],
+                                        &self.app_state.provider,
+                                        block.number,
+                                    )
+                                    .await?
+                                    .0[0]
+                                        .unwrap(),
                                 };
 
                                 let price: BigDecimal = price.to_string().parse().unwrap();
