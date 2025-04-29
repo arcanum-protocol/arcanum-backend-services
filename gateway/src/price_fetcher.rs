@@ -52,22 +52,24 @@ pub async fn run<P: Provider>(
             for chunk in multipools.chunks(config.multipools_in_chunk as usize) {
                 // Fetch by block number
                 let (prices, ts) = get_mps_prices(chunk, &provider, indexing_block).await?;
-                for (price, mp) in prices.into_iter().zip(chunk) {
-                    sqlx::query("call insert_price($1,$2,$3)")
-                        .bind::<[u8; 20]>(*mp.0)
-                        .bind::<i64>(ts as i64)
-                        .bind::<BigDecimal>(BigDecimal::from_str_radix(
-                            price.to_string().as_str(),
-                            10,
-                        )?)
-                        .execute(&mut *transaction)
-                        .await?;
+                for (p, mp) in prices.into_iter().zip(chunk) {
+                    if let Some(price) = p {
+                        sqlx::query("call insert_price($1,$2,$3)")
+                            .bind::<[u8; 20]>(*mp.0)
+                            .bind::<i64>(ts as i64)
+                            .bind::<BigDecimal>(BigDecimal::from_str_radix(
+                                price.to_string().as_str(),
+                                10,
+                            )?)
+                            .execute(&mut *transaction)
+                            .await?;
 
-                    app_state
-                        .stats_cache
-                        .get_mut(mp)
-                        .unwrap()
-                        .insert_price(price, ts);
+                        app_state
+                            .stats_cache
+                            .get_mut(mp)
+                            .unwrap()
+                            .insert_price(price, ts);
+                    }
                 }
             }
             PriceFetcher
@@ -101,7 +103,7 @@ pub async fn get_mps_prices<P: Provider>(
     mps: &[Address],
     provider: &P,
     block_number: u64,
-) -> anyhow::Result<(Vec<U256>, u64)> {
+) -> anyhow::Result<(Vec<Option<U256>>, u64)> {
     let multipool_functions = multipool_types::Multipool::abi::functions();
     let get_price_func = &multipool_functions.get("getSharePricePart").unwrap()[0];
     let mut mc = alloy_multicall::Multicall::new(
@@ -129,9 +131,9 @@ pub async fn get_mps_prices<P: Provider>(
     let mut res = mc.call_with_block(block_number.into()).await.unwrap();
     //let mut res = mc.call().await.unwrap();
     let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
-    let prices: Vec<U256> = res
+    let prices: Vec<Option<U256>> = res
         .into_iter()
-        .filter_map(|p| match p {
+        .map(|p| match p {
             Ok(p) => Some(p.as_uint().unwrap().0),
             Err(e) if e == overflow_error => None,
             //TODO: warning here
