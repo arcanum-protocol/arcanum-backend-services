@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS candles
 );
 
 -- price is decimal with precision 10^6
-CREATE OR REPLACE PROCEDURE insert_price(arg_multipool ADDRESS, arg_timestamp U256, arg_new_price BIGINT) 
+CREATE OR REPLACE PROCEDURE insert_price(arg_multipool ADDRESS, arg_timestamp BIGINT, arg_new_price U256) 
 LANGUAGE plpgsql 
 AS $$
 DECLARE

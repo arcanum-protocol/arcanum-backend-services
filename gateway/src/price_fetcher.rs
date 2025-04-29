@@ -54,9 +54,7 @@ pub async fn run<P: Provider>(
                 // Fetch by block number
                 let (prices, ts) = get_mps_prices(chunk, &provider, indexing_block).await?;
                 for (price, mp) in prices.into_iter().zip(chunk) {
-                    println!("{:?}", price);
-                    sqlx::query("call insert_price($1, $2, $3, $4)")
-                        .bind(chain_id)
+                    sqlx::query("call insert_price($1,$2,$3)")
                         .bind::<&[u8]>(mp.as_slice())
                         .bind::<i64>(ts as i64)
                         .bind::<BigDecimal>(BigDecimal::from_str_radix(
