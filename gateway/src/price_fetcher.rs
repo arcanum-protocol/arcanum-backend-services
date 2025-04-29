@@ -41,7 +41,6 @@ pub async fn run<P: Provider>(
             .await?
             .map(|r| r.get::<i64, _>("block_number") as u64 + config.block_delay)
             .unwrap_or(latest_block);
-
     loop {
         if indexing_block <= latest_block {
             PriceFetcher
@@ -55,7 +54,7 @@ pub async fn run<P: Provider>(
                 let (prices, ts) = get_mps_prices(chunk, &provider, indexing_block).await?;
                 for (price, mp) in prices.into_iter().zip(chunk) {
                     sqlx::query("call insert_price($1,$2,$3)")
-                        .bind::<&[u8]>(mp.as_slice())
+                        .bind::<[u8; 20]>(*mp.0)
                         .bind::<i64>(ts as i64)
                         .bind::<BigDecimal>(BigDecimal::from_str_radix(
                             price.to_string().as_str(),
