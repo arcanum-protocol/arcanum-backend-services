@@ -1,108 +1,83 @@
 use axum_msgpack::MsgPack;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use alloy::{primitives::Address, providers::Provider};
 use axum::extract::{Query, State};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::cache::{resolution_to_index, RESOLUTIONS};
+use crate::cache::{try_resolution_to_index, Candle, DbCandleSmall, Stats};
 
 #[derive(Deserialize)]
 pub struct HistoryRequest {
-    to: i64,
-    countback: i64,
-    resolution: i32,
-    multipool_address: Address,
+    t: Option<u64>,
+    c: Option<usize>,
+    r: i32,
+    m: Address,
 }
 
 pub async fn candles<P: Provider>(
     Query(query): Query<HistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Value> {
-    let to = &query.to;
-    let countback = query.countback;
+) -> MsgPack<Vec<Candle>> {
+    //TODO: error handling
+    let resolution_index = try_resolution_to_index(query.r).unwrap();
 
-    if !RESOLUTIONS.contains(&query.resolution) {
-        return json!({"err": "invalid resolution"}).into();
-    }
+    let candles =
+        state.stats_cache.get(&query.m).unwrap().value().candles[resolution_index].clone();
 
-    let candles = state
-        .stats_cache
-        .get(&query.multipool_address)
-        .unwrap()
-        .value()
-        .candles[resolution_to_index(query.resolution)]
-    .clone();
+    let (ts, countback) = match (query.t, query.c) {
+        (Some(ts), Some(countback)) => (ts, countback),
+        _ => return candles.into(),
+    };
 
-    return serde_json::to_value(candles.as_slice()).unwrap().into();
-
-    //  let result = sqlx::query(
-    //      "
-    //      SELECT
-    //          open::TEXT as o,
-    //          close::TEXT as c,
-    //          low::TEXT as l,
-    //          high::TEXT as h,
-    //          ts::TEXT as t
-    //      FROM
-    //          candles
-    //      WHERE
-    //          ts <= $1
-    //          AND resolution = $2
-    //          AND multipool = $3
-    //      ORDER BY
-    //          ts DESC
-    //      LIMIT $4;",
-    //  )
-    //  .bind(to)
-    //  .bind(resolution)
-    //  .bind::<&[u8]>(query.multipool_address.as_slice())
-    //  .bind(countback)
-    //  .fetch_all(&mut *state.connection.acquire().await.unwrap())
-    //  .await;
-
-    //  match result {
-    //      Ok(rows) => {
-    //          if rows.is_empty() {
-    //              json!({"s": "no_data"}).into()
-    //          } else {
-    //              json!({
-    //                  "s":"ok",
-    //                  "t": rows.iter().rev().map(|r: &PgRow| r.get("t")).collect::<Vec<String>>(),
-    //                  "o": rows.iter().rev().map(|r: &PgRow| r.get("o") ).collect::<Vec<String>>(),
-    //                  "c": rows.iter().rev().map(|r: &PgRow| r.get("c") ).collect::<Vec<String>>(),
-    //                  "l": rows.iter().rev().map(|r: &PgRow| r.get("l") ).collect::<Vec<String>>(),
-    //                  "h": rows.iter().rev().map(|r: &PgRow| r.get("h") ).collect::<Vec<String>>(),
-    //              })
-    //              .into()
-    //          }
-    //      }
-    //      Err(err) => {
-    //          println!("{:?}", err);
-    //          json!({"s":"error"}).into()
-    //      }
-    //  }
+    let result: Vec<DbCandleSmall> = sqlx::query_as(
+        "
+          SELECT
+              open::TEXT as o,
+              close::TEXT as c,
+              low::TEXT as l,
+              high::TEXT as h,
+              ts::TEXT as t
+          FROM
+              candles
+          WHERE
+              ts <= $1
+              AND resolution = $2
+              AND multipool = $3
+          ORDER BY
+              ts DESC
+          LIMIT $4;",
+    )
+    .bind(ts as i64)
+    .bind(query.r)
+    .bind::<&[u8]>(query.m.as_slice())
+    .bind(countback as i64)
+    .fetch_all(&mut *state.connection.acquire().await.unwrap())
+    .await
+    .unwrap();
+    result
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<Candle>>()
+        .into()
 }
 
 #[derive(Deserialize)]
 pub struct StatsRequest {
-    multipool_address: Address,
+    m: Address,
 }
 
 pub async fn stats<P: Provider>(
     Query(query): Query<StatsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Value> {
-    serde_json::to_value(
-        state
-            .stats_cache
-            .get(&query.multipool_address)
-            .unwrap()
-            .value()
-            .stats
-            .clone(),
-    )
-    .unwrap()
-    .into()
+) -> MsgPack<Stats> {
+    state
+        .stats_cache
+        .get(&query.m)
+        .unwrap()
+        .value()
+        .stats
+        .clone()
+        .into()
 }

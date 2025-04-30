@@ -39,7 +39,8 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
-        let uri = request.uri().to_string();
+        let uri = request.uri().path().to_string();
+
         let future = self.inner.call(request);
         Box::pin(async move {
             let tags = &[KeyValue::new("method", uri)];
