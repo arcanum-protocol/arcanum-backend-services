@@ -54,6 +54,12 @@ pub struct RpcConfig {
 }
 
 #[derive(Deserialize)]
+pub struct ArweaveConfig {
+    rpc_url: String,
+    wallet_path: String,
+}
+
+#[derive(Deserialize)]
 pub struct GatewayService {
     price_fetcher: PriceFetcherConfig,
     indexer: IndexerConfig,
@@ -62,8 +68,7 @@ pub struct GatewayService {
     factory: Address,
     bind_to: Option<String>,
     rpc: RpcConfig,
-    arweave_url: String,
-    arweave_wallet_path: String,
+    arweave: Option<ArweaveConfig>,
 }
 
 impl ServiceData for GatewayService {
@@ -88,15 +93,9 @@ impl ServiceData for GatewayService {
         let provider_http = ProviderBuilder::new().on_client(http_client);
 
         let app_state = Arc::new(
-            AppState::initialize(
-                pool.clone(),
-                provider_http,
-                self.factory,
-                self.arweave_url,
-                &self.arweave_wallet_path,
-            )
-            .await
-            .unwrap(),
+            AppState::initialize(pool.clone(), provider_http, self.factory, self.arweave)
+                .await
+                .unwrap(),
         );
 
         let price_fetcher_handle = price_fetcher::run(app_state.clone(), self.price_fetcher);

@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS multipools
 (
     name                TEXT        NULL,
     symbol              TEXT        NULL,
+    description         TEXT        NULL,
+    logo                BYTEA       NULL,
 
     chain_id            BIGINT  NOT NULL,
     multipool           ADDRESS NOT NULL,

@@ -12,12 +12,13 @@ use std::sync::Arc;
 
 use sqlx::{Executor, PgPool, Postgres};
 
+use crate::ArweaveConfig;
+
 pub struct AppState<P: Provider> {
     pub stats_cache: DashMap<Address, MultipoolCache>,
     pub multipools: Arc<RwLock<Vec<Address>>>,
     pub connection: PgPool,
-    pub arweave_rpc: Rpc,
-    pub arweave_signer: Arc<Signer>,
+    pub arwave: Option<ArwaveState>,
     pub provider: P,
     pub chain_id: u64,
     pub factory: Address,
@@ -97,13 +98,17 @@ impl DbCandle {
     }
 }
 
+pub struct ArwaveState {
+    pub rpc: Rpc,
+    pub signer: Arc<Signer>,
+}
+
 impl<P: Provider> AppState<P> {
     pub async fn initialize(
         connection: PgPool,
         provider: P,
         factory: Address,
-        arweave_url: String,
-        wallet_path: &str,
+        arwave: Option<ArweaveConfig>,
     ) -> Result<Self> {
         let chain_id = provider.get_chain_id().await?;
         let stats_cache = DashMap::<Address, MultipoolCache>::default();
@@ -136,11 +141,17 @@ impl<P: Provider> AppState<P> {
         ));
 
         Ok(Self {
-            arweave_rpc: Rpc {
-                url: arweave_url,
-                ..Default::default()
-            },
-            arweave_signer: Arc::new(Signer::from_file(wallet_path)?),
+            arwave: arwave
+                .map(|a| {
+                    anyhow::Ok(ArwaveState {
+                        rpc: Rpc {
+                            url: a.rpc_url,
+                            ..Default::default()
+                        },
+                        signer: Arc::new(Signer::from_file(&a.wallet_path)?),
+                    })
+                })
+                .transpose()?,
             factory,
             stats_cache,
             connection,
