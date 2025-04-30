@@ -1,16 +1,18 @@
 use crate::{error::AppError, routes::stringify};
 use alloy::{primitives::Address, providers::Provider};
-use axum::{extract::{Multipart, Query, State}, Json};
-use axum_msgpack::MsgPack;
 use arweave_client::{Rpc, Tag, Transaction, Uploader};
+use axum::{
+    extract::{Multipart, Path, Query, State},
+    Json,
+};
+use axum_msgpack::MsgPack;
 use bigdecimal::BigDecimal;
 use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use anyhow::anyhow;
-use std::{fs::create_dir_all, sync::Arc};
-use tokio::{fs::File, io::AsyncWriteExt};
+use std::sync::Arc;
 
 pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> MsgPack<Value> {
     serde_json::to_value(
@@ -89,48 +91,82 @@ pub async fn create<P: Provider>(
     let desc_offset = name_bytes.len();
     let desc_bytes = description.into_bytes();
     let logo_offset = desc_offset + desc_bytes.len();
-    let data = name_bytes
-        .into_iter()
-        .chain(desc_bytes)
-        .chain(logo)
-        .collect();
+    // let data = name_bytes
+    //     .into_iter()
+    //     .chain(desc_bytes)
+    //     .chain(logo)
+    //     .collect();
 
-    let mut tx = Transaction::builder(state.arweave_rpc.clone())
-        .tags(vec![
-            Tag {
-                name: "Content-Type".to_string(),
-                value: "MpData".to_string(),
-            },
-            Tag {
-                name: "Address".to_string(),
-                value: multipool_address.to_string(),
-            },
-            Tag {
-                name: "ChainId".to_string(),
-                value: chain_id.to_string(),
-            },
-            Tag {
-                name: "Symbol".to_string(),
-                value: symbol.to_owned(),
-            },
-            Tag {
-                name: "DescriptionOffset".to_string(),
-                value: desc_offset.to_string(),
-            },
-            Tag {
-                name: "LogoOffset".to_string(),
-                value: logo_offset.to_string(),
-            },
-        ])
-        .data(data)
-        .build()
-        .await
-        .map_err(stringify)?;
-    tx.sign(state.arweave_signer.clone()).map_err(stringify)?;
-    let mut uploader = Uploader::new(state.arweave_rpc.clone(), tx);
-    uploader.upload_chunks().await.unwrap();
+    // let mut tx = Transaction::builder(state.arweave_rpc.clone())
+    //     .tags(vec![
+    //         Tag {
+    //             name: "Content-Type".to_string(),
+    //             value: "MpData".to_string(),
+    //         },
+    //         Tag {
+    //             name: "Address".to_string(),
+    //             value: multipool_address.to_string(),
+    //         },
+    //         Tag {
+    //             name: "ChainId".to_string(),
+    //             value: chain_id.to_string(),
+    //         },
+    //         Tag {
+    //             name: "Symbol".to_string(),
+    //             value: symbol.to_owned(),
+    //         },
+    //         Tag {
+    //             name: "DescriptionOffset".to_string(),
+    //             value: desc_offset.to_string(),
+    //         },
+    //         Tag {
+    //             name: "LogoOffset".to_string(),
+    //             value: logo_offset.to_string(),
+    //         },
+    //     ])
+    //     .data(data)
+    //     .build()
+    //     .await
+    //     .map_err(stringify)?;
+    // tx.sign(state.arweave_signer.clone()).map_err(stringify)?;
+    // let mut uploader = Uploader::new(state.arweave_rpc.clone(), tx);
+    // uploader.upload_chunks().await.unwrap();
+
+    //TODO: how to not fkn ddos
+    // sqlx::query("INSERT INTO multipools(logo, description) ")
+    //     .bind::<[u8; 20]>(multipool.into())
+    //     .fetch_all(&mut *state.connection.acquire().await.unwrap())
+    //     .await
+    //     .unwrap()
+    //     .into()
     //TODO: add limits on name, symbol, description + logo size
     Ok(json!(()).into())
+}
+
+#[derive(Deserialize)]
+pub struct MetadataRequest {
+    multipool: Address,
+}
+
+#[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
+pub struct DbMetadata {
+    #[serde(with = "serde_bytes")]
+    #[serde(rename(serialize = "l"))]
+    logo: Vec<u8>,
+    #[serde(rename(serialize = "d"))]
+    description: String,
+}
+
+pub async fn metadata<P: Provider>(
+    Path(multipool): Path<Address>,
+    State(state): State<Arc<crate::AppState<P>>>,
+) -> MsgPack<Vec<DbPositions>> {
+    sqlx::query_as("SELECT logo, description FROM multipools WHERE multipool = $1")
+        .bind::<[u8; 20]>(multipool.into())
+        .fetch_all(&mut *state.connection.acquire().await.unwrap())
+        .await
+        .unwrap()
+        .into()
 }
 
 #[derive(Deserialize)]
@@ -154,10 +190,15 @@ pub async fn positions<P: Provider>(
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
 pub struct DbPositions {
     #[serde(serialize_with = "serialize_address")]
+    #[serde(rename(serialize = "m"))]
     multipool: [u8; 20],
+    #[serde(rename(serialize = "q"))]
     quantity: BigDecimal,
+    #[serde(rename(serialize = "p"))]
     profit: BigDecimal,
+    #[serde(rename(serialize = "l"))]
     los: BigDecimal,
+    #[serde(rename(serialize = "o"))]
     opened_at: i64,
 }
 
@@ -183,9 +224,13 @@ pub async fn positions_history<P: Provider>(
 pub struct DbPositionsHistory {
     #[serde(serialize_with = "serialize_address")]
     multipool: [u8; 20],
+    #[serde(rename(serialize = "q"))]
     pnl_quantity: BigDecimal,
+    #[serde(rename(serialize = "p"))]
     pnl_percent: BigDecimal,
+    #[serde(rename(serialize = "o"))]
     opened_at: i64,
+    #[serde(rename(serialize = "c"))]
     closed_at: i64,
 }
 
