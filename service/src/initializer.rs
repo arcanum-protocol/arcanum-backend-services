@@ -7,12 +7,8 @@ use crate::{
 use log::{Level, Log};
 use opentelemetry::{global, KeyValue};
 use opentelemetry_appender_log::OpenTelemetryLogBridge;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{
-    logs::Config,
-    metrics::reader::{DefaultAggregationSelector, DefaultTemporalitySelector},
-    Resource,
-};
+use opentelemetry_otlp::{LogExporter, MetricExporter, Protocol, WithExportConfig};
+use opentelemetry_sdk::{logs::LoggerProviderBuilder, metrics::SdkMeterProvider, Resource};
 
 use serde::de::DeserializeOwned;
 
@@ -49,50 +45,52 @@ pub async fn initialize_telemetry_and_run<D: DeserializeOwned + ServiceData>(
     config: ServiceConfig<D>,
 ) {
     if let Some(telemetry) = config.telemetry {
-        let resource = Resource::new(vec![
-            KeyValue::new("service.name", config.service_name.to_string()),
-            KeyValue::new("service.environment", config.environment.to_string()),
-        ]);
+        let resource = Resource::builder()
+            .with_attribute(KeyValue::new(
+                "service.name",
+                config.service_name.to_string(),
+            ))
+            .with_attribute(KeyValue::new(
+                "service.environment",
+                config.environment.to_string(),
+            ))
+            .build();
 
-        let log_exporter = opentelemetry_otlp::new_exporter()
-            .http()
-            .with_http_client(reqwest::Client::new())
-            .with_endpoint(telemetry.otel_endpoint.to_string())
-            .with_timeout(Duration::from_millis(telemetry.otel_sync_interval));
+        let otel_log_provider = LoggerProviderBuilder::default()
+            .with_batch_exporter(
+                LogExporter::builder()
+                    .with_tonic()
+                    .with_protocol(Protocol::Grpc)
+                    .with_endpoint(telemetry.otel_endpoint.to_string())
+                    .with_timeout(Duration::from_millis(telemetry.otel_sync_interval))
+                    .build()
+                    .unwrap(),
+            )
+            .with_resource(resource.clone())
+            .build();
 
-        let metrics_exporter = opentelemetry_otlp::new_exporter()
-            .http()
-            .with_http_client(reqwest::Client::new())
-            .with_endpoint(telemetry.otel_endpoint.to_string())
-            .with_timeout(Duration::from_millis(telemetry.otel_sync_interval));
-
-        let p = opentelemetry_otlp::new_pipeline()
-            .logging()
-            .with_log_config(Config::default().with_resource(resource.clone()))
-            .with_exporter(log_exporter)
-            .install_batch(opentelemetry_sdk::runtime::Tokio)
-            .expect("Failed to bootstrap otel");
-
-        let otel_log_appender = OpenTelemetryLogBridge::new(p.provider());
         log::set_boxed_logger(Box::new(CombineLogger(
             pretty_env_logger::formatted_builder()
                 .parse_default_env()
                 .build(),
-            otel_log_appender,
+            OpenTelemetryLogBridge::new(&otel_log_provider),
         )))
         .expect("logging already initialized");
         log::set_max_level(Level::Info.to_level_filter());
 
-        let metrics = opentelemetry_otlp::new_pipeline()
-            .metrics(opentelemetry_sdk::runtime::Tokio)
-            .with_resource(resource.clone())
-            .with_exporter(metrics_exporter)
-            .with_period(Duration::from_secs(3))
-            .with_timeout(Duration::from_secs(10))
-            .with_aggregation_selector(DefaultAggregationSelector::new())
-            .with_temporality_selector(DefaultTemporalitySelector::new())
-            .build()
-            .expect("Failed to bootstrap OTEL metrics");
+        let metrics = SdkMeterProvider::builder()
+            .with_periodic_exporter(
+                MetricExporter::builder()
+                    .with_tonic()
+                    .with_protocol(Protocol::Grpc)
+                    .with_endpoint(telemetry.otel_endpoint.to_string())
+                    .with_timeout(Duration::from_millis(telemetry.otel_sync_interval))
+                    .build()
+                    .unwrap(),
+            )
+            .with_resource(resource)
+            .build();
+
         global::set_meter_provider(metrics.clone());
         METER_PROVIDER
             .set(metrics)

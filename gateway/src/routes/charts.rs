@@ -1,20 +1,17 @@
+use axum_msgpack::MsgPack;
 use serde_json::{json, Value};
 
 use alloy::{primitives::Address, providers::Provider};
-use axum::{
-    extract::{Query, State},
-    Json,
-};
+use axum::extract::{Query, State};
 use serde::Deserialize;
-use sqlx::{postgres::PgRow, Row};
 use std::sync::Arc;
 
 use crate::cache::{resolution_to_index, RESOLUTIONS};
 
 #[derive(Deserialize)]
 pub struct HistoryRequest {
-    //to: i64,
-    //countback: i64,
+    to: i64,
+    countback: i64,
     resolution: i32,
     multipool_address: Address,
 }
@@ -22,9 +19,9 @@ pub struct HistoryRequest {
 pub async fn candles<P: Provider>(
     Query(query): Query<HistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> Json<Value> {
-    // let to = &query.to;
-    // let countback = query.countback;
+) -> MsgPack<Value> {
+    let to = &query.to;
+    let countback = query.countback;
 
     if !RESOLUTIONS.contains(&query.resolution) {
         return json!({"err": "invalid resolution"}).into();
@@ -38,15 +35,7 @@ pub async fn candles<P: Provider>(
         .candles[resolution_to_index(query.resolution)]
     .clone();
 
-    let serialized_candles = json!({
-        "s":"ok",
-        "t": candles.iter().rev().filter_map(|c| c.as_ref().map(|c| c.ts.to_string())).collect::<Vec<String>>(),
-        "o": candles.iter().rev().filter_map(|c| c.as_ref().map(|c| c.open.to_string())).collect::<Vec<String>>(),
-        "c": candles.iter().rev().filter_map(|c| c.as_ref().map(|c| c.close.to_string())).collect::<Vec<String>>(),
-        "l": candles.iter().rev().filter_map(|c| c.as_ref().map(|c| c.low.to_string())).collect::<Vec<String>>(),
-        "h": candles.iter().rev().filter_map(|c| c.as_ref().map(|c| c.hight.to_string())).collect::<Vec<String>>(),
-    });
-    return serialized_candles.into();
+    return serde_json::to_value(candles.as_slice()).unwrap().into();
 
     //  let result = sqlx::query(
     //      "
@@ -104,7 +93,7 @@ pub struct StatsRequest {
 pub async fn stats<P: Provider>(
     Query(query): Query<StatsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> Json<Value> {
+) -> MsgPack<Value> {
     serde_json::to_value(
         state
             .stats_cache

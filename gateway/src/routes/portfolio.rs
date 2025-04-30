@@ -1,9 +1,7 @@
 use crate::{error::AppError, routes::stringify};
 use alloy::{primitives::Address, providers::Provider};
-use axum::{
-    extract::{Multipart, Query, State},
-    Json,
-};
+use axum::extract::{Multipart, Query, State};
+use axum_msgpack::MsgPack;
 use bigdecimal::BigDecimal;
 use serde::Serializer;
 use serde::{Deserialize, Serialize};
@@ -13,7 +11,7 @@ use anyhow::anyhow;
 use std::{fs::create_dir_all, sync::Arc};
 use tokio::{fs::File, io::AsyncWriteExt};
 
-pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> Json<Value> {
+pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> MsgPack<Value> {
     serde_json::to_value(
         state
             .stats_cache
@@ -32,7 +30,7 @@ pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> 
 pub async fn create<P: Provider>(
     State(state): State<Arc<crate::AppState<P>>>,
     mut multipart: Multipart,
-) -> Result<Json<Value>, String> {
+) -> Result<MsgPack<Value>, String> {
     let mut logo = None;
     let mut multipool_address: Option<Address> = None;
     let mut chain_id: Option<i64> = None;
@@ -112,7 +110,7 @@ pub struct PositionsRequest {
 pub async fn positions<P: Provider>(
     Query(query): Query<PositionsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> Json<Vec<DbPositions>> {
+) -> MsgPack<Vec<DbPositions>> {
     sqlx::query_as("SELECT * FROM positions WHERE chain_id = $1 and account = $2")
         .bind::<i64>(state.chain_id as i64)
         .bind::<[u8; 20]>(query.account.into())
@@ -140,7 +138,7 @@ pub struct PositionsHistoryRequest {
 pub async fn positions_history<P: Provider>(
     Query(query): Query<PositionsHistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> Json<Vec<DbPositions>> {
+) -> MsgPack<Vec<DbPositions>> {
     sqlx::query_as("SELECT * FROM positions_history WHERE chain_id = $1 and account = $2")
         .bind::<i64>(state.chain_id as i64)
         .bind::<[u8; 20]>(query.account.into())

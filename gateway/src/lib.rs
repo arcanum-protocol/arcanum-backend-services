@@ -2,9 +2,9 @@ use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 
-use alloy::primitives::Address;
 use alloy::providers::ProviderBuilder;
 use alloy::transports::http::reqwest::Url;
+use alloy::{primitives::Address, rpc::client::ClientBuilder};
 use backend_service::ServiceData;
 use cache::AppState;
 use indexer1::Indexer;
@@ -20,13 +20,15 @@ use axum::{
     Router,
 };
 
+use crate::layers::api_metrics::OtelMetricsLayer;
+
 pub mod cache;
 pub mod error;
 pub mod indexer;
-pub mod log_target;
-pub mod metrics;
+pub mod layers;
 pub mod price_fetcher;
 pub mod routes;
+pub mod service;
 
 #[derive(Deserialize)]
 pub struct IndexerConfig {
@@ -40,6 +42,14 @@ pub struct DbConfig {
 }
 
 #[derive(Deserialize)]
+pub struct RpcConfig {
+    ws_url: Option<String>,
+    http_url: String,
+    max_retry: u32,
+    backoff_ms: u64,
+}
+
+#[derive(Deserialize)]
 pub struct GatewayService {
     price_fetcher: PriceFetcherConfig,
     indexer: IndexerConfig,
@@ -47,8 +57,7 @@ pub struct GatewayService {
     // TODO: make optional when use create2 to deploy factory
     factory: Address,
     bind_to: Option<String>,
-    ws_rpc_url: Option<String>,
-    http_rpc_url: String,
+    rpc: RpcConfig,
 }
 
 impl ServiceData for GatewayService {
@@ -62,8 +71,15 @@ impl ServiceData for GatewayService {
             env::var(&database_env_key).context(format!("{} must be set", database_env_key))?;
         let pool = sqlx::PgPool::connect(&database_url).await?;
 
-        let provider_http = ProviderBuilder::new()
-            .on_http(Url::parse(&self.http_rpc_url).context("Failed to parse http rpc url")?);
+        let retry_layer =
+            layers::backoff::RetryBackoffLayer::new(self.rpc.max_retry, self.rpc.backoff_ms);
+
+        let http_client = ClientBuilder::default()
+            .layer(retry_layer)
+            .http(Url::parse(&self.rpc.http_url).context("Failed to parse http rpc url")?);
+
+        // Create a new provider with the client.
+        let provider_http = ProviderBuilder::new().on_client(http_client);
 
         let app_state = Arc::new(
             AppState::initialize(pool.clone(), provider_http, self.factory)
@@ -81,8 +97,8 @@ impl ServiceData for GatewayService {
 
             Indexer::builder()
                 .pg_storage(pool)
-                .http_rpc_url(self.http_rpc_url.parse()?)
-                .ws_rpc_url_opt(self.ws_rpc_url.map(|url| url.parse()).transpose()?)
+                .http_rpc_url(self.rpc.http_url.parse()?)
+                .ws_rpc_url_opt(self.rpc.ws_url.map(|url| url.parse()).transpose()?)
                 .block_range_limit(999)
                 .fetch_interval(Duration::from_millis(self.indexer.fetch_interval_ms))
                 .filter(Multipool::filter().from_block(self.indexer.from_block))
@@ -107,7 +123,9 @@ impl ServiceData for GatewayService {
                 "/account/positions_history",
                 get(portfolio::positions_history),
             )
+            .layer(OtelMetricsLayer)
             .layer(CorsLayer::permissive())
+            //TODO: handle api errors somehow????
             .with_state(app_state);
 
         let listener =

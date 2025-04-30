@@ -1,8 +1,12 @@
-use crate::log_target::GatewayTarget::Indexer;
+use crate::service::log_target::GatewayTarget::Indexer;
+use crate::service::metrics::{
+    DATABASE_REQUEST_DURATION_MS, INDEXED_LOGS_COUNT, INDEXER_HEIGHT, LOGS_COMMITEMENT_DURATION_MS,
+};
 use alloy::primitives::Address;
 use alloy::{providers::Provider, sol_types::SolEventInterface};
 use anyhow::{anyhow, Result};
 use backend_service::logging::LogTarget;
+use backend_service::KeyValue;
 use indexer1::Processor;
 use multipool_types::messages::Blocks;
 use multipool_types::Multipool::MultipoolEvents;
@@ -13,6 +17,7 @@ use serde_json::{json, to_value};
 use sqlx::Executor;
 use sqlx::{types::BigDecimal, Postgres, Transaction};
 use std::sync::Arc;
+use std::time::Instant;
 
 use crate::cache::{AppState, MultipoolCache};
 
@@ -38,21 +43,19 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
         logs: &[indexer1::alloy::rpc::types::Log],
         db_tx: &mut Transaction<'_, Postgres>,
         _prev_saved_block: u64,
-        _new_saved_block: u64,
+        new_saved_block: u64,
         chain_id: u64,
     ) -> anyhow::Result<()> {
-        Indexer.info(json!({ "m": "processing started" })).log();
+        let commitement_timer = Instant::now();
+        INDEXER_HEIGHT.record(new_saved_block, &[]);
+        INDEXED_LOGS_COUNT.record(logs.len().try_into()?, &[]);
+
         let blocks = Blocks::parse_logs(logs, self.app_state.provider.clone())
             .await
             .map_err(|_e| anyhow!("ParseLogsErrror"))?;
-        Indexer
-            .info(json!({
-                "m": "blocks processed",
-                "b": blocks,
-            }))
-            .log();
 
         for block in blocks.0.iter() {
+            let timer = Instant::now();
             sqlx::query(
                 "INSERT INTO blocks(
                     chain_id, 
@@ -65,6 +68,10 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
             .bind::<Value>(to_value(block)?)
             .execute(&mut **db_tx)
             .await?;
+            DATABASE_REQUEST_DURATION_MS.record(
+                timer.elapsed().as_millis() as u64,
+                &[KeyValue::new("query_name", "insert_blocks")],
+            );
 
             for transaction in block.transactions.iter() {
                 for event in transaction.events.iter() {
@@ -184,7 +191,7 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                 }
             }
         }
-
+        LOGS_COMMITEMENT_DURATION_MS.record(commitement_timer.elapsed().as_millis() as u64, &[]);
         Ok(())
     }
 }
@@ -210,7 +217,8 @@ impl MultipoolCreated {
         self,
         executor: E,
     ) -> Result<()> {
-        sqlx::query(
+        let timer = Instant::now();
+        let r = sqlx::query(
             "INSERT INTO multipools(
                 chain_id,
                 multipool,
@@ -227,7 +235,12 @@ impl MultipoolCreated {
         .execute(executor)
         .await
         .map(|_| ())
-        .map_err(Into::into)
+        .map_err(Into::into);
+        DATABASE_REQUEST_DURATION_MS.record(
+            timer.elapsed().as_millis() as u64,
+            &[KeyValue::new("query_name", "insert_multipool")],
+        );
+        r
     }
 }
 
@@ -248,7 +261,8 @@ impl OwnerChange {
         self,
         executor: E,
     ) -> Result<()> {
-        sqlx::query(
+        let timer = Instant::now();
+        let r = sqlx::query(
             "
             UPDATE multipools 
             SET owner = $1
@@ -260,7 +274,12 @@ impl OwnerChange {
         .execute(executor)
         .await
         .map(|_| ())
-        .map_err(Into::into)
+        .map_err(Into::into);
+        DATABASE_REQUEST_DURATION_MS.record(
+            timer.elapsed().as_millis() as u64,
+            &[KeyValue::new("query_name", "update_mp_owner")],
+        );
+        r
     }
 }
 
@@ -281,7 +300,8 @@ impl AssetChange {
         self,
         executor: E,
     ) -> Result<()> {
-        sqlx::query(
+        let timer = Instant::now();
+        let r = sqlx::query(
             "
             UPDATE multipools 
             SET total_supply = $1::NUMERIC
@@ -293,7 +313,12 @@ impl AssetChange {
         .execute(executor)
         .await
         .map(|_| ())
-        .map_err(Into::into)
+        .map_err(Into::into);
+        DATABASE_REQUEST_DURATION_MS.record(
+            timer.elapsed().as_millis() as u64,
+            &[KeyValue::new("query_name", "update_mp_ts")],
+        );
+        r
     }
 }
 
@@ -325,7 +350,8 @@ impl ShareTransfer {
         &self,
         executor: E,
     ) -> Result<()> {
-        sqlx::query(Self::QUERY)
+        let timer = Instant::now();
+        let r = sqlx::query(Self::QUERY)
             .bind::<i64>(self.chain_id as i64)
             .bind::<[u8; 20]>(self.from.into())
             .bind::<[u8; 20]>(self.multipool.into())
@@ -337,14 +363,20 @@ impl ShareTransfer {
             .execute(executor)
             .await
             .map(|_| ())
-            .map_err(Into::into)
+            .map_err(Into::into);
+        DATABASE_REQUEST_DURATION_MS.record(
+            timer.elapsed().as_millis() as u64,
+            &[KeyValue::new("query_name", "insert_action")],
+        );
+        r
     }
 
     async fn apply_on_storage_for_receiver<'a, E: Executor<'a, Database = Postgres>>(
         &self,
         executor: E,
     ) -> Result<()> {
-        sqlx::query(Self::QUERY)
+        let timer = Instant::now();
+        let r = sqlx::query(Self::QUERY)
             .bind::<i64>(self.chain_id as i64)
             .bind::<[u8; 20]>(self.to.into())
             .bind::<[u8; 20]>(self.multipool.into())
@@ -356,6 +388,11 @@ impl ShareTransfer {
             .execute(executor)
             .await
             .map(|_| ())
-            .map_err(Into::into)
+            .map_err(Into::into);
+        DATABASE_REQUEST_DURATION_MS.record(
+            timer.elapsed().as_millis() as u64,
+            &[KeyValue::new("query_name", "insert_action")],
+        );
+        r
     }
 }
