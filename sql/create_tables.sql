@@ -4,6 +4,8 @@ CHECK (LENGTH(VALUE) = 20);
 CREATE DOMAIN BYTES32 AS BYTEA
 CHECK (LENGTH(VALUE) = 32);
 
+CREATE DOMAIN I256 AS numeric(79,0);
+
 CREATE DOMAIN U256 AS numeric(78,0)
 CONSTRAINT u256_check CHECK (VALUE >= 0);
 
@@ -28,8 +30,8 @@ CREATE TABLE IF NOT EXISTS positions
 
     quantity            U256    NOT NULL,
 
-    profit              NUMERIC NOT NULL,
-    loss                NUMERIC NOT NULL,
+    profit              U256 NOT NULL,
+    loss                U256 NOT NULL,
 
     opened_at           BIGINT  NOT NULL,
 
@@ -42,8 +44,8 @@ CREATE TABLE IF NOT EXISTS positions_history
     account             ADDRESS NOT NULL,
     multipool           ADDRESS NOT NULL,
 
-    pnl_percent         NUMERIC NOT NULL,
-    pnl_quantity        NUMERIC NOT NULL,
+    pnl_percent         U256    NOT NULL,
+    pnl_quantity        U256    NOT NULL,
 
     opened_at           BIGINT  NOT NULL,
     closed_at           BIGINT  NOT NULL,
@@ -57,8 +59,8 @@ CREATE TABLE IF NOT EXISTS actions_history
     account             ADDRESS         NOT NULL,
     multipool           ADDRESS         NOT NULL,
 
-    quantity            NUMERIC NOT NULL,
-    quote_quantity      NUMERIC NOT NULL,
+    quantity            I256 NOT NULL,
+    quote_quantity      I256 NOT NULL,
 
     transaction_hash    BYTES32 NOT NULL,
     block_number        BIGINT  NOT NULL,
