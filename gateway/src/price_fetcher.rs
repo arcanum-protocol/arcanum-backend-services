@@ -1,15 +1,18 @@
-use crate::log_target::GatewayTarget::PriceFetcher;
+use crate::service::log_target::GatewayTarget::PriceFetcher;
+use crate::service::metrics::{DATABASE_REQUEST_DURATION_MS, PRICE_FETCHER_HEIGHT};
+use crate::service::termination_codes::PRICE_FETCH_FAILED;
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
 use backend_service::logging::LogTarget;
+use backend_service::KeyValue;
 use bigdecimal::{BigDecimal, Num};
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Acquire;
 use sqlx::Row;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::cache::AppState;
 
@@ -43,9 +46,6 @@ pub async fn run<P: Provider>(
             .unwrap_or(latest_block);
     loop {
         if indexing_block <= latest_block {
-            PriceFetcher
-                .info(json!({"m": "starting to index block", "b": indexing_block}))
-                .log();
             let mut transaction = connection.begin().await?;
             let multipools = app_state.multipools.read().unwrap().clone();
 
@@ -54,6 +54,7 @@ pub async fn run<P: Provider>(
                 let (prices, ts) = get_mps_prices(chunk, &provider, indexing_block).await?;
                 for (p, mp) in prices.into_iter().zip(chunk) {
                     if let Some(price) = p {
+                        let timer = Instant::now();
                         sqlx::query("call insert_price($1,$2,$3)")
                             .bind::<[u8; 20]>(*mp.0)
                             .bind::<i64>(ts as i64)
@@ -63,6 +64,10 @@ pub async fn run<P: Provider>(
                             )?)
                             .execute(&mut *transaction)
                             .await?;
+                        DATABASE_REQUEST_DURATION_MS.record(
+                            timer.elapsed().as_millis() as u64,
+                            &[KeyValue::new("query_name", "insert_price")],
+                        );
 
                         app_state
                             .stats_cache
@@ -72,9 +77,7 @@ pub async fn run<P: Provider>(
                     }
                 }
             }
-            PriceFetcher
-                .info(json!({"m": "block data fetched", "b": indexing_block}))
-                .log();
+            PRICE_FETCHER_HEIGHT.record(indexing_block, &[]);
 
             sqlx::query(
                 "INSERT INTO price_indexes(chain_id, block_number) VALUES ($1, $2) ON CONFLICT (chain_id) DO UPDATE SET block_number = $2"
@@ -84,9 +87,6 @@ pub async fn run<P: Provider>(
                 .execute(&mut *transaction).await?;
 
             transaction.commit().await?;
-            PriceFetcher
-                .info(json!({"m": "block data committed", "b": indexing_block}))
-                .log();
 
             indexing_block += config.block_delay;
         }
@@ -128,8 +128,16 @@ pub async fn get_mps_prices<P: Provider>(
     );
 
     mc.add_get_current_block_timestamp();
-    let mut res = mc.call_with_block(block_number.into()).await.unwrap();
-    //let mut res = mc.call().await.unwrap();
+    let mut res = match mc.call_with_block(block_number.into()).await {
+        Ok(res) => res,
+        Err(e) => PriceFetcher
+            .error(json!({
+                "m": "multipool price fetch failed",
+                "b": block_number,
+                "e": e.to_string()
+            }))
+            .terminate(PRICE_FETCH_FAILED),
+    };
     let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
     let prices: Vec<Option<U256>> = res
         .into_iter()

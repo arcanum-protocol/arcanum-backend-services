@@ -54,14 +54,22 @@ struct DbCandle {
 }
 
 impl DbCandle {
-    async fn get_latest_day<'a, E: Executor<'a, Database = Postgres>>(
-        executor: E,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as("select * from candles ORDER BY ts DESC LIMIT $1")
+    async fn get_latest_day<E>(executor: &mut E) -> Result<Vec<Self>>
+    where
+        for<'b> &'b mut E: Executor<'b, Database = Postgres>,
+    {
+        let mut candles = Vec::default();
+        for resolution in RESOLUTIONS {
+            let part = sqlx::query_as(
+                "select * from candles WHERE resolution = $1 ORDER BY ts DESC LIMIT $2",
+            )
+            .bind(resolution as i32)
             .bind(BUFFER_SIZE as i64)
-            .fetch_all(executor)
-            .await
-            .map_err(Into::into)
+            .fetch_all(&mut *executor)
+            .await?;
+            candles.extend(part);
+        }
+        Ok(candles)
     }
 }
 
@@ -117,6 +125,7 @@ impl<P: Provider> AppState<P> {
 #[derive(Serialize, Clone, Default)]
 pub struct Candle {
     #[serde(rename(serialize = "t"))]
+    #[serde(serialize_with = "serialize_u64")]
     pub ts: u64,
     #[serde(rename(serialize = "o"))]
     #[serde(serialize_with = "serialize_u256")]
@@ -224,7 +233,7 @@ impl MultipoolCache {
     }
 
     pub fn get_price(&self, ts: u64) -> Option<U256> {
-        self.candles[0][(ts / 60 * 60) as usize % BUFFER_SIZE]
+        self.candles[0][(ts / 60) as usize % BUFFER_SIZE]
             .as_ref()
             .map(|c| c.close)
     }
@@ -232,8 +241,7 @@ impl MultipoolCache {
     // can be more optimised
     pub fn insert_price(&mut self, price: U256, ts: u64) {
         for r in RESOLUTIONS {
-            let c = self.candles[resolution_to_index(r)]
-                [(ts / r as u64 * r as u64) as usize % BUFFER_SIZE]
+            let c = self.candles[resolution_to_index(r)][(ts / r as u64) as usize % BUFFER_SIZE]
                 .clone()
                 .map(|mut c| {
                     c.hight = c.hight.max(price);
@@ -257,7 +265,8 @@ impl MultipoolCache {
     // can be more optimised
     pub fn insert_candle(&mut self, resolution: i32, candle: Candle) {
         let resolution_index = resolution_to_index(resolution);
-        self.candles[resolution_index][candle.ts as usize % BUFFER_SIZE] = Some(candle.clone());
+        self.candles[resolution_index][(candle.ts / resolution as u64) as usize % BUFFER_SIZE] =
+            Some(candle.clone());
 
         if resolution_index == TRW_RESOLUTION {
             //NOTICE: search of open can be optimised by knowing where is the oldest or newest element

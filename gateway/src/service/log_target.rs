@@ -4,15 +4,17 @@ pub enum GatewayTarget {
     Api,
     Indexer,
     PriceFetcher,
+    Rpc,
 }
 
 impl LogTarget for GatewayTarget {
     fn target(&self) -> &str {
         use GatewayTarget::*;
         match self {
-            Api => "Api",
+            Api => "api",
             Indexer => "indexer",
-            PriceFetcher => "price fetcher",
+            PriceFetcher => "price-fetcher",
+            Rpc => "rpc",
         }
     }
 }
