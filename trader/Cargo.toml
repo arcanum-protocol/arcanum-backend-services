@@ -37,7 +37,6 @@ clickhouse = "0.13.1"
 alloy-sol-types = "0.8.21"
 
 multipool-types = { path = "../core/types/" }
-multipool-indexer = { path = "../indexer" }
 multipool = { path = "../core/multipool" }
 multipool-storage = { path = "../core/storage" }
 backend-service = { path = "../service" }
@@ -48,4 +47,5 @@ alloy.workspace = true
 reqwest.workspace = true
 sled.workspace = true
 sqlx.workspace = true
-rdkafka.workspace = true
+dashmap.workspace = true
+bigdecimal.workspace = true

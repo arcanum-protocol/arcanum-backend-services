@@ -27,6 +27,7 @@ impl<P: Provider + Clone> HookInitializer for TraderHook<P> {
         loop {
             tokio::time::sleep(Duration::from_secs(3)).await;
             let multipool = getter();
+            println!("{:?}", multipool);
             let price = multipool
                 .get_price(&multipool.contract_address)
                 // no need to check if there is no asset, because we have multipool info

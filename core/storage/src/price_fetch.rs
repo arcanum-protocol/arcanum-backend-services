@@ -1,7 +1,8 @@
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{address, Address, U256};
-use alloy::providers::{Provider, MULTICALL3_ADDRESS};
+use alloy::providers::{CallItemBuilder, Provider, MULTICALL3_ADDRESS};
 use itertools::Itertools;
+use alloy::providers::MulticallBuilder;
 
 pub async fn get_asset_prices<P: Provider + Clone + 'static>(
     mp: Address,
@@ -9,8 +10,7 @@ pub async fn get_asset_prices<P: Provider + Clone + 'static>(
     chunk_size: usize,
     provider: &P,
 ) -> anyhow::Result<Vec<(Address, U256)>> {
-    let multipool_functions = multipool_types::Multipool::abi::functions();
-    let get_price_func = &multipool_functions.get("getPrice").unwrap()[0];
+    let mp = multipool_types::Multipool::new(mp, provider);
 
     let mut prices = Vec::new();
     let chunked_assets = assets
@@ -20,19 +20,16 @@ pub async fn get_asset_prices<P: Provider + Clone + 'static>(
         .map(|chunk| chunk.into_iter().collect_vec())
         .collect_vec();
     for chunk in chunked_assets {
-        let mut mc = alloy_multicall::Multicall::new(
-            &provider,
-            address!("cA11bde05977b3631167028862bE2a173976CA11"),
-        );
-        for asset in chunk {
-            mc.add_call(mp, get_price_func, &[DynSolValue::Address(*asset)], true);
-        }
-        let result = mc
-            .call()
+        let calls: Vec<_> = chunk.into_iter().map(|address| mp.getPrice(*address)).collect();
+
+        let result = MulticallBuilder::new_dynamic(provider)
+            .extend(calls)
+            .aggregate3()
             .await?
             .into_iter()
-            .map(|p| p.unwrap().as_uint().unwrap().0);
+            .map(|p| p.unwrap());
         prices.extend(result);
     }
+    // todo!();
     Ok(assets.into_iter().zip(prices.into_iter()).collect())
 }

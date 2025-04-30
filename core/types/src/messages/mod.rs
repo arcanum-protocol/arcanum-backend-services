@@ -2,7 +2,6 @@ use crate::expiry::{EmptyTimeExtractor, MayBeExpired};
 use alloy::{
     primitives::{Address, LogData, U256},
     providers::Provider,
-    rpc::types::BlockTransactionsKind,
 };
 use anyhow::Context;
 use rmp_serde::{Deserializer, Serializer};
