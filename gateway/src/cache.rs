@@ -212,6 +212,7 @@ pub fn index_to_resolution(index: usize) -> i32 {
 }
 
 pub struct MultipoolCache {
+    //TODO: ordering matters
     pub candles: Box<[[Option<Candle>; BUFFER_SIZE]; 4]>,
     pub stats: Stats,
 }

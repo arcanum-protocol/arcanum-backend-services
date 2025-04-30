@@ -2,7 +2,7 @@ use crate::service::log_target::GatewayTarget::Indexer;
 use crate::service::metrics::{
     DATABASE_REQUEST_DURATION_MS, INDEXED_LOGS_COUNT, INDEXER_HEIGHT, LOGS_COMMITEMENT_DURATION_MS,
 };
-use alloy::primitives::Address;
+use alloy::primitives::{Address, U256};
 use alloy::{providers::Provider, sol_types::SolEventInterface};
 use anyhow::{anyhow, Result};
 use backend_service::logging::LogTarget;
@@ -122,8 +122,6 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                     if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log, false) {
                         match multipool_event.data {
                             MultipoolEvents::ShareTransfer(e) => {
-                                let amount: BigDecimal = e.amount.to_string().parse().unwrap();
-
                                 let price = match self
                                     .app_state
                                     .stats_cache
@@ -142,16 +140,15 @@ impl<P: Provider + Clone> Processor<Transaction<'_, Postgres>> for PgEventProces
                                         .unwrap(),
                                 };
 
-                                let price: BigDecimal = price.to_string().parse().unwrap();
-                                let price = price / (BigDecimal::from(1u128 << 96));
+                                let quote_quantity: U256 = (e.amount * price) >> 96;
 
                                 let share_transfer = ShareTransfer {
                                     chain_id,
                                     multipool: multipool_address,
                                     from: e.from,
                                     to: e.to,
-                                    quantity: amount.clone(),
-                                    quote_quantity: amount * price,
+                                    quantity: e.amount.to_string().parse().unwrap(),
+                                    quote_quantity: quote_quantity.to_string().parse().unwrap(),
                                     transaction_hash: transaction.hash,
                                     block_number: block.number,
                                     block_timestamp: block.timestamp,
