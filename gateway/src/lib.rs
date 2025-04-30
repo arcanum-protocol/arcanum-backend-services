@@ -14,6 +14,10 @@ use routes::{charts, portfolio};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 
+//TODO: save images and description
+//TODO: add arwave mathcnism
+//TOOD: add oracle
+
 use anyhow::Context;
 use axum::{
     routing::{get, post},
