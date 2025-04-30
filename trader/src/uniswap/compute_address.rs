@@ -1,11 +1,15 @@
-use alloy::primitives::{
+use alloy::{
+    dyn_abi::{DynSolType, DynSolValue},
+    primitives::{
     address,
     aliases::{I24, U24, U256},
     b256, keccak256, Address, B256,
-};
+}};
 use alloy_sol_types::SolValue;
 
-pub const FACTORY_ADDRESS: Address = address!("7eFe6656d08f2d6689Ed8ca8b5A3DEA0efaa769f");
+// pub const FACTORY_ADDRESS: Address = address!("7eFe6656d08f2d6689Ed8ca8b5A3DEA0efaa769f");
+pub const FACTORY_ADDRESS: Address = address!("961235a9020B05C44DF1026D956D1F4D78014276");
+
 // pub const FACTORY_ADDRESS: Address = address!("248AB79Bbb9bC29bB72f7Cd42F17e054Fc40188e");
 pub const POOL_INIT_CODE_HASH: B256 =
     b256!("e34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54");
@@ -137,8 +141,13 @@ pub fn compute_pool_address(
     } else {
         (token_b, token_a)
     };
-    let fee: U24 = fee.into();
-    let salt = keccak256((token_0, token_1, fee).abi_encode());
+    let fee: U256 = fee.into();
+    let value = DynSolValue::Tuple(vec![
+        DynSolValue::Address(token_0),
+        DynSolValue::Address(token_1),
+        DynSolValue::Uint(fee, 24),
+    ]);
+    let salt = keccak256(value.abi_encode());
 
     factory.create2(
         salt,

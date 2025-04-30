@@ -195,6 +195,12 @@ pub async fn metadata<P: Provider>(
 }
 
 #[derive(Deserialize)]
+pub struct MetadataRequest {
+    multipool: Address,
+}
+
+
+#[derive(Deserialize)]
 pub struct PositionsRequest {
     #[serde(rename = "a")]
     account: Address,

@@ -51,7 +51,7 @@ impl<P: Provider> UniswapChoise<P> {
                 .trading_data_with_assets
                 .trading_data
                 .multipool
-                .contract_address()
+                .address
                 .0
                 .encode_hex(),
 
@@ -73,7 +73,7 @@ impl<P: Provider> UniswapChoise<P> {
             poolIn: self.input.best_pool,
             poolOut: self.output.best_pool,
 
-            multipool: multipool.contract_address(),
+            multipool: multipool.address,
             oraclePrice: self
                 .trading_data
                 .trading_data_with_assets

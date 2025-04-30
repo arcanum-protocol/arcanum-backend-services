@@ -88,7 +88,7 @@ impl<P: Provider + Clone + 'static> Processor<Transaction<'static, Postgres>>
                     txn.events.iter().map(|event| {
                         let mut res = Vec::new();
 
-                        if let Ok(parsed_log) = MultipoolEvents::decode_log(&event.log, false) {
+                        if let Ok(parsed_log) = MultipoolEvents::decode_log(&event.log) {
                             match parsed_log.data {
                                 MultipoolEvents::ShareTransfer(e) => {
                                     if e.to != Address::ZERO {

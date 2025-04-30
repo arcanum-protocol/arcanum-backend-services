@@ -18,30 +18,24 @@ impl<P: Provider + Clone> AssetsChoise<P> {
             .trading_data
             .multipool
             .get_price(&self.asset1)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .any_age();
+            .map_err(|v| anyhow!("{v:?}"))?;
         let price2 = self
             .trading_data
             .multipool
             .get_price(&self.asset2)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .any_age();
+            .map_err(|v| anyhow!("{v:?}"))?;
 
         let amount1 = self
             .trading_data
             .multipool
             .quantity_to_deviation(&self.asset1, self.deviation_bound)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than::<StdTimeExtractor>(180)
-            .ok_or(anyhow!("Price is too old"))?;
+            .map_err(|v| anyhow!("{v:?}"))?;
 
         let amount2 = self
             .trading_data
             .multipool
             .quantity_to_deviation(&self.asset2, self.deviation_bound)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than::<StdTimeExtractor>(180)
-            .ok_or(anyhow!("Price is too old"))?;
+            .map_err(|v| anyhow!("{v:?}"))?;
 
         println!("{} -> {}", self.asset1, self.asset2);
         println!("{} -> {}", amount1, amount2);
@@ -94,7 +88,7 @@ impl<P: Provider + Clone> AssetsChoise<P> {
                 .await?;
 
             (
-                multipool_amount_in * collected._totalDeposits / total_supply.value,
+                multipool_amount_in * collected / total_supply,
                 *base_asset,
                 WrapperCall {
                     wrapper: SILO_WRAPPER,
@@ -134,7 +128,7 @@ impl<P: Provider + Clone> AssetsChoise<P> {
                 .await?;
 
             (
-                multipool_amount_out * collected._totalDeposits / total_supply.value,
+                multipool_amount_out * collected / total_supply,
                 *base_asset,
                 WrapperCall {
                     wrapper: SILO_WRAPPER,
