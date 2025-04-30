@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde_json::{from_value, Value};
 use sqlx::prelude::FromRow;
-use sqlx::{postgres::PgRow, PgPool, Row};
+use sqlx::PgPool;
 
 use crate::hook::HookInitializer;
 use crate::storage::MultipoolStorage;
@@ -10,7 +10,7 @@ use multipool_types::messages::Block;
 
 #[derive(FromRow)]
 pub struct BlocksData {
-    block: Value,
+    payload: Value,
 }
 
 pub async fn into_fetching_task<HI: HookInitializer>(
@@ -25,7 +25,7 @@ pub async fn into_fetching_task<HI: HookInitializer>(
             let blocks: Vec<Block> = sqlx::query_as(
                 "
             SELECT 
-                block 
+                payload 
             FROM 
                 blocks 
             WHERE 
@@ -38,7 +38,7 @@ pub async fn into_fetching_task<HI: HookInitializer>(
             .fetch_all(&mut *pool.acquire().await?)
             .await?
             .into_iter()
-            .map(|v: BlocksData| from_value(v.block).unwrap())
+            .map(|v: BlocksData| from_value(v.payload).unwrap())
             .collect();
             storage
                 .create_multipools(chain_id, blocks.as_slice().try_into()?)

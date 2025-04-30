@@ -7,8 +7,6 @@ config:
     user: googrand
     password: googrand
     database: trades
-  rpc_url: http://127.0.0.1:8545
-  kafka_url: localhost:9092
+  rpc_url: 'https://monad-testnet.g.alchemy.com/v2/c_34X8mrHf2CeUbKJyRn9El7loLauTbU'
   pk_file: ./trader_pk.txt
-  kafka_group: trader
-  chain_id: 1
+  

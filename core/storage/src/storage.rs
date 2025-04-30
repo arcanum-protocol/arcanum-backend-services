@@ -43,9 +43,7 @@ pub fn parse_log(log: Log) -> Option<MultipoolEvents> {
         address: log.inner.address,
         data: log.inner.data,
     };
-    MultipoolEvents::decode_log(&log, false)
-        .ok()
-        .map(|l| l.data)
+    MultipoolEvents::decode_log(&log).ok().map(|l| l.data)
 }
 
 pub struct MultipoolsUpdates {
@@ -77,7 +75,7 @@ impl TryFrom<&[Block]> for MultipoolsCreation {
         for block in value {
             for transaction in block.transactions.iter() {
                 for event in transaction.events.iter() {
-                    if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
+                    if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log) {
                         if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
                             multipools.push(MultipoolCreation {
                                 address: event.log.address,
@@ -114,7 +112,7 @@ impl TryFrom<&[Block]> for MultipoolsUpdates {
                 for event in transaction.events.iter() {
                     let entry = updates.entry(event.log.address).or_default();
                     // filter out MultipoolCreation event and other decoding
-                    if let Ok(parsed_log) = MultipoolEvents::decode_log(&event.log, false) {
+                    if let Ok(parsed_log) = MultipoolEvents::decode_log(&event.log) {
                         entry.push(parsed_log.data);
                     }
                 }
