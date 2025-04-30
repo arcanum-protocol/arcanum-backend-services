@@ -18,8 +18,8 @@ pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> 
             .iter()
             .map(|r| {
                 json!({
-                "address": r.key(), 
-                "stats": r.value().stats,})
+                "a": r.key(), 
+                "s": r.value().stats,})
             })
             .collect::<Vec<Value>>(),
     )
