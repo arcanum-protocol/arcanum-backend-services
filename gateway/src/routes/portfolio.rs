@@ -199,6 +199,7 @@ pub struct MetadataRequest {
     multipool: Address,
 }
 
+
 #[derive(Deserialize)]
 pub struct PositionsRequest {
     #[serde(rename = "a")]
