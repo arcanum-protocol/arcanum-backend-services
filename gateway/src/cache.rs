@@ -59,21 +59,21 @@ pub struct DbCandle {
 
 #[derive(sqlx::FromRow, Debug, PartialEq, Eq)]
 pub struct DbCandleSmall {
-    t: i64,
-    o: BigDecimal,
-    c: BigDecimal,
-    l: BigDecimal,
-    h: BigDecimal,
+    ts: i64,
+    open: BigDecimal,
+    close: BigDecimal,
+    low: BigDecimal,
+    hight: BigDecimal,
 }
 
 impl From<DbCandleSmall> for Candle {
     fn from(value: DbCandleSmall) -> Self {
         Self {
-            ts: value.t as u64,
-            open: value.o.to_string().parse().unwrap(),
-            close: value.c.to_string().parse().unwrap(),
-            low: value.l.to_string().parse().unwrap(),
-            hight: value.h.to_string().parse().unwrap(),
+            ts: value.ts as u64,
+            open: value.open.to_string().parse().unwrap(),
+            close: value.close.to_string().parse().unwrap(),
+            low: value.low.to_string().parse().unwrap(),
+            hight: value.hight.to_string().parse().unwrap(),
         }
     }
 }
