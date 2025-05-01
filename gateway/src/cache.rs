@@ -287,15 +287,15 @@ impl MultipoolCache {
     }
 
     pub fn get_price(&self, ts: u64) -> Option<U256> {
-        self.get_candle(ts, MINUTE).map(|c| c.close)
+        self.get_candle_index(ts, MINUTE)
+            .map(|i| self.candles[resolution_to_index(MINUTE)][i].close)
     }
 
-    fn get_candle(&self, ts: u64, resolution: i32) -> Option<Candle> {
+    fn get_candle_index(&self, ts: u64, resolution: i32) -> Option<usize> {
         self.candles[resolution_to_index(resolution)]
             .iter()
             .rev()
-            .find(|c| c.ts == Self::align_by(ts, resolution))
-            .cloned()
+            .position(|c| c.ts == Self::align_by(ts, resolution))
     }
 
     //TODO: tests (dis shit is crazy)
@@ -303,21 +303,27 @@ impl MultipoolCache {
         for resolution in RESOLUTIONS {
             let resolution_index = resolution_to_index(resolution);
 
-            let candle = self
-                .get_candle(ts, resolution)
-                .map(|mut c| {
-                    c.hight = c.hight.max(price);
-                    c.low = c.low.min(price);
-                    c.close = price;
-                    c
-                })
-                .unwrap_or(Candle {
-                    ts,
-                    open: price,
-                    close: price,
-                    low: price,
-                    hight: price,
-                });
+            let candle = match self.get_candle_index(ts, resolution) {
+                Some(i) => {
+                    let mut candle = self.candles[resolution_to_index(MINUTE)][i].clone();
+                    candle.hight = candle.hight.max(price);
+                    candle.low = candle.low.min(price);
+                    candle.close = price;
+                    self.candles[resolution_to_index(MINUTE)][i] = candle.clone();
+                    candle
+                }
+                None => {
+                    let candle = Candle {
+                        ts: Self::align_by(ts, resolution),
+                        open: price,
+                        close: price,
+                        low: price,
+                        hight: price,
+                    };
+                    self.candles[resolution_index].push(candle.clone());
+                    candle
+                }
+            };
 
             self.candles[resolution_index].push(candle.clone());
 
@@ -335,7 +341,6 @@ impl MultipoolCache {
                 self.stats.open_price = self.candles[TRW_RESOLUTION][self.trw_start_index].open;
                 self.stats.current_price = candle.close;
 
-                // doesnt work somehow
                 match self.stats.current_candle {
                     Some(ref c) if c.ts < candle.ts => {
                         self.stats.previous_candle = self.stats.current_candle.replace(candle);
