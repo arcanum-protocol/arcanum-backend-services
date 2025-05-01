@@ -34,11 +34,11 @@ pub async fn candles<P: Provider>(
     let result: Vec<DbCandleSmall> = sqlx::query_as(
         "
           SELECT
-              open::TEXT as o,
-              close::TEXT as c,
-              low::TEXT as l,
-              high::TEXT as h,
-              ts::TEXT as t
+              open,
+              close,
+              low,
+              hight,
+              ts
           FROM
               candles
           WHERE
@@ -59,6 +59,7 @@ pub async fn candles<P: Provider>(
     result
         .into_iter()
         .map(Into::into)
+        .rev()
         .collect::<Vec<Candle>>()
         .into()
 }
