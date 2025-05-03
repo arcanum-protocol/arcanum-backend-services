@@ -32,7 +32,7 @@ impl ServiceData for PriceFetcherService {
             if last_checked_block + self.block_delay >= new_block {
                 let mps: Vec<Address> =
                     sqlx::query("SELECT multipool FROM multipools WHERE chain_id = $1")
-                        .bind::<i64>(self.chain_id.try_into().unwrap())
+                        .bind::<i64>(self.chain_id)
                         .fetch_all(&mut *pool.acquire().await?)
                         .await?
                         .into_iter()
