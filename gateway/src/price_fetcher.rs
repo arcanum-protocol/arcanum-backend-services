@@ -1,9 +1,10 @@
 use crate::service::log_target::GatewayTarget::PriceFetcher;
 use crate::service::metrics::{DATABASE_REQUEST_DURATION_MS, PRICE_FETCHER_HEIGHT};
 use crate::service::termination_codes::PRICE_FETCH_FAILED;
-use alloy::dyn_abi::DynSolValue;
+use alloy::dyn_abi::{DynSolType, DynSolValue};
 use alloy::primitives::{Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
+use alloy::sol_types::sol_data::Bytes;
 use alloy_multicall::MulticallError;
 use axum::handler::Handler;
 use backend_service::logging::LogTarget;
@@ -116,7 +117,7 @@ pub async fn get_mps_prices<P: Provider>(
     for mp in mps.iter() {
         mc.add_call(
             *mp,
-            &get_price_func,
+            get_price_func,
             &[
                 DynSolValue::Uint(U256::MAX, 256),
                 DynSolValue::Uint(U256::ZERO, 256),
@@ -125,9 +126,9 @@ pub async fn get_mps_prices<P: Provider>(
         )
     }
 
-    let overflow_error = alloy::primitives::bytes!(
-        "0x4e487b710000000000000000000000000000000000000000000000000000000000000012"
-    );
+    // let overflow_error = alloy::primitives::bytes!(
+    //     "0x4e487b710000000000000000000000000000000000000000000000000000000000000012"
+    // );
 
     mc.add_get_current_block_timestamp();
     let calldata = mc.as_aggregate_3().calldata().clone();
@@ -135,34 +136,76 @@ pub async fn get_mps_prices<P: Provider>(
         .as_aggregate_3()
         .block(block_number.into())
         .call_raw()
-        .await
-        .map_err(|e| format!("{e:?}"));
+        .await;
+    let result_log = serde_json::to_value(result.as_ref().map_err(|e| format!("{e:?}"))).unwrap();
 
-    let mut res = match mc.call_with_block(block_number.into()).await {
-        Ok(res) => res,
+    //let mut res = match mc.call_with_block(block_number.into()).await {
+    let mut res = match result.map(|v| parse_multicall_result(v.as_ref())) {
+        Ok(Ok(res)) => res,
         Err(e) => {
             PriceFetcher
                 .error(json!({
                     "m": "multipool price fetch failed",
                     "in_data_bytes": calldata.to_string(),
                     "out_data_err": format!("{e:?}"),
-                    "out_data": result,
+                    "out_data": result_log,
+                    "b": block_number,
+                    "e": e.to_string()
+                }))
+                .terminate(PRICE_FETCH_FAILED);
+        }
+        Ok(Err(e)) => {
+            PriceFetcher
+                .error(json!({
+                    "m": "multipool price fetch failed",
+                    "in_data_bytes": calldata.to_string(),
+                    "out_data_err": format!("{e:?}"),
+                    "out_data": result_log,
                     "b": block_number,
                     "e": e.to_string()
                 }))
                 .terminate(PRICE_FETCH_FAILED);
         }
     };
-    let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
+    let ts = res.pop().unwrap().1.as_uint().unwrap().0;
     let prices: Vec<Option<U256>> = res
         .into_iter()
-        .map(|p| match p {
-            Ok(p) => Some(p.as_uint().unwrap().0),
-            Err(e) if e == overflow_error => None,
-            //TODO: warning here
-            Err(_) => None,
+        .map(|p| match p.0 {
+            true => Some(p.1.as_uint().unwrap().0),
+            false => None,
         })
         .collect();
 
     Ok((prices, ts.to()))
+}
+
+pub fn parse_multicall_result(raw_bytes: &[u8]) -> anyhow::Result<Vec<(bool, DynSolValue)>> {
+    // The return type is (bool,bytes)[]
+    let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
+        DynSolType::Bool,
+        DynSolType::Bytes,
+    ])));
+
+    // Decode the raw bytes according to the ABI type
+    let decoded = return_type.abi_decode(raw_bytes)?;
+
+    // Convert to our desired output format
+    if let DynSolValue::Array(tuples) = decoded {
+        tuples
+            .into_iter()
+            .map(|tuple| {
+                if let DynSolValue::Tuple(elements) = tuple {
+                    let success = elements[0]
+                        .as_bool()
+                        .ok_or_else(|| anyhow::anyhow!("error parse bool"))?;
+                    let return_data = elements[1].clone();
+                    Ok((success, return_data))
+                } else {
+                    Err(anyhow::anyhow!("not tuple"))
+                }
+            })
+            .collect::<anyhow::Result<Vec<_>>>()
+    } else {
+        Err(anyhow::anyhow!("not array"))
+    }
 }
