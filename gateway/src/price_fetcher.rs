@@ -4,6 +4,8 @@ use crate::service::termination_codes::PRICE_FETCH_FAILED;
 use alloy::dyn_abi::DynSolValue;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
+use alloy_multicall::MulticallError;
+use axum::handler::Handler;
 use backend_service::logging::LogTarget;
 use backend_service::KeyValue;
 use bigdecimal::{BigDecimal, Num};
@@ -128,15 +130,28 @@ pub async fn get_mps_prices<P: Provider>(
     );
 
     mc.add_get_current_block_timestamp();
+    let calldata = mc.as_aggregate_3().calldata().clone();
+    let result = mc
+        .as_aggregate_3()
+        .block(block_number.into())
+        .call_raw()
+        .await
+        .map_err(|e| format!("{e:?}"));
+
     let mut res = match mc.call_with_block(block_number.into()).await {
         Ok(res) => res,
-        Err(e) => PriceFetcher
-            .error(json!({
-                "m": "multipool price fetch failed",
-                "b": block_number,
-                "e": e.to_string()
-            }))
-            .terminate(PRICE_FETCH_FAILED),
+        Err(e) => {
+            PriceFetcher
+                .error(json!({
+                    "m": "multipool price fetch failed",
+                    "in_data_bytes": calldata.to_string(),
+                    "out_data_err": format!("{e:?}"),
+                    "out_data": result,
+                    "b": block_number,
+                    "e": e.to_string()
+                }))
+                .terminate(PRICE_FETCH_FAILED);
+        }
     };
     let ts = res.pop().unwrap().unwrap().as_uint().unwrap().0;
     let prices: Vec<Option<U256>> = res

@@ -90,7 +90,7 @@ where
                         .map(|r| KeyValue::new("rpc_method", r.method().to_string()))
                         .collect::<Vec<KeyValue>>(),
                     RequestPacket::Batch(ref br) => br
-                        .into_iter()
+                        .iter()
                         .map(|r| KeyValue::new("rpc_method", r.method().to_string()))
                         .collect::<Vec<KeyValue>>(),
                 };

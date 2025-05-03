@@ -58,7 +58,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
             let timer = Instant::now();
             sqlx::query(
                 "INSERT INTO blocks(
-                    chain_id, 
+                    chain_id,
                     block_number,
                     payload
                 ) VALUES ($1,$2,$3);",
@@ -261,7 +261,7 @@ impl OwnerChange {
         let timer = Instant::now();
         let r = sqlx::query(
             "
-            UPDATE multipools 
+            UPDATE multipools
             SET owner = $1
             WHERE multipool = $2;
         ",
@@ -300,7 +300,7 @@ impl AssetChange {
         let timer = Instant::now();
         let r = sqlx::query(
             "
-            UPDATE multipools 
+            UPDATE multipools
             SET total_supply = $1::NUMERIC
             WHERE multipool = $2;
         ",
@@ -333,9 +333,9 @@ pub struct ShareTransfer {
 
 impl ShareTransfer {
     const QUERY: &str = "INSERT INTO actions_history(
-        chain_id, 
-        account, 
-        multipool, 
+        chain_id,
+        account,
+        multipool,
         quantity,
         quote_quantity,
         transaction_hash,
