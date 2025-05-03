@@ -1,5 +1,5 @@
 name: Cached rust build
-on: 
+on:
   push:
 
 permissions:
@@ -27,13 +27,14 @@ jobs:
           cache-all-crates: true
           cache-on-failure: true
           shared-key: "main_rust_build_cache"
+          cache-directories: "${{ github.workspace }}/arcanum-contracts/out"
 
-        
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: 🔨 Build contrcats
-        run: forge build --root arcanum-contracts --extra-output-files metadata -o out
+        run: forge build --root arcanum-contracts
 
       - name: Verify artifact paths
         run: |
