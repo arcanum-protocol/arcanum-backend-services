@@ -75,8 +75,7 @@ impl ServiceData for GatewayService {
     async fn run(self) -> anyhow::Result<()> {
         let database_env_key = self
             .database
-            .map(|d| d.env_key)
-            .flatten()
+            .and_then(|d| d.env_key)
             .unwrap_or("DATABASE_URL".into());
         let database_url =
             env::var(&database_env_key).context(format!("{} must be set", database_env_key))?;
@@ -144,8 +143,8 @@ impl ServiceData for GatewayService {
         let axum = axum::serve(listener, app);
         tokio::select! {
             axum = axum => axum.map_err(Into::into),
-            i = indexer_handle => i.map_err(Into::into),
-            p = price_fetcher_handle => p.map_err(Into::into),
+            i = indexer_handle => i,
+            p = price_fetcher_handle => p,
         }
     }
 }
