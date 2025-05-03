@@ -167,11 +167,19 @@ pub async fn get_mps_prices<P: Provider>(
                 .terminate(PRICE_FETCH_FAILED);
         }
     };
-    let ts = res.pop().unwrap().1.as_uint().unwrap().0;
+
+    PriceFetcher
+        .error(json!({
+            "m": "fetched multicall value",
+            "v": res.iter().map(|v| (v.0,format!("{:?}", v.1))).collect::<Vec<_>>(),
+            "b": block_number,
+        }))
+        .log();
+    let ts = U256::from_be_slice(res.pop().unwrap().1.as_bytes().expect("not bytes"));
     let prices: Vec<Option<U256>> = res
         .into_iter()
         .map(|p| match p.0 {
-            true => Some(p.1.as_uint().unwrap().0),
+            true => Some(U256::from_be_slice(p.1.as_bytes().expect("not bytes"))),
             false => None,
         })
         .collect();
