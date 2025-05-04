@@ -70,6 +70,7 @@ pub async fn create<P: Provider>(
         && form.description.len() > 500
         && form.name.len() > 25
         && form.symbol.len() > 10
+        && form.logo_bytes.len() > 1024 * 100
     {
         Err(AppError::InvalidPayloadSize)?;
     }
