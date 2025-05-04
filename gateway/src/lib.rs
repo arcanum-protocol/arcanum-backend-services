@@ -14,7 +14,6 @@ use routes::{charts, portfolio};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 
-//TODO: save images and description
 //TODO: add arwave mathcnism
 //TOOD: add oracle
 
@@ -128,14 +127,14 @@ impl ServiceData for GatewayService {
             .route("/portfolio/stats", get(charts::stats))
             .route("/portfolio/list", get(portfolio::list))
             .route("/portfolio/create", post(portfolio::create))
-            .route("/account/positions", get(portfolio::positions))
+            .route("/portfolio/metadata", get(portfolio::metadata))
             .route(
                 "/account/positions_history",
                 get(portfolio::positions_history),
             )
+            .route("/account/positions", get(portfolio::positions))
             .layer(OtelMetricsLayer)
             .layer(CorsLayer::permissive())
-            //TODO: handle api errors somehow????
             .with_state(app_state);
 
         let listener =

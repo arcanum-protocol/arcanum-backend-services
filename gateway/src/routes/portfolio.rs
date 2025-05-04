@@ -1,18 +1,21 @@
-use crate::{error::AppError, routes::stringify};
-use alloy::{primitives::Address, providers::Provider};
-use arweave_client::{Rpc, Tag, Transaction, Uploader};
-use axum::{
-    extract::{Multipart, Path, Query, State},
-    Json,
+use crate::{
+    error::{AppError, AppResult},
+    service::metrics::DATABASE_REQUEST_DURATION_MS,
 };
+use alloy::{
+    primitives::{Address, B256},
+    providers::Provider,
+};
+//use arweave_client::{Rpc, Tag, Transaction, Uploader};
+use axum::extract::{Query, State};
 use axum_msgpack::MsgPack;
+use backend_service::KeyValue;
 use bigdecimal::BigDecimal;
 use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use anyhow::anyhow;
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> MsgPack<Value> {
     serde_json::to_value(
@@ -21,7 +24,7 @@ pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> 
             .iter()
             .map(|r| {
                 json!({
-                "a": r.key(), 
+                "a": r.key(),
                 "s": r.value().stats,})
             })
             .collect::<Vec<Value>>(),
@@ -30,67 +33,85 @@ pub async fn list<P: Provider>(State(state): State<Arc<crate::AppState<P>>>) -> 
     .into()
 }
 
+#[derive(Deserialize)]
+pub struct CreateRequest {
+    #[serde(with = "base64")]
+    #[serde(rename = "l")]
+    logo_bytes: Vec<u8>,
+    #[serde(rename = "st")]
+    salt: B256,
+    #[serde(rename = "ih")]
+    init_code_hash: B256,
+    #[serde(rename = "s")]
+    symbol: String,
+    #[serde(rename = "n")]
+    name: String,
+    #[serde(rename = "d")]
+    description: String,
+}
+
 pub async fn create<P: Provider>(
     State(state): State<Arc<crate::AppState<P>>>,
-    mut multipart: Multipart,
-) -> Result<MsgPack<Value>, String> {
-    let mut logo = None;
-    let mut multipool_address: Option<Address> = None;
-    let mut chain_id: Option<i64> = None;
-    let mut symbol: Option<_> = None;
-    let mut name: Option<_> = None;
-    let mut description: Option<_> = None;
+    MsgPack(form): MsgPack<CreateRequest>,
+) -> AppResult<MsgPack<()>> {
+    let multipool = state.factory.create2(form.salt, form.init_code_hash);
 
-    while let Some(mut field) = multipart.next_field().await.map_err(stringify)? {
-        let field_name = field.name().unwrap_or_default().to_string();
+    //TODO: maybe use indexer <-> this route method that
+    //is going to be sending data to arwave
+    // also need to check fees so probably transaction hash is neserarry
+    let code = state
+        .provider
+        .get_code_at(multipool)
+        .latest()
+        .await
+        .unwrap();
 
-        if field_name == "logo" {
-            let mut file_data = Vec::new();
-            while let Some(chunk) = field.chunk().await.map_err(stringify)? {
-                file_data.extend_from_slice(&chunk);
-            }
-            logo = Some(file_data);
-        } else if field_name == "name" {
-            name = Some(field.text().await.map_err(stringify)?);
-        } else if field_name == "chain_id" {
-            chain_id = Some(
-                field
-                    .text()
-                    .await
-                    .map_err(stringify)?
-                    .parse()
-                    .map_err(stringify)?,
-            );
-        } else if field_name == "symbol" {
-            symbol = Some(field.text().await.map_err(stringify)?);
-        } else if field_name == "description" {
-            description = Some(field.text().await.map_err(stringify)?);
-        } else if field_name == "multipool_address" {
-            multipool_address = Some(
-                field
-                    .text()
-                    .await
-                    .map_err(stringify)?
-                    .parse()
-                    .map_err(stringify)?,
-            );
-        }
+    if code.is_empty()
+        && form.description.len() > 500
+        && form.name.len() > 25
+        && form.symbol.len() > 10
+    {
+        Err(AppError::InvalidPayloadSize)?;
     }
 
-    let logo = logo.ok_or(anyhow!("Invalid form")).map_err(stringify)?;
-    let multipool_address = multipool_address
-        .ok_or(anyhow!("Invalid form"))
-        .map_err(stringify)?;
-    let chain_id = chain_id.ok_or(anyhow!("Invalid form")).map_err(stringify)?;
-    let symbol = symbol.ok_or(anyhow!("Invalid form")).map_err(stringify)?;
-    let name = name.ok_or(anyhow!("Invalid form")).map_err(stringify)?;
-    let description = description
-        .ok_or(anyhow!("Invalid form"))
-        .map_err(stringify)?;
-    let name_bytes = name.into_bytes();
-    let desc_offset = name_bytes.len();
-    let desc_bytes = description.into_bytes();
-    let logo_offset = desc_offset + desc_bytes.len();
+    let timer = Instant::now();
+    sqlx::query(
+        "INSERT INTO
+            multipools(multipool, chain_id, owner, name, symbol, description, logo)
+        VALUES
+            ($1,$2,$3,$4,$5,$6,$7)
+        ON CONFLICT
+            (multipool)
+        DO UPDATE SET
+            logo = $7,
+            description = $6;
+        ",
+    )
+    .bind::<[u8; 20]>(multipool.into())
+    .bind(state.chain_id as i64)
+    .bind::<[u8; 20]>(Address::ZERO.into())
+    .bind(form.name)
+    .bind(form.symbol)
+    .bind(form.description)
+    .bind(form.logo_bytes)
+    .fetch_all(
+        &mut *state
+            .connection
+            .acquire()
+            .await
+            .map_err(|_| AppError::DbIsBusy)?,
+    )
+    .await?;
+    DATABASE_REQUEST_DURATION_MS.record(
+        timer.elapsed().as_millis() as u64,
+        &[KeyValue::new("query_name", "mp_dnl")],
+    );
+
+    Ok(().into())
+    //let name_bytes = name.into_bytes();
+    //let desc_offset = name_bytes.len();
+    //let desc_bytes = description.into_bytes();
+    //let logo_offset = desc_offset + desc_bytes.len();
     // let data = name_bytes
     //     .into_iter()
     //     .chain(desc_bytes)
@@ -140,51 +161,54 @@ pub async fn create<P: Provider>(
     //     .unwrap()
     //     .into()
     //TODO: add limits on name, symbol, description + logo size
-    Ok(json!(()).into())
 }
 
-#[derive(Deserialize)]
-pub struct MetadataRequest {
-    multipool: Address,
-}
+//#[derive(Deserialize)]
+//pub struct MetadataRequest {
+//    multipool: Address,
+//}
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
 pub struct DbMetadata {
-    #[serde(with = "serde_bytes")]
-    #[serde(rename(serialize = "l"))]
+    #[serde(serialize_with = "serialize_address")]
+    #[serde(rename = "m")]
+    multipool: [u8; 20],
+    #[serde(with = "base64")]
+    #[serde(rename = "l")]
     logo: Vec<u8>,
-    #[serde(rename(serialize = "d"))]
+    #[serde(rename = "d")]
     description: String,
 }
 
 pub async fn metadata<P: Provider>(
-    Path(multipool): Path<Address>,
+    //Path(multipool): Path<Address>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Vec<DbPositions>> {
-    sqlx::query_as("SELECT logo, description FROM multipools WHERE multipool = $1")
-        .bind::<[u8; 20]>(multipool.into())
+) -> AppResult<MsgPack<Vec<DbMetadata>>> {
+    sqlx::query_as("SELECT multipool, logo, description FROM multipools WHERE logo IS NOT NULL and description IS NOT NULL")
+        //.bind::<[u8; 20]>(multipool.into())
         .fetch_all(&mut *state.connection.acquire().await.unwrap())
         .await
-        .unwrap()
-        .into()
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 #[derive(Deserialize)]
 pub struct PositionsRequest {
+    #[serde(rename = "a")]
     account: Address,
 }
 
 pub async fn positions<P: Provider>(
     Query(query): Query<PositionsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Vec<DbPositions>> {
+) -> AppResult<MsgPack<Vec<DbPositions>>> {
     sqlx::query_as("SELECT * FROM positions WHERE chain_id = $1 and account = $2")
         .bind::<i64>(state.chain_id as i64)
         .bind::<[u8; 20]>(query.account.into())
         .fetch_all(&mut *state.connection.acquire().await.unwrap())
         .await
-        .unwrap()
-        .into()
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -204,20 +228,21 @@ pub struct DbPositions {
 
 #[derive(Deserialize)]
 pub struct PositionsHistoryRequest {
+    #[serde(rename = "a")]
     account: Address,
 }
 
 pub async fn positions_history<P: Provider>(
     Query(query): Query<PositionsHistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Vec<DbPositions>> {
+) -> AppResult<MsgPack<Vec<DbPositionsHistory>>> {
     sqlx::query_as("SELECT * FROM positions_history WHERE chain_id = $1 and account = $2")
         .bind::<i64>(state.chain_id as i64)
         .bind::<[u8; 20]>(query.account.into())
         .fetch_all(&mut *state.connection.acquire().await.unwrap())
         .await
-        .unwrap()
-        .into()
+        .map(Into::into)
+        .map_err(Into::into)
 }
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -242,4 +267,28 @@ where
     let address = Address::from(*bytes);
     // Serialize as a hex string with 0x prefix
     serializer.serialize_str(&address.to_string())
+}
+
+mod base64 {
+    use base64::prelude::*;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(key: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&BASE64_STANDARD.encode(key))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+        String::deserialize(deserializer).and_then(|string| {
+            BASE64_STANDARD
+                .decode(&string)
+                .map_err(|err| Error::custom(err.to_string()))
+        })
+    }
 }

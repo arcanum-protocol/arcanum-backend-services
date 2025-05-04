@@ -139,6 +139,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
                                     .0[0]
                                         .unwrap(),
                                 };
+                                // TODO: if price is missing - push it into cache and db also
 
                                 let quote_quantity: U256 = (e.amount * price) >> 96;
 
@@ -222,13 +223,18 @@ impl MultipoolCreated {
                 name,
                 symbol,
                 owner
-            ) VALUES ($1,$2,$3,$4,$5);",
+            ) VALUES ($1,$2,$3,$4,$5)
+            ON CONFLICT (multipool)
+            DO UPDATE SET
+                name = $3,
+                symbol = $4;
+            ",
         )
         .bind::<i64>(self.chain_id.try_into()?)
         .bind::<[u8; 20]>(self.multipool.into())
         .bind::<String>(self.name)
         .bind::<String>(self.symbol)
-        .bind::<[u8; 20]>([0u8; 20])
+        .bind::<[u8; 20]>(Address::ZERO.into())
         .execute(executor)
         .await
         .map(|_| ())
