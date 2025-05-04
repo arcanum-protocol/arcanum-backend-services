@@ -10,15 +10,15 @@ CREATE DOMAIN U256 AS numeric(78,0)
 CONSTRAINT u256_check CHECK (VALUE >= 0);
 
 create table if not exists blocks (
-    chain_id            BIGINT  NOT NULL, 
-    block_number        BIGINT  NOT NULL, 
+    chain_id            BIGINT  NOT NULL,
+    block_number        BIGINT  NOT NULL,
     payload             JSONB       NOT NULL,
 
     CONSTRAINT blocks_pkey PRIMARY KEY (chain_id, block_number)
 );
 
 create table if not exists price_indexes (
-    chain_id        BIGINT  PRIMARY KEY, 
+    chain_id        BIGINT  PRIMARY KEY,
     block_number    BIGINT  NOT NULL
 );
 
@@ -96,14 +96,14 @@ CREATE TABLE IF NOT EXISTS candles
 );
 
 -- price is decimal with precision 10^6
-CREATE OR REPLACE PROCEDURE insert_price(arg_multipool ADDRESS, arg_timestamp BIGINT, arg_new_price U256) 
-LANGUAGE plpgsql 
+CREATE OR REPLACE PROCEDURE insert_price(arg_multipool ADDRESS, arg_timestamp BIGINT, arg_new_price U256)
+LANGUAGE plpgsql
 AS $$
 DECLARE
-    --                         1m 15m 60m  24h    
+    --                         1m 15m 60m  24h
     var_resolutions INT[] := '{60,900,3600,86400}';
     var_resol INT;
-BEGIN 
+BEGIN
 
         IF (select multipool from multipools where multipool=arg_multipool limit 1) IS NULL THEN
             insert into multipools(multipool) values (arg_multipool);
@@ -111,11 +111,11 @@ BEGIN
 
         -- gen candles
         FOREACH var_resol in array var_resolutions
-        LOOP 
+        LOOP
             INSERT INTO candles(multipool, ts, resolution, open, close, low, hight)
             VALUES(
                 arg_multipool,
-                arg_timestamp / var_resol * var_resol, 
+                arg_timestamp / var_resol * var_resol,
                 var_resol,
                 arg_new_price,
                 arg_new_price,
@@ -127,44 +127,43 @@ BEGIN
                 low = least(candles.low, arg_new_price),
                 hight = greatest(candles.hight, arg_new_price);
         END LOOP;
-END 
+END
 $$;
 
 CREATE OR REPLACE FUNCTION update_positions()
-RETURNS TRIGGER 
-LANGUAGE plpgsql 
+RETURNS TRIGGER
+LANGUAGE plpgsql
 AS $$
 DECLARE
     c_pos POSITIONS := (SELECT positions FROM positions WHERE account = NEW.account and chain_id = NEW.chain_id and multipool = NEW.multipool);
 BEGIN
     IF c_pos IS NULL THEN
-        INSERT INTO positions(chain_id, account, multipool, quantity, profit, loss, opened_at) 
+        INSERT INTO positions(chain_id, account, multipool, quantity, profit, loss, opened_at)
         VALUES (NEW.chain_id, NEW.account, NEW.multipool, NEW.quantity, 0, NEW.quote_quantity, NEW.timestamp);
     ELSIF c_pos.quantity + NEW.quantity = 0 THEN
-        INSERT INTO positions_history(chain_id, account, multipool, profit, loss, opened_at, closed_at) 
+        INSERT INTO positions_history(chain_id, account, multipool, profit, loss, opened_at, closed_at)
         VALUES (NEW.chain_id, NEW.account, NEW.multipool, c_pos.profit - NEW.quoted_quantity, c_pos.loss, c_pos.open_ts, NEW.timestamp);
 
-        DELETE FROM positions 
+        DELETE FROM positions
         WHERE
-                account     = NEW.account 
-            and chain_id    = NEW.chain_id 
+                account     = NEW.account
+            and chain_id    = NEW.chain_id
             and multipool   = NEW.multipool;
     ELSE
-        UPDATE positions 
-        SET 
+        UPDATE positions
+        SET
             quantity = quantity + NEW.quantity,
             profit = profit + CASE WHEN NEW.quantity < 0 THEN -NEW.quote_quantity ELSE 0 END,
             loss = loss + CASE WHEN NEW.quantity > 0 THEN NEW.quote_quantity ELSE 0 END
-        WHERE 
-                account     = NEW.account 
-            and chain_id    = NEW.chain_id 
+        WHERE
+                account     = NEW.account
+            and chain_id    = NEW.chain_id
             and multipool   = NEW.multipool;
     END IF;
-    RETURN NULL; 
-END 
+    RETURN NULL;
+END
 $$;
 
 CREATE TRIGGER trigger_trading_history
 AFTER INSERT ON actions_history
 FOR EACH ROW EXECUTE FUNCTION update_positions();
-

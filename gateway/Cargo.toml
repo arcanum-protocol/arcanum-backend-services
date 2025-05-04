@@ -24,7 +24,7 @@ bigdecimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-serde_bytes = "0.11.17"
+base64 = { version = "0.22.1" }
 tower = { version = "0.5.2" }
 tower-http = {version= "0.6.2", features=["cors"]}
 backend-service = { path = "../service/" }

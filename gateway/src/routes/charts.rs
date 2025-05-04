@@ -1,12 +1,14 @@
 use axum_msgpack::MsgPack;
-use serde_json::Value;
 
 use alloy::{primitives::Address, providers::Provider};
 use axum::extract::{Query, State};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::cache::{try_resolution_to_index, Candle, DbCandleSmall, Stats};
+use crate::{
+    cache::{try_resolution_to_index, Candle, DbCandleSmall, Stats},
+    error::{AppError, AppResult},
+};
 
 #[derive(Deserialize)]
 pub struct HistoryRequest {
@@ -19,16 +21,21 @@ pub struct HistoryRequest {
 pub async fn candles<P: Provider>(
     Query(query): Query<HistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Vec<Candle>> {
-    //TODO: error handling
-    let resolution_index = try_resolution_to_index(query.r).unwrap();
+) -> AppResult<MsgPack<Vec<Candle>>> {
+    let resolution_index =
+        try_resolution_to_index(query.r).ok_or_else(|| AppError::InvalidResolution)?;
 
-    let candles =
-        state.stats_cache.get(&query.m).unwrap().value().candles[resolution_index].clone();
+    let candles = state
+        .stats_cache
+        .get(&query.m)
+        .ok_or_else(|| AppError::InvalidMpAddress)?
+        .value()
+        .candles[resolution_index]
+        .clone();
 
     let (ts, countback) = match (query.t, query.c) {
         (Some(ts), Some(countback)) => (ts, countback),
-        _ => return candles.into(),
+        _ => return Ok(candles.into()),
     };
 
     let result: Vec<DbCandleSmall> = sqlx::query_as(
@@ -53,15 +60,20 @@ pub async fn candles<P: Provider>(
     .bind(query.r)
     .bind::<&[u8]>(query.m.as_slice())
     .bind(countback as i64)
-    .fetch_all(&mut *state.connection.acquire().await.unwrap())
-    .await
-    .unwrap();
-    result
+    .fetch_all(
+        &mut *state
+            .connection
+            .acquire()
+            .await
+            .map_err(|_| AppError::DbIsBusy)?,
+    )
+    .await?;
+    Ok(result
         .into_iter()
         .map(Into::into)
         .rev()
         .collect::<Vec<Candle>>()
-        .into()
+        .into())
 }
 
 #[derive(Deserialize)]
@@ -72,13 +84,13 @@ pub struct StatsRequest {
 pub async fn stats<P: Provider>(
     Query(query): Query<StatsRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
-) -> MsgPack<Stats> {
-    state
+) -> AppResult<MsgPack<Stats>> {
+    Ok(state
         .stats_cache
         .get(&query.m)
-        .unwrap()
+        .ok_or_else(|| AppError::InvalidMpAddress)?
         .value()
         .stats
         .clone()
-        .into()
+        .into())
 }
