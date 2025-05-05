@@ -22,13 +22,12 @@ pub async fn candles<P: Provider>(
     Query(query): Query<HistoryRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
 ) -> AppResult<MsgPack<Vec<Candle>>> {
-    let resolution_index =
-        try_resolution_to_index(query.r).ok_or_else(|| AppError::InvalidResolution)?;
+    let resolution_index = try_resolution_to_index(query.r).ok_or(AppError::InvalidResolution)?;
 
     let candles = state
         .stats_cache
         .get(&query.m)
-        .ok_or_else(|| AppError::InvalidMpAddress)?
+        .ok_or(AppError::InvalidMpAddress)?
         .value()
         .candles[resolution_index]
         .clone();
@@ -88,7 +87,7 @@ pub async fn stats<P: Provider>(
     Ok(state
         .stats_cache
         .get(&query.m)
-        .ok_or_else(|| AppError::InvalidMpAddress)?
+        .ok_or(AppError::InvalidMpAddress)?
         .value()
         .stats
         .clone()
