@@ -69,14 +69,14 @@ CREATE TABLE IF NOT EXISTS actions_history
 
 CREATE TABLE IF NOT EXISTS multipools
 (
+    chain_id            BIGINT  NOT NULL,
+    multipool           ADDRESS PRIMARY KEY,
+    owner               ADDRESS NOT NULL,
+
     name                TEXT        NULL,
     symbol              TEXT        NULL,
     description         TEXT        NULL,
     logo                BYTEA       NULL,
-
-    chain_id            BIGINT  NOT NULL,
-    multipool           ADDRESS NOT NULL,
-    owner               ADDRESS NOT NULL,
 
     total_supply        U256    NOT NULL DEFAULT '0'
 );

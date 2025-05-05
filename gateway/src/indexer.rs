@@ -224,8 +224,8 @@ impl MultipoolCreated {
                 symbol,
                 owner
             ) VALUES ($1,$2,$3,$4,$5)
-            ON CONFLICT (multipool)
-            DO UPDATE SET
+            ON CONFLICT (multipool) DO UPDATE
+            SET
                 name = $3,
                 symbol = $4;
             ",
