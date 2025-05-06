@@ -9,7 +9,8 @@ pub enum AppError {
     InvalidMpAddress,
     DbIsBusy,
     InvalidResolution,
-    Unknown,
+    FailedToGetCode,
+    Unknown(String),
 }
 
 impl IntoResponse for AppError {
@@ -24,7 +25,7 @@ impl<E> From<E> for AppError
 where
     E: Into<anyhow::Error>,
 {
-    fn from(_err: E) -> Self {
-        Self::Unknown
+    fn from(err: E) -> Self {
+        Self::Unknown(err.into().to_string())
     }
 }
