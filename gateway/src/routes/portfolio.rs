@@ -64,7 +64,7 @@ pub async fn create<P: Provider>(
         .get_code_at(multipool)
         .latest()
         .await
-        .unwrap();
+        .map_err(|_| AppError::FailedToGetCode)?;
 
     if code.is_empty()
         && form.description.len() > 500
@@ -75,6 +75,7 @@ pub async fn create<P: Provider>(
         Err(AppError::InvalidPayloadSize)?;
     }
 
+    //TODO: only insert if there is no logo set before
     let timer = Instant::now();
     sqlx::query(
         "INSERT INTO
