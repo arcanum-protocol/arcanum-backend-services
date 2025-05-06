@@ -73,117 +73,121 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
                 &[KeyValue::new("query_name", "insert_blocks")],
             );
 
-            for transaction in block.transactions.iter() {
-                for event in transaction.events.iter() {
-                    if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
-                        if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
-                            Indexer
-                                .info(json!({
-                                    "m": "New multipool found",
-                                    "a": e.multipoolAddress,
-                                }))
-                                .log();
-                            if event.log.address != self.app_state.factory {
+            for block in blocks.0.iter() {
+                for transaction in block.transactions.iter() {
+                    for event in transaction.events.iter() {
+                        if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
+                            if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
                                 Indexer
                                     .info(json!({
-                                        "m": "multipool created not by factory",
-                                        "a": event.log.address,
+                                        "m": "New multipool found",
+                                        "a": e.multipoolAddress,
                                     }))
                                     .log();
-                                continue;
-                            }
-                            MultipoolCreated::new(
-                                e.multipoolAddress,
-                                chain_id,
-                                e.name.clone(),
-                                e.symbol.clone(),
-                            )
-                            .apply_on_storage(&mut **db_tx)
-                            .await?;
-
-                            self.app_state
-                                .stats_cache
-                                .insert(e.multipoolAddress, MultipoolCache::new(e.name, e.symbol));
-                            let mut multipools = self.app_state.multipools.write().unwrap();
-                            multipools.push(e.multipoolAddress);
-                        }
-                    }
-
-                    let multipool_address = event.log.address;
-                    if self.app_state.stats_cache.get(&multipool_address).is_none() {
-                        Indexer
-                            .info(json!({
-                                "m": "multipool event is orphan, skipping",
-                                "a": multipool_address,
-                            }))
-                            .log();
-                        continue;
-                    }
-                    if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log, false) {
-                        match multipool_event.data {
-                            MultipoolEvents::ShareTransfer(e) => {
-                                let price = match self
-                                    .app_state
-                                    .stats_cache
-                                    .get(&multipool_address)
-                                    .unwrap()
-                                    .get_price(block.timestamp)
-                                {
-                                    Some(p) => p,
-                                    None => crate::price_fetcher::get_mps_prices(
-                                        &[multipool_address],
-                                        &self.app_state.provider,
-                                        block.number,
-                                    )
-                                    .await?
-                                    .0[0]
-                                        .unwrap(),
-                                };
-                                // TODO: if price is missing - push it into cache and db also
-
-                                let quote_quantity: U256 = (e.amount * price) >> 96;
-
-                                let share_transfer = ShareTransfer {
+                                if event.log.address != self.app_state.factory {
+                                    Indexer
+                                        .info(json!({
+                                            "m": "multipool created not by factory",
+                                            "a": event.log.address,
+                                        }))
+                                        .log();
+                                    continue;
+                                }
+                                MultipoolCreated::new(
+                                    e.multipoolAddress,
                                     chain_id,
-                                    multipool: multipool_address,
-                                    from: e.from,
-                                    to: e.to,
-                                    quantity: e.amount.to_string().parse().unwrap(),
-                                    quote_quantity: quote_quantity.to_string().parse().unwrap(),
-                                    transaction_hash: transaction.hash,
-                                    block_number: block.number,
-                                    block_timestamp: block.timestamp,
-                                };
+                                    e.name.clone(),
+                                    e.symbol.clone(),
+                                )
+                                .apply_on_storage(&mut **db_tx)
+                                .await?;
 
-                                if !e.from.is_zero() {
-                                    share_transfer
-                                        .apply_on_storage_for_sender(&mut **db_tx)
-                                        .await?;
-                                }
-                                if !e.to.is_zero() {
-                                    share_transfer
-                                        .apply_on_storage_for_receiver(&mut **db_tx)
-                                        .await?;
-                                }
+                                self.app_state.stats_cache.insert(
+                                    e.multipoolAddress,
+                                    MultipoolCache::new(e.name, e.symbol),
+                                );
+                                let mut multipools = self.app_state.multipools.write().unwrap();
+                                multipools.push(e.multipoolAddress);
                             }
-                            MultipoolEvents::MultipoolOwnerChange(e) => {
-                                OwnerChange::new(e.newOwner, multipool_address)
-                                    .apply_on_storage(&mut **db_tx)
-                                    .await?
-                            }
-                            MultipoolEvents::AssetChange(e) => {
-                                if e.asset == multipool_address {
-                                    AssetChange::new(e.quantity.to(), multipool_address)
-                                        .apply_on_storage(&mut **db_tx)
-                                        .await?;
-                                    self.app_state
+                        }
+
+                        let multipool_address = event.log.address;
+                        if self.app_state.stats_cache.get(&multipool_address).is_none() {
+                            Indexer
+                                .info(json!({
+                                    "m": "multipool event is orphan, skipping",
+                                    "a": multipool_address,
+                                }))
+                                .log();
+                            continue;
+                        }
+                        if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log, false)
+                        {
+                            match multipool_event.data {
+                                MultipoolEvents::ShareTransfer(e) => {
+                                    let price = match self
+                                        .app_state
                                         .stats_cache
-                                        .get_mut(&e.asset)
-                                        .unwrap()
-                                        .insert_total_supply(e.quantity.to());
+                                        .get(&multipool_address)
+                                        .expect("Multipool should present when having events")
+                                        .get_price(block.timestamp)
+                                    {
+                                        Some(p) => p,
+                                        None => crate::price_fetcher::get_mps_prices(
+                                            &[multipool_address],
+                                            &self.app_state.provider,
+                                            block.number,
+                                        )
+                                        .await?
+                                        .0[0]
+                                            .unwrap(),
+                                    };
+                                    // TODO: if price is missing - push it into cache and db also
+
+                                    let quote_quantity: U256 = (e.amount * price) >> 96;
+
+                                    let share_transfer = ShareTransfer {
+                                        chain_id,
+                                        multipool: multipool_address,
+                                        from: e.from,
+                                        to: e.to,
+                                        quantity: e.amount.to_string().parse().unwrap(),
+                                        quote_quantity: quote_quantity.to_string().parse().unwrap(),
+                                        transaction_hash: transaction.hash,
+                                        block_number: block.number,
+                                        block_timestamp: block.timestamp,
+                                    };
+
+                                    if !e.from.is_zero() {
+                                        share_transfer
+                                            .apply_on_storage_for_sender(&mut **db_tx)
+                                            .await?;
+                                    }
+                                    if !e.to.is_zero() {
+                                        share_transfer
+                                            .apply_on_storage_for_receiver(&mut **db_tx)
+                                            .await?;
+                                    }
                                 }
+                                MultipoolEvents::MultipoolOwnerChange(e) => {
+                                    OwnerChange::new(e.newOwner, multipool_address)
+                                        .apply_on_storage(&mut **db_tx)
+                                        .await?
+                                }
+                                MultipoolEvents::AssetChange(e) => {
+                                    if e.asset == multipool_address {
+                                        AssetChange::new(e.quantity.to(), multipool_address)
+                                            .apply_on_storage(&mut **db_tx)
+                                            .await?;
+                                        self.app_state
+                                            .stats_cache
+                                            .get_mut(&e.asset)
+                                            .expect("Multipool should present when having events")
+                                            .insert_total_supply(e.quantity.to());
+                                    }
+                                }
+                                _ => (),
                             }
-                            _ => (),
                         }
                     }
                 }

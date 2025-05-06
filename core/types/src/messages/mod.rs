@@ -45,7 +45,7 @@ impl TryFrom<&str> for KafkaTopics {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Blocks(pub Vec<Block>);
 
 impl Blocks {
@@ -101,21 +101,23 @@ impl Blocks {
                     }
                 },
                 None => {
-                    let timestamp = match blocks_timestamps.get(&block_number) {
-                        Some(v) => *v,
-                        None => {
-                            let timestamp = rpc
-                                .get_block_by_hash(
-                                    log.block_hash.context("Block hash is absent")?.into(),
-                                    BlockTransactionsKind::Hashes,
-                                )
-                                .await?
-                                .map(|b| b.header.timestamp)
-                                .context("Block timestamp is absent")?;
-                            blocks_timestamps.insert(block_number, timestamp);
-                            timestamp
-                        }
-                    };
+                    let timestamp =
+                        match (blocks_timestamps.get(&block_number), log.block_timestamp) {
+                            (Some(v), _) => *v,
+                            (None, Some(ts)) => ts,
+                            (None, None) => {
+                                let timestamp = rpc
+                                    .get_block_by_hash(
+                                        log.block_hash.context("Block hash is absent")?,
+                                        BlockTransactionsKind::Hashes,
+                                    )
+                                    .await?
+                                    .map(|b| b.header.timestamp)
+                                    .context("Block timestamp is absent")?;
+                                blocks_timestamps.insert(block_number, timestamp);
+                                timestamp
+                            }
+                        };
 
                     let position = blocks
                         .iter()
@@ -203,3 +205,82 @@ where
 }
 
 impl<'de, T: Serialize + Deserialize<'de>> MsgPack<'de> for T {}
+
+#[cfg(test)]
+pub mod tests {
+    use std::future;
+
+    use alloy::rpc::client::RpcClient;
+    use tokio::task::futures;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn check_block() {
+        let logs = [
+            alloy::rpc::types::Log {
+                inner: alloy::primitives::Log {
+                    address: [0u8; 20].into(),
+                    data: LogData::default(),
+                },
+                removed: false,
+                transaction_hash: Some([0u8; 32].into()),
+                transaction_index: Some(1),
+                log_index: Some(1),
+                block_hash: Some([0u8; 32].into()),
+                block_number: Some(10),
+                block_timestamp: Some(11),
+            },
+            alloy::rpc::types::Log {
+                inner: alloy::primitives::Log {
+                    address: [0u8; 20].into(),
+                    data: LogData::default(),
+                },
+                removed: false,
+                transaction_hash: Some([0u8; 32].into()),
+                transaction_index: Some(1),
+                log_index: Some(2),
+                block_hash: Some([0u8; 32].into()),
+                block_number: Some(10),
+                block_timestamp: Some(11),
+            },
+            alloy::rpc::types::Log {
+                inner: alloy::primitives::Log {
+                    address: [0u8; 20].into(),
+                    data: LogData::default(),
+                },
+                removed: false,
+                transaction_hash: Some([0u8; 32].into()),
+                transaction_index: Some(1),
+                log_index: Some(2),
+                block_hash: Some([0u8; 32].into()),
+                block_number: Some(11),
+                block_timestamp: Some(12),
+            },
+            alloy::rpc::types::Log {
+                inner: alloy::primitives::Log {
+                    address: [0u8; 20].into(),
+                    data: LogData::default(),
+                },
+                removed: false,
+                transaction_hash: Some([0u8; 32].into()),
+                transaction_index: Some(2),
+                log_index: Some(2),
+                block_hash: Some([0u8; 32].into()),
+                block_number: Some(10),
+                block_timestamp: Some(11),
+            },
+        ];
+        let r = Blocks::parse_logs(
+            logs.as_slice(),
+            alloy::providers::ProviderBuilder::default().on_http(
+                "https://endpoints.omniatech.io/v1/bsc/testnet/public"
+                    .parse()
+                    .unwrap(),
+            ),
+        )
+        .await
+        .unwrap();
+        println!("{r:#?}");
+    }
+}
