@@ -12,7 +12,6 @@ anyhow.workspace = true
 tokio.workspace = true
 borsh.workspace = true
 alloy.workspace = true
-alloy-multicall.workspace = true
 sqlx.workspace = true
 rdkafka.workspace = true
 itertools.workspace = true

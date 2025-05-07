@@ -3,8 +3,6 @@ members = [
     "core/*",
     "trader",
     "gateway",
-    "indexer", 
-    "price_fetcher",
     "service",
     "arweave_client"
 ]
@@ -22,8 +20,7 @@ axum = { version = "0.8.1", features = ["multipart", "macros", "http2"] }
 axum-msgpack = "0.5.0"
 reqwest = { version = "0.11.12", default-features = false, features = ["rustls", "rustls-tls", "json"] }
 
-alloy = { version = "0.11.1", default-features = false, features = ["serde", "reqwest-rustls-tls", "essentials", "std", "json", "rpc", "json-rpc"] }
-alloy-multicall = "0.11.1"
+alloy = { version = "0.15.7", default-features = false, features = ["serde", "reqwest-rustls-tls", "essentials", "std", "json", "rpc", "json-rpc"] }
 
 lazy_static = "1.5.0"
 
@@ -33,7 +30,7 @@ itertools = "0.14.0"
 anyhow = "1.0.79"
 
 rdkafka = {version = "0.37.0", default-features = false, features = ["tokio", "cmake_build"] }
-indexer1 = "0.2.6"
+indexer1 = "0.2.11"
 sqlx = { version = "0.8.2", features = ["tls-rustls", "runtime-tokio", "postgres", "sqlite", "bigdecimal"] }
 bigdecimal = {version = "0.4.7", features = ["serde"]}
 sled = "0.34.7"

@@ -109,7 +109,6 @@ impl Blocks {
                                 let timestamp = rpc
                                     .get_block_by_hash(
                                         log.block_hash.context("Block hash is absent")?,
-                                        BlockTransactionsKind::Hashes,
                                     )
                                     .await?
                                     .map(|b| b.header.timestamp)
