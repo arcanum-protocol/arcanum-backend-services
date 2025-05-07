@@ -6,10 +6,12 @@ use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::primitives::{Address, U256};
 use alloy::providers::bindings::IMulticall3::getCurrentBlockTimestampCall;
 use alloy::providers::{CallItem, MulticallBuilder, Provider, MULTICALL3_ADDRESS};
+use alloy::signers::k256::elliptic_curve::consts::U2;
 use alloy::sol_types::SolCall;
 use backend_service::logging::LogTarget;
 use backend_service::KeyValue;
 use bigdecimal::{BigDecimal, Num};
+use multipool_types::Multipool::getSharePricePartCall;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Acquire;
@@ -120,7 +122,7 @@ pub async fn get_mps_prices<P: Provider>(
 
     for mp in mps.iter() {
         mc = mc.add_call_dynamic(
-            CallItem::new(
+            CallItem::<getSharePricePartCall>::new(
                 *mp,
                 multipool_types::Multipool::getSharePricePartCall {
                     limit: U256::MAX,
@@ -133,7 +135,7 @@ pub async fn get_mps_prices<P: Provider>(
         );
     }
 
-    let mc = mc.add_call_dynamic(CallItem::<getCurrentBlockTimestampCall>::new(
+    let mc = mc.add_call_dynamic(CallItem::new(
         MULTICALL3_ADDRESS,
         getCurrentBlockTimestampCall {}.abi_encode().into(),
     ));

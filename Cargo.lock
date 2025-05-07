@@ -3383,9 +3383,9 @@ dependencies = [
 
 [[package]]
 name = "indexer1"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11ba72806eb369dcdad26680b3799f117e9ff563b13cf83acae6572e8ff64776"
+checksum = "b3e81a37cf07e25eb20e92772a3675453e38b1c9d7f9cd031ca61df80e4b012a"
 dependencies = [
  "alloy",
  "anyhow",
