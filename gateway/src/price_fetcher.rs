@@ -1,17 +1,15 @@
 use crate::service::log_target::GatewayTarget::PriceFetcher;
 use crate::service::metrics::{DATABASE_REQUEST_DURATION_MS, PRICE_FETCHER_HEIGHT};
 use crate::service::termination_codes::PRICE_FETCH_FAILED;
-use alloy::dyn_abi::{DynSolType, DynSolValue};
-use alloy::eips::{BlockId, BlockNumberOrTag};
+use alloy::eips::BlockNumberOrTag;
 use alloy::primitives::{Address, U256};
-use alloy::providers::bindings::IMulticall3::getCurrentBlockTimestampCall;
-use alloy::providers::{CallItem, MulticallBuilder, Provider, MULTICALL3_ADDRESS};
-use alloy::signers::k256::elliptic_curve::consts::U2;
+use alloy::providers::{Provider, MULTICALL3_ADDRESS};
 use alloy::sol_types::SolCall;
 use backend_service::logging::LogTarget;
 use backend_service::KeyValue;
 use bigdecimal::{BigDecimal, Num};
-use multipool_types::Multipool::getSharePricePartCall;
+use multipool_types::Multicall::{self, getCurrentBlockTimestampCall};
+use multipool_types::Multicall3::Call3;
 use serde::Deserialize;
 use serde_json::json;
 use sqlx::Acquire;
@@ -118,35 +116,39 @@ pub async fn get_mps_prices<P: Provider>(
     provider: &P,
     block_number: u64,
 ) -> anyhow::Result<(Vec<Option<U256>>, u64)> {
-    let mut mc = MulticallBuilder::new_dynamic(provider).address(MULTICALL3_ADDRESS);
+    let multicall = Multicall::new(MULTICALL3_ADDRESS, provider);
+    let mut calls = vec![];
 
     for mp in mps.iter() {
-        mc = mc.add_call_dynamic(
-            CallItem::<getSharePricePartCall>::new(
-                *mp,
-                multipool_types::Multipool::getSharePricePartCall {
-                    limit: U256::MAX,
-                    offset: U256::ZERO,
-                }
-                .abi_encode()
-                .into(),
-            )
-            .allow_failure(true),
-        );
+        calls.push(Call3 {
+            target: *mp,
+            allowFailure: true,
+            callData: multipool_types::Multipool::getSharePricePartCall {
+                limit: U256::MAX,
+                offset: U256::ZERO,
+            }
+            .abi_encode()
+            .into(),
+        })
     }
 
-    let mc = mc.add_call_dynamic(CallItem::new(
-        MULTICALL3_ADDRESS,
-        getCurrentBlockTimestampCall {}.abi_encode().into(),
-    ));
+    calls.push(Call3 {
+        target: MULTICALL3_ADDRESS,
+        allowFailure: true,
+        callData: getCurrentBlockTimestampCall {}.abi_encode().into(),
+    });
 
-    let mut res = match mc.block(block_number.into()).aggregate3().await {
+    let call = multicall.aggregate3(calls).block(block_number.into());
+    let calldata = call.calldata().clone();
+
+    let mut res = match call.call().await {
         Ok(res) => res,
         Err(e) => {
             PriceFetcher
                 .error(json!({
                     "m": "multipool price fetch failed",
                     "out_data_err": format!("{e:?}"),
+                    "calldata": calldata,
                     "b": block_number,
                     "e": e.to_string()
                 }))
@@ -156,9 +158,16 @@ pub async fn get_mps_prices<P: Provider>(
 
     let ts = res
         .pop()
-        .unwrap()
-        .expect("failed to fetch ts in multicall somehow");
-    let prices: Vec<Option<U256>> = res.into_iter().map(|p| p.ok()).collect();
+        .map(|ts| U256::try_from_be_slice(&ts.returnData).expect("Failed to decode ts"))
+        .unwrap();
+
+    let prices: Vec<Option<U256>> = res
+        .into_iter()
+        .map(|p| match p.success {
+            true => U256::try_from_be_slice(&p.returnData),
+            false => None,
+        })
+        .collect();
 
     Ok((prices, ts.to()))
 }

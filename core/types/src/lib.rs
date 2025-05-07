@@ -41,3 +41,12 @@ sol!(
     ERC20,
     "../../arcanum-contracts/out/MockERC20.sol/MockERC20.json"
 );
+
+sol!(
+    #[allow(clippy::too_many_arguments)]
+    #[allow(missing_docs)]
+    #[derive(serde::Serialize)]
+    #[sol(rpc, abi)]
+    Multicall,
+    "src/multicall.json"
+);
