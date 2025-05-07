@@ -2,8 +2,11 @@ use crate::service::log_target::GatewayTarget::PriceFetcher;
 use crate::service::metrics::{DATABASE_REQUEST_DURATION_MS, PRICE_FETCHER_HEIGHT};
 use crate::service::termination_codes::PRICE_FETCH_FAILED;
 use alloy::dyn_abi::{DynSolType, DynSolValue};
+use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::primitives::{Address, U256};
-use alloy::providers::{Provider, MULTICALL3_ADDRESS};
+use alloy::providers::bindings::IMulticall3::getCurrentBlockTimestampCall;
+use alloy::providers::{CallItem, MulticallBuilder, Provider, MULTICALL3_ADDRESS};
+use alloy::sol_types::SolCall;
 use backend_service::logging::LogTarget;
 use backend_service::KeyValue;
 use bigdecimal::{BigDecimal, Num};
@@ -32,8 +35,13 @@ pub async fn run<P: Provider>(
     let chain_id = provider.get_chain_id().await? as i64;
 
     //TODO: do something with block competition
-    //TODO: maybe different block fetching
-    let mut latest_block = provider.get_block_number().await?;
+    let mut latest_block = provider
+        .get_block_by_number(BlockNumberOrTag::Finalized)
+        .hashes()
+        .await?
+        .expect("no finalized block")
+        .header
+        .number;
 
     let mut connection = pool.acquire().await?;
 
@@ -50,7 +58,6 @@ pub async fn run<P: Provider>(
             let multipools = app_state.multipools.read().unwrap().clone();
 
             for chunk in multipools.chunks(config.multipools_in_chunk as usize) {
-                // Fetch by block number
                 let (prices, ts) = get_mps_prices(chunk, &provider, indexing_block).await?;
                 for (p, mp) in prices.into_iter().zip(chunk) {
                     if let Some(price) = p {
@@ -91,8 +98,13 @@ pub async fn run<P: Provider>(
             indexing_block += config.block_delay;
         }
         if indexing_block > latest_block {
-            //TODO: maybe different block fetching
-            latest_block = provider.get_block_number().await?;
+            latest_block = provider
+                .get_block_by_number(BlockNumberOrTag::Finalized)
+                .hashes()
+                .await?
+                .expect("no finalized block")
+                .header
+                .number;
         }
 
         tokio::time::sleep(Duration::from_millis(config.retry_delay_ms)).await;
@@ -104,60 +116,35 @@ pub async fn get_mps_prices<P: Provider>(
     provider: &P,
     block_number: u64,
 ) -> anyhow::Result<(Vec<Option<U256>>, u64)> {
-    let multipool_functions = multipool_types::Multipool::abi::functions();
-    let get_price_func = &multipool_functions.get("getSharePricePart").unwrap()[0];
-    let mut mc = alloy_multicall::Multicall::new(
-        &provider,
-        MULTICALL3_ADDRESS,
-        //alloy::primitives::address!("cA11bde05977b3631167028862bE2a173976CA11"),
-    );
+    let mut mc = MulticallBuilder::new_dynamic(provider).address(MULTICALL3_ADDRESS);
+
     for mp in mps.iter() {
-        mc.add_call(
-            *mp,
-            get_price_func,
-            &[
-                DynSolValue::Uint(U256::MAX, 256),
-                DynSolValue::Uint(U256::ZERO, 256),
-            ],
-            true,
-        )
+        mc = mc.add_call_dynamic(
+            CallItem::new(
+                *mp,
+                multipool_types::Multipool::getSharePricePartCall {
+                    limit: U256::MAX,
+                    offset: U256::ZERO,
+                }
+                .abi_encode()
+                .into(),
+            )
+            .allow_failure(true),
+        );
     }
 
-    // let overflow_error = alloy::primitives::bytes!(
-    //     "0x4e487b710000000000000000000000000000000000000000000000000000000000000012"
-    // );
+    let mc = mc.add_call_dynamic(CallItem::<getCurrentBlockTimestampCall>::new(
+        MULTICALL3_ADDRESS,
+        getCurrentBlockTimestampCall {}.abi_encode().into(),
+    ));
 
-    mc.add_get_current_block_timestamp();
-    let calldata = mc.as_aggregate_3().calldata().clone();
-    let result = mc
-        .as_aggregate_3()
-        .block(block_number.into())
-        .call_raw()
-        .await;
-    let result_log = serde_json::to_value(result.as_ref().map_err(|e| format!("{e:?}"))).unwrap();
-
-    //let mut res = match mc.call_with_block(block_number.into()).await {
-    let mut res = match result.map(|v| parse_multicall_result(v.as_ref())) {
-        Ok(Ok(res)) => res,
+    let mut res = match mc.block(block_number.into()).aggregate3().await {
+        Ok(res) => res,
         Err(e) => {
             PriceFetcher
                 .error(json!({
                     "m": "multipool price fetch failed",
-                    "in_data_bytes": calldata.to_string(),
                     "out_data_err": format!("{e:?}"),
-                    "out_data": result_log,
-                    "b": block_number,
-                    "e": e.to_string()
-                }))
-                .terminate(PRICE_FETCH_FAILED);
-        }
-        Ok(Err(e)) => {
-            PriceFetcher
-                .error(json!({
-                    "m": "multipool price fetch failed",
-                    "in_data_bytes": calldata.to_string(),
-                    "out_data_err": format!("{e:?}"),
-                    "out_data": result_log,
                     "b": block_number,
                     "e": e.to_string()
                 }))
@@ -165,52 +152,11 @@ pub async fn get_mps_prices<P: Provider>(
         }
     };
 
-    // PriceFetcher
-    //     .error(json!({
-    //         "m": "fetched multicall value",
-    //         "v": res.iter().map(|v| (v.0,format!("{:?}", v.1))).collect::<Vec<_>>(),
-    //         "b": block_number,
-    //     }))
-    //     .log();
-    let ts = U256::from_be_slice(res.pop().unwrap().1.as_bytes().expect("not bytes"));
-    let prices: Vec<Option<U256>> = res
-        .into_iter()
-        .map(|p| match p.0 {
-            true => Some(U256::from_be_slice(p.1.as_bytes().expect("not bytes"))),
-            false => None,
-        })
-        .collect();
+    let ts = res
+        .pop()
+        .unwrap()
+        .expect("failed to fetch ts in multicall somehow");
+    let prices: Vec<Option<U256>> = res.into_iter().map(|p| p.ok()).collect();
 
     Ok((prices, ts.to()))
-}
-
-pub fn parse_multicall_result(raw_bytes: &[u8]) -> anyhow::Result<Vec<(bool, DynSolValue)>> {
-    // The return type is (bool,bytes)[]
-    let return_type = DynSolType::Array(Box::new(DynSolType::Tuple(vec![
-        DynSolType::Bool,
-        DynSolType::Bytes,
-    ])));
-
-    // Decode the raw bytes according to the ABI type
-    let decoded = return_type.abi_decode(raw_bytes)?;
-
-    // Convert to our desired output format
-    if let DynSolValue::Array(tuples) = decoded {
-        tuples
-            .into_iter()
-            .map(|tuple| {
-                if let DynSolValue::Tuple(elements) = tuple {
-                    let success = elements[0]
-                        .as_bool()
-                        .ok_or_else(|| anyhow::anyhow!("error parse bool"))?;
-                    let return_data = elements[1].clone();
-                    Ok((success, return_data))
-                } else {
-                    Err(anyhow::anyhow!("not tuple"))
-                }
-            })
-            .collect::<anyhow::Result<Vec<_>>>()
-    } else {
-        Err(anyhow::anyhow!("not array"))
-    }
 }

@@ -45,7 +45,6 @@ backend-service = { path = "../service" }
 anyhow.workspace = true
 tokio.workspace = true
 alloy.workspace = true
-alloy-multicall.workspace = true
 reqwest.workspace = true
 sled.workspace = true
 sqlx.workspace = true

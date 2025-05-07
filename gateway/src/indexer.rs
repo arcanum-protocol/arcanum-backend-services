@@ -76,7 +76,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
             for block in blocks.0.iter() {
                 for transaction in block.transactions.iter() {
                     for event in transaction.events.iter() {
-                        if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log, false) {
+                        if let Ok(mp) = MultipoolFactoryEvents::decode_log(&event.log) {
                             if let MultipoolFactoryEvents::MultipoolCreated(e) = mp.data {
                                 Indexer
                                     .info(json!({
@@ -121,8 +121,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
                                 .log();
                             continue;
                         }
-                        if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log, false)
-                        {
+                        if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log) {
                             match multipool_event.data {
                                 MultipoolEvents::ShareTransfer(e) => {
                                     let price = match self
