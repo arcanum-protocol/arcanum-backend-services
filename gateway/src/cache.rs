@@ -305,11 +305,11 @@ impl MultipoolCache {
 
             let candle = match self.get_candle_index(ts, resolution) {
                 Some(i) => {
-                    let mut candle = self.candles[resolution_to_index(MINUTE)][i].clone();
+                    let mut candle = self.candles[resolution_index][i].clone();
                     candle.hight = candle.hight.max(price);
                     candle.low = candle.low.min(price);
                     candle.close = price;
-                    self.candles[resolution_to_index(MINUTE)][i] = candle.clone();
+                    self.candles[resolution_index][i] = candle.clone();
                     candle
                 }
                 None => {
@@ -340,7 +340,9 @@ impl MultipoolCache {
 
                 self.stats.open_price = self.candles[TRW_RESOLUTION][self.trw_start_index].open;
                 self.stats.current_price = candle.close;
+            }
 
+            if resolution == MINUTE {
                 match self.stats.current_candle {
                     Some(ref c) if c.ts < candle.ts => {
                         self.stats.previous_candle = self.stats.current_candle.replace(candle);
