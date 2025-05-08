@@ -5,12 +5,15 @@ use crate::{
 use alloy::{
     primitives::{Address, B256},
     providers::Provider,
+    rpc::types::Filter,
+    sol_types::{SolEvent, SolEventInterface},
 };
 //use arweave_client::{Rpc, Tag, Transaction, Uploader};
 use axum::extract::{Query, State};
 use axum_msgpack::MsgPack;
 use backend_service::KeyValue;
 use bigdecimal::BigDecimal;
+use multipool_types::MultipoolFactory::{self, MultipoolFactoryEvents};
 use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -59,12 +62,36 @@ pub async fn create<P: Provider>(
     //TODO: maybe use indexer <-> this route method that
     //is going to be sending data to arwave
     // also need to check fees so probably transaction hash is neserarry
+    // THIS ONE TO BE REMOVED AND LOGS TO BE USED
     let code = state
         .provider
         .get_code_at(multipool)
         .latest()
         .await
         .map_err(|_| AppError::FailedToGetCode)?;
+
+    //TODO: only insert if there is no logo set before
+    //TODO: same for arwave
+
+    // let current_block = state.provider.get_block_number().await?;
+    // let block_countback = 1000;
+
+    // let filter = Filter::new()
+    //     .event(MultipoolFactory::ProtocolFeeSent::SIGNATURE)
+    //     .topic1(multipool)
+    //     .from_block(current_block - block_countback)
+    //     .address(state.factory);
+    // let events = state.provider.get_logs(&filter).await?;
+
+    // let (fee_receiver, fee_amount) = events
+    //     .into_iter()
+    //     .find_map(
+    //         |i| match MultipoolFactoryEvents::decode_log(&i.into()).ok()?.data {
+    //             MultipoolFactoryEvents::ProtocolFeeSent(e) => Some((e.feeReceiver, e.amount)),
+    //             _ => None,
+    //         },
+    //     )
+    //     .ok_or(AppError::MultipoolNotCreated)?;
 
     if code.is_empty()
         && form.description.len() > 500
@@ -75,7 +102,6 @@ pub async fn create<P: Provider>(
         Err(AppError::InvalidPayloadSize)?;
     }
 
-    //TODO: only insert if there is no logo set before
     let timer = Instant::now();
     sqlx::query(
         "INSERT INTO
@@ -193,12 +219,6 @@ pub async fn metadata<P: Provider>(
         .map(Into::into)
         .map_err(Into::into)
 }
-
-#[derive(Deserialize)]
-pub struct MetadataRequest {
-    multipool: Address,
-}
-
 
 #[derive(Deserialize)]
 pub struct PositionsRequest {
