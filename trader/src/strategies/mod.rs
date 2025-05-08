@@ -1,82 +1,65 @@
 use alloy::{
     dyn_abi::DynSolValue,
-    primitives::{Address, I256, U256},
+    primitives::{Address, Bytes, I256, U256},
     providers::Provider,
 };
 use anyhow::{anyhow, bail, Result};
-use multipool_types::expiry::StdTimeExtractor;
+use multipool_types::{expiry::StdTimeExtractor, Multipool::OraclePrice};
 use std::ops::Shr;
 
 use crate::{
-    contracts::{SiloLens, ERC20, SILO_LENS, SILO_WRAPPER},
+    contracts::{multipool::MultipoolContract, SiloLens, ERC20, SILO_LENS, SILO_WRAPPER},
     trade::{AssetsChoise, MultipoolChoise, WrapperCall},
 };
 
 impl<P: Provider + Clone> AssetsChoise<P> {
     pub async fn estimate_multipool(self) -> Result<MultipoolChoise<P>> {
-        let price1 = self
+        let price_in = self
             .trading_data
             .multipool
-            .get_price(&self.asset1)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .any_age();
-        let price2 = self
+            .get_price(&self.asset1)?;
+        let price_out = self
             .trading_data
             .multipool
-            .get_price(&self.asset2)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .any_age();
-
-        let amount1 = self
-            .trading_data
-            .multipool
+            .get_price(&self.asset2)?;
+        let amount = self
+        .trading_data
+        .multipool
             .quantity_to_deviation(&self.asset1, self.deviation_bound)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than::<StdTimeExtractor>(180)
-            .ok_or(anyhow!("Price is too old"))?;
+            .map_err(|v| anyhow!("{v:?}"))?;
 
-        let amount2 = self
+
+        let amount_out = U256::from(amount.abs()) * price_in / price_out;
+
+        if amount.is_negative() {
+            bail!(anyhow!("Amount in negative"));
+        }
+
+        let mp = MultipoolContract::new(self
             .trading_data
-            .multipool
-            .quantity_to_deviation(&self.asset2, self.deviation_bound)
-            .map_err(|v| anyhow!("{v:?}"))?
-            .not_older_than::<StdTimeExtractor>(180)
-            .ok_or(anyhow!("Price is too old"))?;
+            .multipool.address, self
+            .trading_data
+            .rpc.clone());
 
-        println!("{} -> {}", self.asset1, self.asset2);
-        println!("{} -> {}", amount1, amount2);
+        let res = mp.estimate_swap(
+            MultipoolContract::OraclePrice {
+                contractAddress: Address::ZERO,
+                timestamp: 0,
+                sharePrice: 0,
+                signature: Bytes::new()
+            },
+            self.asset1, 
+            self.asset2,
+            U256::from(amount.abs()), 
+            true).call().await?;
 
-        if (amount1.is_positive() && amount2.is_positive())
-            || (amount1.is_negative() && amount2.is_negative())
-        {
-            bail!(anyhow!("same signs"));
-        }
+        println!("ESTIMATE  {} {} {} {} and calculated {}", res.amountIn, res.amountOut, res.fees, res.cashbacks, amount_out);
 
-        if amount1.is_negative() {
-            bail!(anyhow!("amount1 is neg"));
-        }
+        let fee: I256 = I256::unchecked_from(res.fees);
 
-        let amount1 = U256::try_from(amount1.abs())?;
-        let amount2 = U256::try_from(amount2.abs())?;
-
-        let quoted_amount1: U256 = amount1
-            .checked_mul(price1)
-            .ok_or(anyhow!("overflow"))?
-            .shr(96);
-        let quoted_amount2: U256 = amount2
-            .checked_mul(price2)
-            .ok_or(anyhow!("overflow"))?
-            .shr(96);
-
-        let quote_to_use = quoted_amount1.min(quoted_amount2);
-
-        let amount_to_use = (quote_to_use << 96) / price1;
-
-        // TODO: calculate fee
-        let fee: I256 = I256::unchecked_from(100000000_u128);
-
-        let amount_of_in = I256::from_raw(amount_to_use);
-        let amount_of_out = I256::unchecked_from(-1000000);
+        let amount_of_in = I256::from_raw(res.amountIn);
+        // let amount_of_out = I256::unchecked_from(-1000000);
+        let amount_of_out = I256::unchecked_from(res.amountOut);
 
         let multipool_amount_in = U256::try_from(amount_of_in.abs())?;
         let multipool_amount_out = U256::try_from(amount_of_out.abs())?;
@@ -94,7 +77,7 @@ impl<P: Provider + Clone> AssetsChoise<P> {
                 .await?;
 
             (
-                multipool_amount_in * collected._totalDeposits / total_supply.value,
+                multipool_amount_in * collected / total_supply,
                 *base_asset,
                 WrapperCall {
                     wrapper: SILO_WRAPPER,
@@ -134,7 +117,7 @@ impl<P: Provider + Clone> AssetsChoise<P> {
                 .await?;
 
             (
-                multipool_amount_out * collected._totalDeposits / total_supply.value,
+                multipool_amount_out * collected / total_supply,
                 *base_asset,
                 WrapperCall {
                     wrapper: SILO_WRAPPER,
@@ -176,3 +159,34 @@ impl<P: Provider + Clone> AssetsChoise<P> {
         })
     }
 }
+//  assets: {
+//     0xb2f82d0f38dc453d596ad40a37799446cc89274a: MpAsset { 
+//         address: 0xb2f82d0f38dc453d596ad40a37799446cc89274a, 
+//         quantity: 3769742731863919824, 
+//         price: 79099144920519128186171538256, 
+//         target_share: 10 
+//     }, 
+//     0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714: MpAsset {
+//         address: 0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714, 
+//         quantity: 10696324732792741825, 
+//         price: 272335392985689149155207077056, 
+//         target_share: 10 
+//     }, 
+//     0xe0590015a873bf326bd645c3e1266d4db41c4e6b: MpAsset { 
+//         address: 0xe0590015a873bf326bd645c3e1266d4db41c4e6b, 
+//         quantity: 9175102860042797953, 
+//         price: 1563403557198007219922291894, 
+//         target_share: 10 
+//     }, 
+//     0xfe140e1dce99be9f4f15d657cd9b7bf622270c50: MpAsset { 
+//         address: 0xfe140e1dce99be9f4f15d657cd9b7bf622270c50, 
+//         quantity: 22596109291089760153, 
+//         price: 145101055232530068641984591, 
+//         target_share: 10 
+//     }, 
+//     0xaeef2f6b429cb59c9b2d7bb2141ada993e8571c3: MpAsset { 
+//         address: 0xaeef2f6b429cb59c9b2d7bb2141ada993e8571c3, 
+//         quantity: 845558493087915468, 
+//         price: 79604018667121319057066105674, 
+//         target_share: 10 
+//     }}, context: MpContext { sharePrice: 79228162514264337593543950336, oldTotalSupply: 16967939447406380801952938, totalSupplyDelta: 0, totalTargetShares: 50, deviationIncreaseFee: 0, deviationLimit: 4294967296, feeToCashbackRatio: 0, baseFee: 0, managementBaseFee: 0, deviationFees: 0, collectedCashbacks: 0, collectedFees: 0, managementFeeRecepient: 0x65fc395ec32d69551b3966f8e5323fd233a8c9ec, oracleAddress: 0x97cd13624bb12d4ec39469b140f529459d5d369d }, cap: 194254829721914606011583 }

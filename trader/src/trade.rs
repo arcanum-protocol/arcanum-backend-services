@@ -1,11 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
+use crate::cache::multipool::Multipool;
 use crate::contracts::trader::Trader::OraclePrice;
 use alloy::{
     primitives::{Address, I256, U256},
     providers::Provider,
 };
-use multipool::Multipool;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

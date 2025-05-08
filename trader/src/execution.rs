@@ -51,7 +51,7 @@ impl<P: Provider> UniswapChoise<P> {
                 .trading_data_with_assets
                 .trading_data
                 .multipool
-                .contract_address()
+                .address
                 .0
                 .encode_hex(),
 
@@ -62,10 +62,10 @@ impl<P: Provider> UniswapChoise<P> {
         let args = Args {
             tokenIn: self.trading_data.swap_asset_in,
             multipoolTokenIn: self.trading_data.trading_data_with_assets.asset1,
-            zeroForOneIn: !self.input.zero_for_one,
+            zeroForOneIn: self.input.zero_for_one,
             tokenOut: self.trading_data.swap_asset_out,
             multipoolTokenOut: self.trading_data.trading_data_with_assets.asset2,
-            zeroForOneOut: !self.output.zero_for_one,
+            zeroForOneOut: self.output.zero_for_one,
 
             tmpAmount: self.trading_data.unwrapped_amount_in,
             multipoolFee: U256::from(10000000000000u128),
@@ -73,7 +73,7 @@ impl<P: Provider> UniswapChoise<P> {
             poolIn: self.input.best_pool,
             poolOut: self.output.best_pool,
 
-            multipool: multipool.contract_address(),
+            multipool: multipool.address,
             oraclePrice: self
                 .trading_data
                 .trading_data_with_assets
@@ -99,16 +99,15 @@ impl<P: Provider> UniswapChoise<P> {
                 data: self.trading_data.unwrap_call.data.clone().into(),
             },
         };
-
         check_and_send(
             &self.trading_data.trading_data_with_assets.trading_data.rpc,
             args,
+            self.input.estimated
         )
         .await
-        .map_err(|e| anyhow!("{e:?}"))?;
-
+        .map_err(|e| anyhow!("value: {} {e:?}", self.input.estimated))?;
         // insert post trade
-        click.insert(stats).await?;
+        click.insert(stats).await.map_err(|e| anyhow!("clickhouse error {e}"))?;
         Ok(())
     }
 }
@@ -120,14 +119,15 @@ pub struct Execution {
     pub transaction: Option<Result<TxHash, String>>,
 }
 
-pub async fn check_and_send<P: Provider>(rpc: &P, args: Args) -> Result<Execution, String> {
+pub async fn check_and_send<P: Provider>(rpc: &P, args: Args, estimated_input: U256) -> Result<Execution, String> {
     let contract = Trader::new(TRADER_ADDRESS, rpc);
     let tx = contract
         .trade(args.clone())
         .gas(args.gasLimit.to::<u64>())
-        .gas_price(10000000)
-        // 0.02
-        .value(U256::from(30000000000000000u128));
+        // .gas_price(10000000)
+        // 0.3
+        // 76.14526
+        .value(estimated_input + U256::from(1000000000000000_u128));
     let simulate = tx.call().await;
 
     match simulate {
@@ -218,7 +218,10 @@ pub async fn check_and_send<P: Provider>(rpc: &P, args: Args) -> Result<Executio
             // } else {
             //     println!("Simulation FAILED, error: {:?}", e);
             // }
-            Err(e.to_string())
+            Err(format!("simulation failure: {} \n args: {:?}", e.to_string(), args))
         }
     }
 }
+
+
+//  assets: {0xe0590015a873bf326bd645c3e1266d4db41c4e6b: MpAsset { address: 0xe0590015a873bf326bd645c3e1266d4db41c4e6b, quantity: 9175102860042797953, price: 1561499552145916762214632838, target_share: 10 }, 0xfe140e1dce99be9f4f15d657cd9b7bf622270c50: MpAsset { address: 0xfe140e1dce99be9f4f15d657cd9b7bf622270c50, quantity: 22596109291089760153, price: 143243544969976588358540309, target_share: 10 }, 0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714: MpAsset { address: 0x0f0bdebf0f83cd1ee3974779bcb7315f9808c714, quantity: 7262909028320197317, price: 271328483201903673084347247709, target_share: 10 }, 0xaeef2f6b429cb59c9b2d7bb2141ada993e8571c3: MpAsset { address: 0xaeef2f6b429cb59c9b2d7bb2141ada993e8571c3, quantity: 845558493087915468, price: 79757422070784428608687450987, target_share: 10 }, 0xb2f82d0f38dc453d596ad40a37799446cc89274a: MpAsset { address: 0xb2f82d0f38dc453d596ad40a37799446cc89274a, quantity: 3769742731863919824, price: 79076094821439265491948075126, target_share: 10 }}, context: MpContext { sharePrice: 79228162514264337593543950336, oldTotalSupply: 16967927670245107494863087, totalSupplyDelta: 0, totalTargetShares: 50, deviationIncreaseFee: 0, deviationLimit: 4294967296, feeToCashbackRatio: 0, baseFee: 0, managementBaseFee: 0, deviationFees: 0, collectedCashbacks: 0, collectedFees: 0, managementFeeRecepient: 0x65fc395ec32d69551b3966f8e5323fd233a8c9ec, oracleAddress: 0x97cd13624bb12d4ec39469b140f529459d5d369d }, cap: 138716636537490445455832 }
