@@ -1,24 +1,25 @@
 use std::sync::RwLock;
+use std::time::Duration;
 
+use crate::cache::multipool::Multipool;
+use crate::Click;
 use alloy::primitives::U256;
 use alloy::{primitives::Address, providers::Provider};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bigdecimal::BigDecimal;
 use dashmap::DashMap;
-use multipool::Multipool;
 use serde::Serialize;
 use serde::Serializer;
 use std::sync::Arc;
+use tokio::task::JoinSet;
 
 use sqlx::{Executor, PgPool, Postgres};
 
 pub struct Cache<P: Provider> {
-    pub stats_cache: DashMap<Address, Multipool>,
-    pub multipools: Arc<RwLock<Vec<Address>>>,
+    pub mp_cache: DashMap<Address, Multipool>,
     pub connection: PgPool,
-    pub provider: P,
+    pub provider: Arc<P>,
     pub chain_id: u64,
-    pub factory: Address,
 }
 
 #[derive(sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -40,35 +41,52 @@ impl DbMultipool {
     }
 }
 
-
-impl<P: Provider> Cache<P> {
-    pub async fn initialize(
-        connection: PgPool,
-        provider: P,
-        factory: Address,
-    ) -> Result<Self> {
+impl<P: Provider + Sync + Send + 'static> Cache<P> {
+    pub async fn initialize(connection: PgPool, provider: Arc<P>) -> Result<Self> {
         let chain_id = provider.get_chain_id().await?;
-        let stats_cache = DashMap::<Address, Multipool>::default();
         let mut conn = connection.acquire().await?;
 
         let multipools = DbMultipool::get_with_chain_id(&mut *conn, chain_id).await?;
-
+        let mut set = JoinSet::new();
         for multipool in multipools.iter() {
-
+            let p = provider.clone();
+            let address = Address::from(multipool.multipool);
+            set.spawn(Multipool::from_rpc(p, address));
         }
-
-        let multipools = Arc::new(RwLock::new(
-            multipools.into_iter().map(|m| m.multipool.into()).collect(),
-        ));
+        let mp_cache = set
+            .join_all()
+            .await
+            .into_iter()
+            .filter_map(|res| {res.ok().map(|m| (m.address, m))})
+            .collect();
 
         Ok(Self {
-            factory,
-            stats_cache,
+            mp_cache,
             connection,
             provider,
             chain_id,
-            multipools,
         })
+    }
+    pub async fn update(&self) -> Result<()> {
+        let mut conn = self.connection.acquire().await?;
+
+        let multipools = DbMultipool::get_with_chain_id(&mut *conn, self.chain_id).await?;
+        let mut set = JoinSet::new();
+        for multipool in multipools.iter() {
+            let p = self.provider.clone();
+            let address = Address::from(multipool.multipool);
+            set.spawn(Multipool::from_rpc(p, address));
+        }
+        let mp_cache: Vec<Multipool> = set
+            .join_all()
+            .await
+            .into_iter()
+            .filter_map(|res| {res.ok()})
+            .collect();
+        for mp in mp_cache.into_iter() {
+            self.mp_cache.insert(mp.address, mp);
+        }
+        Ok(())
     }
 }
 

@@ -1,10 +1,13 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use crate::cache::cache::Cache;
+use crate::cache::multipool::Multipool;
 use crate::clickhouse::Click;
 use crate::contracts::{trader::Trader::OraclePrice, WETH_ADDRESS};
 use crate::trade::{AssetsChoise, TradingData};
-use alloy::primitives::{Bytes, I256};
+use alloy::primitives::{Address, Bytes, I256, U256};
 use alloy::providers::Provider;
+use anyhow::Result;
 use multipool_storage::hook::HookInitializer;
 use multipool_types::expiry::MayBeExpired;
 use tokio::{runtime::Handle, time::timeout};
@@ -17,71 +20,61 @@ pub struct TraderHook<P: Provider + Clone + 'static> {
     pub task_timeout: Duration,
 }
 
-impl<P: Provider + Clone> HookInitializer for TraderHook<P> {
-    async fn initialize_hook<F: Fn() -> multipool::Multipool + Send + Sync + 'static>(
-        &mut self,
-        getter: F,
-    ) -> Vec<tokio::task::JoinHandle<anyhow::Result<()>>> {
-        println!("Initialized hook");
-        let hook_data = self.clone();
-        loop {
-            tokio::time::sleep(Duration::from_secs(3)).await;
-            let multipool = getter();
-            println!("{:?}", multipool);
-            let price = multipool
-                .get_price(&multipool.contract_address)
-                // no need to check if there is no asset, because we have multipool info
-                .unwrap();
-            let signed_price = some_sign_method(&price);
-            let asset_list = multipool.asset_list();
-            let contract_address = multipool.contract_address();
-            let trading_data = Arc::new(TradingData {
-                rpc: hook_data.rpc.clone(),
-                multipool,
-                silo_assets: HashMap::new(),
-                oracle_price: OraclePrice {
-                    contractAddress: contract_address,
-                    timestamp: price.time() as u128,
-                    sharePrice: price.any_age().to::<u128>(),
-                    signature: signed_price,
-                },
-                weth: WETH_ADDRESS,
-            });
-            for asset1 in asset_list.iter() {
-                for asset2 in asset_list.iter() {
-                    let s = AssetsChoise {
-                        trading_data: trading_data.clone(),
-                        asset1: *asset1,
-                        asset2: *asset2,
-                        deviation_bound: I256::ZERO,
-                    };
-                    let click = self.click.clone();
-                    self.handle.spawn(async move {
-                        let err = s.estimate_multipool().await;
-                        match err {
-                            Ok(v) => match v.estimate_uniswap().await {
-                                Ok(v) => {
-                                    let r = timeout(hook_data.task_timeout, v.execute(click)).await;
-                                    println!("Send trade result: {r:?}");
-                                }
-                                Err(e) => {
-                                    println!("Estimate Uniswap error: {e:?}");
-                                }
-                            },
-                            Err(_e) => {}
-                        }
-                    });
-                }
+pub async fn process_pool<P: Provider + Sync + Send + 'static>(
+    cache: Arc<Cache<P>>,
+    click: Arc<Click>,
+    multipool: Multipool,
+    task_timeout: Duration,
+) -> Result<()> {
+    println!("Initialized hook");
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        let price = multipool.cap;
+        let signed_price = some_sign_method(&price);
+        let contract_address = multipool.address;
+        let asset_list = &multipool.assets_addresses;
+        let trading_data = Arc::new(TradingData {
+            rpc: cache.provider.clone(),
+            multipool: multipool.clone(),
+            silo_assets: HashMap::new(),
+            oracle_price: OraclePrice {
+                contractAddress: contract_address,
+                // timestamp: price.time() as u128,
+                timestamp: 0,
+                sharePrice: price.to::<u128>(),
+                signature: signed_price,
+            },
+            weth: WETH_ADDRESS,
+        });
+        for asset1 in asset_list.iter() {
+            for asset2 in asset_list.iter() {
+                if asset1 == asset2 {continue;}
+                let s = AssetsChoise {
+                    trading_data: trading_data.clone(),
+                    asset1: *asset1,
+                    asset2: *asset2,
+                    deviation_bound: I256::ZERO,
+                };
+                let click = click.clone();
+                tokio::spawn(async move {
+                    let err = s.estimate_multipool().await;
+                    match err {
+                        Ok(v) => match v.estimate_uniswap().await {
+                            Ok(v) => {
+                                let r = timeout(task_timeout, v.execute(click)).await;
+                                println!("Send trade result: {r:?}");
+                            }
+                            Err(e) => {
+                                println!("Estimate Uniswap error: {e:?}");
+                            }
+                        },
+                        Err(_e) => {}
+                    }
+                });
             }
         }
+        Ok(())
     }
-}
 
-fn some_sign_method(
-    _price: &MayBeExpired<
-        alloy::primitives::Uint<256, 4>,
-        multipool_types::expiry::EmptyTimeExtractor,
-    >,
-) -> Bytes {
+fn some_sign_method(_price: &U256) -> Bytes {
     Bytes::new()
 }

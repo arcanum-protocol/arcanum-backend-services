@@ -1,8 +1,3 @@
-use backend_service::ServiceData;
-use serde::Deserialize;
-use std::{sync::Arc, time::Duration};
-use anyhow::Context;
-
 use crate::{
     clickhouse::{Click, ClickhouseConfig},
     hook::TraderHook,
@@ -11,13 +6,19 @@ use alloy::network::EthereumWallet;
 use alloy::primitives::address;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::{primitives::Address, providers::ProviderBuilder};
+use anyhow::anyhow;
+use anyhow::Context;
+use backend_service::ServiceData;
+use cache::cache::Cache;
 use multipool_storage::{pg::into_fetching_task, storage::MultipoolStorage};
 use multipool_types::messages::KafkaTopics;
 use reqwest::Url;
+use serde::Deserialize;
+use std::{sync::Arc, time::Duration};
 use tokio::runtime::Handle;
 
-pub mod cashback;
 pub mod cache;
+pub mod cashback;
 pub mod clickhouse;
 pub mod contracts;
 pub mod execution;
@@ -36,7 +37,6 @@ pub struct DbConfig {
 #[derive(Deserialize)]
 pub struct TraderService {
     rpc_url: String,
-    chain_id: u64,
     database: Option<DbConfig>,
     pk_file: String,
     clickhouse: ClickhouseConfig,
@@ -44,13 +44,14 @@ pub struct TraderService {
 
 impl ServiceData for TraderService {
     async fn run(self) -> anyhow::Result<()> {
+
         let database_env_key = self
             .database
             .map(|d| d.env_key)
             .flatten()
             .unwrap_or("DATABASE_URL".into());
-        let database_url =
-            std::env::var(&database_env_key).context(format!("{} must be set", database_env_key))?;
+        let database_url = std::env::var(&database_env_key)
+            .context(format!("{} must be set", database_env_key))?;
         let pool = sqlx::PgPool::connect(&database_url).await?;
         let pk =
             std::fs::read_to_string(self.pk_file).expect("Should have been able to read the file");
@@ -58,20 +59,27 @@ impl ServiceData for TraderService {
 
         let wallet = EthereumWallet::from(signer);
 
-        let th = TraderHook {
-            click: Arc::new(Click::new(self.clickhouse).unwrap()),
-            task_timeout: Duration::from_secs(2),
-            handle: Handle::current(),
-            rpc: ProviderBuilder::new()
-                .wallet(wallet)
-                .on_http(Url::parse(&self.rpc_url).unwrap()),
-        };
-        let db = sled::open("sled_db").unwrap();
-        let mut storage = MultipoolStorage::init(db, th, FACTORY_ADDRESS)
-            .await
-            .unwrap();
+        let rpc = ProviderBuilder::new()
+            .wallet(wallet)
+            .connect_http(Url::parse(&self.rpc_url).unwrap());
 
-        into_fetching_task(&mut storage, pool, Duration::from_secs(1), vec![self.chain_id]).await?;
+        let cache = Arc::new(Cache::initialize(pool, Arc::new(rpc)).await.map_err(|e| anyhow!("Failed to initialize cache {e}"))?);
+        let click = Arc::new(Click::new(self.clickhouse).unwrap());
+        loop {
+            for mp in cache.mp_cache.iter() {
+                let inn_cache = cache.clone();
+                tokio::spawn(crate::hook::process_pool(inn_cache, click.clone(), mp.clone(), Duration::from_secs(10)));
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            }
+        }
+        // let th = TraderHook {
+        //     click: ,
+        //     task_timeout: Duration::from_secs(2),
+        //     handle: Handle::current(),
+        //     rpc: ProviderBuilder::new()
+        //         .wallet(wallet)
+        //         .connect_http(Url::parse(&self.rpc_url).unwrap()),
+        // };
 
         Ok(())
     }

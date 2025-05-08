@@ -43,9 +43,7 @@ pub fn parse_log(log: Log) -> Option<MultipoolEvents> {
         address: log.inner.address,
         data: log.inner.data,
     };
-    MultipoolEvents::decode_log(&log)
-        .ok()
-        .map(|l| l.data)
+    MultipoolEvents::decode_log(&log).ok().map(|l| l.data)
 }
 
 pub struct MultipoolsUpdates {
