@@ -10,6 +10,7 @@ pub enum AppError {
     DbIsBusy,
     InvalidResolution,
     FailedToGetCode,
+    MultipoolNotCreated,
     Unknown(String),
 }
 
