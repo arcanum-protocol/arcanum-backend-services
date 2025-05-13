@@ -15,8 +15,6 @@ pub struct TransactionBuilder {
     target: Option<String>,
     quantity: Option<String>,
     data: Option<Vec<u8>>,
-    data_size: Option<String>,
-    data_root: Option<String>,
     reward: Option<String>,
 }
 

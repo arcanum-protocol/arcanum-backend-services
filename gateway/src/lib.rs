@@ -37,7 +37,9 @@ pub mod service;
 pub struct IndexerConfig {
     from_block: u64,
     fetch_interval_ms: u64,
+    max_block_range: Option<u64>,
 }
+pub const DEFAULT_MAX_BLOCK_RANGE: u64 = 999;
 
 #[derive(Deserialize)]
 pub struct DbConfig {
@@ -54,6 +56,8 @@ pub struct RpcConfig {
 
 #[derive(Deserialize)]
 pub struct ArweaveConfig {
+    treasury_addresses: Vec<Address>,
+    fee_amount: String,
     rpc_url: String,
     wallet_path: String,
 }
@@ -88,12 +92,20 @@ impl ServiceData for GatewayService {
             .http(Url::parse(&self.rpc.http_url).context("Failed to parse http rpc url")?);
 
         // Create a new provider with the client.
-        let provider_http = ProviderBuilder::new().on_client(http_client);
+        let provider_http = ProviderBuilder::new().connect_client(http_client);
 
         let app_state = Arc::new(
-            AppState::initialize(pool.clone(), provider_http, self.factory, self.arweave)
-                .await
-                .unwrap(),
+            AppState::initialize(
+                pool.clone(),
+                provider_http,
+                self.factory,
+                self.arweave,
+                self.indexer
+                    .max_block_range
+                    .unwrap_or(DEFAULT_MAX_BLOCK_RANGE),
+            )
+            .await
+            .unwrap(),
         );
 
         let price_fetcher_handle = price_fetcher::run(app_state.clone(), self.price_fetcher);
@@ -108,7 +120,12 @@ impl ServiceData for GatewayService {
                 .pg_storage(pool)
                 .http_rpc_url(self.rpc.http_url.parse()?)
                 .ws_rpc_url_opt(self.rpc.ws_url.map(|url| url.parse()).transpose()?)
-                .block_range_limit(999)
+                //TODO: make option when indexer1 supports it
+                .block_range_limit(
+                    self.indexer
+                        .max_block_range
+                        .unwrap_or(DEFAULT_MAX_BLOCK_RANGE),
+                )
                 .fetch_interval(Duration::from_millis(self.indexer.fetch_interval_ms))
                 .filter(Multipool::filter().from_block(self.indexer.from_block))
                 .set_processor(processor)

@@ -35,7 +35,6 @@ impl Rpc {
     }
 
     pub async fn post_tx(&self, tx: &Transaction) -> Result<()> {
-        // println!("{:?}", tx);
         let res = self
             .client
             .post(format!("{}/tx", self.url))
@@ -49,7 +48,6 @@ impl Rpc {
     }
 
     pub async fn chunk(&self, chunk: GetChunk) -> Result<()> {
-        // println!("{:?}", chunk);
         let res = self
             .client
             .post(format!("{}/chunk", self.url))

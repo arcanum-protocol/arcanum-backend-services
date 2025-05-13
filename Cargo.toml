@@ -11,6 +11,9 @@ resolver = "2"
 [profile.release]
 overflow-checks = true
 strip = true
+opt_level = 3
+lto = true
+codegen-units = 1
 
 [workspace.dependencies]
 tokio = { version = "1.34.0", features = ["full"] }
@@ -18,7 +21,7 @@ futures = "0.3.30"
 
 axum = { version = "0.8.1", features = ["multipart", "macros", "http2"] }
 axum-msgpack = "0.5.0"
-reqwest = { version = "0.11.12", default-features = false, features = ["rustls", "rustls-tls", "json"] }
+reqwest = { version = "0.11.19", default-features = false, features = ["rustls", "rustls-tls", "json"] }
 
 alloy = { version = "0.15.7", default-features = false, features = ["serde", "reqwest-rustls-tls", "essentials", "std", "json", "rpc", "json-rpc"] }
 

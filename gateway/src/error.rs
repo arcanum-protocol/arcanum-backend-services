@@ -9,8 +9,8 @@ pub enum AppError {
     InvalidMpAddress,
     DbIsBusy,
     InvalidResolution,
-    FailedToGetCode,
     MultipoolNotCreated,
+    MetadataAlreadySet,
     Unknown(String),
 }
 

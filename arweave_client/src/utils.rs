@@ -71,8 +71,3 @@ pub fn pad_to_32_bytes(original: &[u8]) -> Vec<u8> {
     }
     padded
 }
-// bufferToString
-// String::from_utf8()
-
-// stringToBuffer
-// .as_bytes()

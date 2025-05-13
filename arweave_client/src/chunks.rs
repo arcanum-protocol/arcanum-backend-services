@@ -133,22 +133,15 @@ fn build_layers(nodes: Vec<MerkelNode>) -> MerkelNode {
     if nodes.len() < 2 {
         let root = nodes[0].to_owned();
 
-        // console.log("Root layer", root);
-
         return root;
     }
 
     let mut next_layer: Vec<MerkelNode> = Vec::new();
     let mut i = 0;
     while i < nodes.len() {
-        next_layer.push(hash_branch(
-            nodes[i].to_owned(),
-            nodes.get(i + 1).map(|v| v.clone()),
-        ));
+        next_layer.push(hash_branch(nodes[i].to_owned(), nodes.get(i + 1).cloned()));
         i += 2
     }
-
-    // console.log("Layer", nextLayer);
 
     build_layers(next_layer)
 }

@@ -8,8 +8,9 @@ use alloy::{
     rpc::types::Filter,
     sol_types::{SolEvent, SolEventInterface},
 };
+use arweave_client::{Tag, Transaction, Uploader};
 //use arweave_client::{Rpc, Tag, Transaction, Uploader};
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum_msgpack::MsgPack;
 use backend_service::KeyValue;
 use bigdecimal::BigDecimal;
@@ -53,53 +54,61 @@ pub struct CreateRequest {
     description: String,
 }
 
+#[derive(sqlx::FromRow, Debug, PartialEq, Eq)]
+pub struct DbCreateMultipools {
+    description: Option<String>,
+}
+
 pub async fn create<P: Provider>(
     State(state): State<Arc<crate::AppState<P>>>,
     MsgPack(form): MsgPack<CreateRequest>,
 ) -> AppResult<MsgPack<()>> {
     let multipool = state.factory.create2(form.salt, form.init_code_hash);
 
-    //TODO: maybe use indexer <-> this route method that
-    //is going to be sending data to arwave
-    // also need to check fees so probably transaction hash is neserarry
-    // THIS ONE TO BE REMOVED AND LOGS TO BE USED
-    let code = state
-        .provider
-        .get_code_at(multipool)
-        .latest()
-        .await
-        .map_err(|_| AppError::FailedToGetCode)?;
+    let current_block = state.provider.get_block_number().await?;
 
-    //TODO: only insert if there is no logo set before
-    //TODO: same for arwave
+    //TODO: call only if not found in DB of cache
+    //maybe make other function of answer y/n multipool real, if arwave exist do we need to put sth
+    //there
+    let filter = Filter::new()
+        .event(MultipoolFactory::MultipoolCreated::SIGNATURE)
+        .topic1(multipool)
+        .from_block(current_block - state.log_search_interval)
+        .address(state.factory);
+    let events = state.provider.get_logs(&filter).await?;
 
-    // let current_block = state.provider.get_block_number().await?;
-    // let block_countback = 1000;
+    let (fee_receiver, fee_amount) = events
+        .into_iter()
+        .find_map(
+            |i| match MultipoolFactoryEvents::decode_log(&i.into()).ok()?.data {
+                MultipoolFactoryEvents::MultipoolCreated(e) => Some((e.feeReceiver, e.feeAmount)),
+                _ => None,
+            },
+        )
+        .ok_or(AppError::MultipoolNotCreated)?;
 
-    // let filter = Filter::new()
-    //     .event(MultipoolFactory::ProtocolFeeSent::SIGNATURE)
-    //     .topic1(multipool)
-    //     .from_block(current_block - block_countback)
-    //     .address(state.factory);
-    // let events = state.provider.get_logs(&filter).await?;
-
-    // let (fee_receiver, fee_amount) = events
-    //     .into_iter()
-    //     .find_map(
-    //         |i| match MultipoolFactoryEvents::decode_log(&i.into()).ok()?.data {
-    //             MultipoolFactoryEvents::ProtocolFeeSent(e) => Some((e.feeReceiver, e.amount)),
-    //             _ => None,
-    //         },
-    //     )
-    //     .ok_or(AppError::MultipoolNotCreated)?;
-
-    if code.is_empty()
-        && form.description.len() > 500
+    if form.description.len() > 500
         && form.name.len() > 25
         && form.symbol.len() > 10
         && form.logo_bytes.len() > 1024 * 100
     {
         Err(AppError::InvalidPayloadSize)?;
+    }
+
+    let mut conn = state
+        .connection
+        .acquire()
+        .await
+        .map_err(|_| AppError::DbIsBusy)?;
+
+    let multipool_record: Option<DbCreateMultipools> =
+        sqlx::query_as("SELECT description FROM multipools WHERE multipool = $1")
+            .bind::<[u8; 20]>(multipool.into())
+            .fetch_optional(&mut *conn)
+            .await?;
+
+    if multipool_record.and_then(|r| r.description).is_some() {
+        Err(AppError::MetadataAlreadySet)?;
     }
 
     let timer = Instant::now();
@@ -118,83 +127,79 @@ pub async fn create<P: Provider>(
     .bind::<[u8; 20]>(multipool.into())
     .bind(state.chain_id as i64)
     .bind::<[u8; 20]>(Address::ZERO.into())
-    .bind(form.name)
-    .bind(form.symbol)
-    .bind(form.description)
-    .bind(form.logo_bytes)
-    .fetch_all(
-        &mut *state
-            .connection
-            .acquire()
-            .await
-            .map_err(|_| AppError::DbIsBusy)?,
-    )
+    .bind(&form.name)
+    .bind(&form.symbol)
+    .bind(&form.description)
+    .bind(&form.logo_bytes)
+    .fetch_all(&mut *conn)
     .await?;
     DATABASE_REQUEST_DURATION_MS.record(
         timer.elapsed().as_millis() as u64,
         &[KeyValue::new("query_name", "mp_dnl")],
     );
 
-    Ok(().into())
-    //let name_bytes = name.into_bytes();
-    //let desc_offset = name_bytes.len();
-    //let desc_bytes = description.into_bytes();
-    //let logo_offset = desc_offset + desc_bytes.len();
-    // let data = name_bytes
-    //     .into_iter()
-    //     .chain(desc_bytes)
-    //     .chain(logo)
-    //     .collect();
+    let arweave = match &state.arweave {
+        Some(a) => {
+            if a.treasury_addresses.contains(&fee_receiver) && fee_amount >= a.fee_amount {
+                a
+            } else {
+                return Ok(().into());
+            }
+        }
+        None => return Ok(().into()),
+    };
 
-    // let mut tx = Transaction::builder(state.arweave_rpc.clone())
-    //     .tags(vec![
-    //         Tag {
-    //             name: "Content-Type".to_string(),
-    //             value: "MpData".to_string(),
-    //         },
-    //         Tag {
-    //             name: "Address".to_string(),
-    //             value: multipool_address.to_string(),
-    //         },
-    //         Tag {
-    //             name: "ChainId".to_string(),
-    //             value: chain_id.to_string(),
-    //         },
-    //         Tag {
-    //             name: "Symbol".to_string(),
-    //             value: symbol.to_owned(),
-    //         },
-    //         Tag {
-    //             name: "DescriptionOffset".to_string(),
-    //             value: desc_offset.to_string(),
-    //         },
-    //         Tag {
-    //             name: "LogoOffset".to_string(),
-    //             value: logo_offset.to_string(),
-    //         },
-    //     ])
-    //     .data(data)
-    //     .build()
-    //     .await
-    //     .map_err(stringify)?;
-    // tx.sign(state.arweave_signer.clone()).map_err(stringify)?;
-    // let mut uploader = Uploader::new(state.arweave_rpc.clone(), tx);
-    // uploader.upload_chunks().await.unwrap();
+    let name_bytes = form.name.into_bytes();
+    let desc_offset = name_bytes.len();
+    let desc_bytes = form.description.into_bytes();
+    let logo_offset = desc_offset + desc_bytes.len();
+    let data = name_bytes
+        .into_iter()
+        .chain(desc_bytes)
+        .chain(form.logo_bytes)
+        .collect();
 
-    //TODO: how to not fkn ddos
-    // sqlx::query("INSERT INTO multipools(logo, description) ")
-    //     .bind::<[u8; 20]>(multipool.into())
-    //     .fetch_all(&mut *state.connection.acquire().await.unwrap())
-    //     .await
-    //     .unwrap()
-    //     .into()
-    //TODO: add limits on name, symbol, description + logo size
+    let mut tx = Transaction::builder(arweave.rpc.clone())
+        .tags(vec![
+            Tag {
+                name: "Content-Type".to_string(),
+                value: "MpData".to_string(),
+            },
+            Tag {
+                name: "Address".to_string(),
+                value: multipool.to_string(),
+            },
+            Tag {
+                name: "ChainId".to_string(),
+                value: state.chain_id.to_string(),
+            },
+            Tag {
+                name: "Symbol".to_string(),
+                value: form.symbol.to_owned(),
+            },
+            Tag {
+                name: "DescriptionOffset".to_string(),
+                value: desc_offset.to_string(),
+            },
+            Tag {
+                name: "LogoOffset".to_string(),
+                value: logo_offset.to_string(),
+            },
+        ])
+        .data(data)
+        .build()
+        .await?;
+    tx.sign(arweave.signer.clone())?;
+    let mut uploader = Uploader::new(arweave.rpc.clone(), tx);
+    uploader.upload_chunks().await?;
+
+    return Ok(().into());
 }
 
-//#[derive(Deserialize)]
-//pub struct MetadataRequest {
-//    multipool: Address,
-//}
+#[derive(Deserialize)]
+pub struct MetadataRequest {
+    multipools: Vec<Address>,
+}
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
 pub struct DbMetadata {
@@ -209,11 +214,11 @@ pub struct DbMetadata {
 }
 
 pub async fn metadata<P: Provider>(
-    //Path(multipool): Path<Address>,
+    Query(query): Query<MetadataRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
 ) -> AppResult<MsgPack<Vec<DbMetadata>>> {
-    sqlx::query_as("SELECT multipool, logo, description FROM multipools WHERE logo IS NOT NULL and description IS NOT NULL")
-        //.bind::<[u8; 20]>(multipool.into())
+    sqlx::query_as("SELECT multipool, logo, description FROM multipools WHERE logo IS NOT NULL and description IS NOT NULL and multipool in $1")
+        .bind::<Vec<[u8; 20]>>(query.multipools.into_iter().map(Into::into).collect())
         .fetch_all(&mut *state.connection.acquire().await.unwrap())
         .await
         .map(Into::into)

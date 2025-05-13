@@ -18,10 +18,11 @@ pub struct AppState<P: Provider> {
     pub stats_cache: DashMap<Address, MultipoolCache>,
     pub multipools: Arc<RwLock<Vec<Address>>>,
     pub connection: PgPool,
-    pub arwave: Option<ArwaveState>,
+    pub arweave: Option<ArweaveState>,
     pub provider: P,
     pub chain_id: u64,
     pub factory: Address,
+    pub log_search_interval: u64,
 }
 
 #[derive(sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -88,7 +89,7 @@ impl DbCandle {
             let part = sqlx::query_as(
                 "select * from candles WHERE resolution = $1 ORDER BY ts DESC LIMIT $2",
             )
-            .bind(resolution as i32)
+            .bind(resolution)
             .bind(MAX_BUFFER_SIZE as i64)
             .fetch_all(&mut *executor)
             .await?;
@@ -98,9 +99,27 @@ impl DbCandle {
     }
 }
 
-pub struct ArwaveState {
+pub struct ArweaveState {
     pub rpc: Rpc,
     pub signer: Arc<Signer>,
+    pub treasury_addresses: Vec<Address>,
+    pub fee_amount: U256,
+}
+
+impl TryFrom<ArweaveConfig> for ArweaveState {
+    type Error = anyhow::Error;
+
+    fn try_from(value: ArweaveConfig) -> std::result::Result<Self, Self::Error> {
+        Ok(Self {
+            treasury_addresses: value.treasury_addresses,
+            fee_amount: U256::from_str_radix(value.fee_amount.as_str(), 10)?,
+            rpc: Rpc {
+                url: value.rpc_url,
+                ..Default::default()
+            },
+            signer: Arc::new(Signer::from_file(&value.wallet_path)?),
+        })
+    }
 }
 
 impl<P: Provider> AppState<P> {
@@ -108,7 +127,8 @@ impl<P: Provider> AppState<P> {
         connection: PgPool,
         provider: P,
         factory: Address,
-        arwave: Option<ArweaveConfig>,
+        arweave: Option<ArweaveConfig>,
+        log_search_interval: u64,
     ) -> Result<Self> {
         let chain_id = provider.get_chain_id().await?;
         let stats_cache = DashMap::<Address, MultipoolCache>::default();
@@ -141,23 +161,14 @@ impl<P: Provider> AppState<P> {
         ));
 
         Ok(Self {
-            arwave: arwave
-                .map(|a| {
-                    anyhow::Ok(ArwaveState {
-                        rpc: Rpc {
-                            url: a.rpc_url,
-                            ..Default::default()
-                        },
-                        signer: Arc::new(Signer::from_file(&a.wallet_path)?),
-                    })
-                })
-                .transpose()?,
+            arweave: arweave.map(TryInto::try_into).transpose()?,
             factory,
             stats_cache,
             connection,
             provider,
             chain_id,
             multipools,
+            log_search_interval,
         })
     }
 }
