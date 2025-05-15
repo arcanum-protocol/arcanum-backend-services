@@ -14,6 +14,9 @@ use routes::{charts, portfolio};
 use serde::Deserialize;
 use tower_http::cors::CorsLayer;
 
+use crate::service::log_target::GatewayTarget::Api;
+use backend_service::logging::LogTarget;
+
 //TODO: add arwave mathcnism
 //TOOD: add oracle
 
@@ -109,6 +112,7 @@ impl ServiceData for GatewayService {
         );
 
         let price_fetcher_handle = price_fetcher::run(app_state.clone(), self.price_fetcher);
+        Api.info("Price fetcher initialized").log();
 
         let indexer_handle = {
             let processor = indexer::PgEventProcessor {
@@ -138,6 +142,7 @@ impl ServiceData for GatewayService {
                 .context("Failed to build indexer")?
                 .run()
         };
+        Api.info("Indexer initialized").log();
 
         let app = Router::new()
             .route("/portfolio/candles", get(charts::candles))
@@ -157,6 +162,9 @@ impl ServiceData for GatewayService {
         let listener =
             tokio::net::TcpListener::bind(self.bind_to.unwrap_or("0.0.0.0:8080".into())).await?;
         let axum = axum::serve(listener, app);
+
+        Api.info("All threads are initialized").log();
+
         tokio::select! {
             axum = axum => axum.map_err(Into::into),
             i = indexer_handle => i,

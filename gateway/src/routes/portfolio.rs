@@ -10,7 +10,10 @@ use alloy::{
 };
 use arweave_client::{Tag, Transaction, Uploader};
 //use arweave_client::{Rpc, Tag, Transaction, Uploader};
-use axum::extract::{Path, Query, State};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+};
 use axum_msgpack::MsgPack;
 use backend_service::KeyValue;
 use bigdecimal::BigDecimal;
@@ -198,7 +201,8 @@ pub async fn create<P: Provider>(
 
 #[derive(Deserialize)]
 pub struct MetadataRequest {
-    multipools: Vec<Address>,
+    #[serde(rename = "m")]
+    multipools: String,
 }
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
@@ -217,8 +221,10 @@ pub async fn metadata<P: Provider>(
     Query(query): Query<MetadataRequest>,
     State(state): State<Arc<crate::AppState<P>>>,
 ) -> AppResult<MsgPack<Vec<DbMetadata>>> {
-    sqlx::query_as("SELECT multipool, logo, description FROM multipools WHERE logo IS NOT NULL and description IS NOT NULL and multipool in $1")
-        .bind::<Vec<[u8; 20]>>(query.multipools.into_iter().map(Into::into).collect())
+    let multipools = serde_json::from_str::<Vec<Address>>(&query.multipools)
+        .map_err(|_| AppError::FailedToParse)?;
+    sqlx::query_as("SELECT multipool, logo, description FROM multipools WHERE logo IS NOT NULL and description IS NOT NULL and multipool in (SELECT unnest($1::address[]))")
+        .bind::<Vec<[u8; 20]>>(multipools.into_iter().map(Into::into).collect())
         .fetch_all(&mut *state.connection.acquire().await.unwrap())
         .await
         .map(Into::into)

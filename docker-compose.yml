@@ -51,7 +51,7 @@ services:
     networks:
       - database
   trader:
-    build: 
+    build:
       context: .
       args:
         BIN: trader
@@ -98,7 +98,7 @@ volumes:
   db: {}
   clickhouse: {}
 secrets:
-   trader_pk: 
+   trader_pk:
     file: trader_pk.txt
 
 networks:

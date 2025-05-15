@@ -11,6 +11,7 @@ pub enum AppError {
     InvalidResolution,
     MultipoolNotCreated,
     MetadataAlreadySet,
+    FailedToParse,
     Unknown(String),
 }
 

@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS positions_history
     account             ADDRESS NOT NULL,
     multipool           ADDRESS NOT NULL,
 
-    pnl_percent         U256    NOT NULL,
-    pnl_quantity        U256    NOT NULL,
+    pnl_percent         I256    NOT NULL,
+    pnl_quantity        I256    NOT NULL,
 
     opened_at           BIGINT  NOT NULL,
     closed_at           BIGINT  NOT NULL,
@@ -141,8 +141,16 @@ BEGIN
         INSERT INTO positions(chain_id, account, multipool, quantity, profit, loss, opened_at)
         VALUES (NEW.chain_id, NEW.account, NEW.multipool, NEW.quantity, 0, NEW.quote_quantity, NEW.timestamp);
     ELSIF c_pos.quantity + NEW.quantity = 0 THEN
-        INSERT INTO positions_history(chain_id, account, multipool, profit, loss, opened_at, closed_at)
-        VALUES (NEW.chain_id, NEW.account, NEW.multipool, c_pos.profit - NEW.quoted_quantity, c_pos.loss, c_pos.open_ts, NEW.timestamp);
+        INSERT INTO positions_history(chain_id, account, multipool, pnl_percent, pnl_quantity, opened_at, closed_at)
+        VALUES (
+            NEW.chain_id,
+            NEW.account,
+            NEW.multipool,
+            (c_pos.profit - c_pos.loss - NEW.quote_quantity) / (c_pos.loss + NEW.quote_quantity),
+            c_pos.profit - c_pos.loss - NEW.quote_quantity,
+            c_pos.opened_at,
+            NEW.timestamp
+        );
 
         DELETE FROM positions
         WHERE
@@ -152,9 +160,9 @@ BEGIN
     ELSE
         UPDATE positions
         SET
-            quantity = quantity + NEW.quantity,
-            profit = profit + CASE WHEN NEW.quantity < 0 THEN -NEW.quote_quantity ELSE 0 END,
-            loss = loss + CASE WHEN NEW.quantity > 0 THEN NEW.quote_quantity ELSE 0 END
+            quantity = quantity + abs(NEW.quantity),
+            profit = profit + CASE WHEN NEW.quantity < 0 THEN abs(NEW.quote_quantity) ELSE 0 END,
+            loss = loss + CASE WHEN NEW.quantity > 0 THEN abs(NEW.quote_quantity) ELSE 0 END
         WHERE
                 account     = NEW.account
             and chain_id    = NEW.chain_id
