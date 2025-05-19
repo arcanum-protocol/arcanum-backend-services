@@ -12,8 +12,10 @@ use multipool::Multipool;
 use price_fetcher::PriceFetcherConfig;
 use routes::{charts, portfolio};
 use serde::Deserialize;
+use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::CorsLayer;
 
+use crate::indexer::IndexerConfig;
 use crate::service::log_target::GatewayTarget::Api;
 use backend_service::logging::LogTarget;
 
@@ -36,12 +38,6 @@ pub mod price_fetcher;
 pub mod routes;
 pub mod service;
 
-#[derive(Deserialize)]
-pub struct IndexerConfig {
-    from_block: u64,
-    fetch_interval_ms: u64,
-    max_block_range: Option<u64>,
-}
 pub const DEFAULT_MAX_BLOCK_RANGE: u64 = 999;
 
 #[derive(Deserialize)]
@@ -85,7 +81,9 @@ impl ServiceData for GatewayService {
             .unwrap_or("DATABASE_URL".into());
         let database_url =
             env::var(&database_env_key).context(format!("{} must be set", database_env_key))?;
-        let pool = sqlx::PgPool::connect(&database_url).await?;
+
+        // TODO: DB options can go here
+        let pool = PgPoolOptions::default().connect(&database_url).await?;
 
         let retry_layer =
             layers::backoff::RetryBackoffLayer::new(self.rpc.max_retry, self.rpc.backoff_ms);
@@ -93,14 +91,12 @@ impl ServiceData for GatewayService {
         let http_client = ClientBuilder::default()
             .layer(retry_layer)
             .http(Url::parse(&self.rpc.http_url).context("Failed to parse http rpc url")?);
-
-        // Create a new provider with the client.
         let provider_http = ProviderBuilder::new().connect_client(http_client);
 
         let app_state = Arc::new(
             AppState::initialize(
                 pool.clone(),
-                provider_http,
+                provider_http.clone(),
                 self.factory,
                 self.arweave,
                 self.indexer
@@ -122,23 +118,15 @@ impl ServiceData for GatewayService {
 
             Indexer::builder()
                 .pg_storage(pool)
-                .http_rpc_url(self.rpc.http_url.parse()?)
+                .http_provider(Box::new(provider_http))
                 .ws_rpc_url_opt(self.rpc.ws_url.map(|url| url.parse()).transpose()?)
-                //TODO: make option when indexer1 supports it
-                .block_range_limit(
-                    self.indexer
-                        .max_block_range
-                        .unwrap_or(DEFAULT_MAX_BLOCK_RANGE),
-                )
+                .block_range_limit_opt(self.indexer.max_block_range)
+                .overtake_interval(Duration::from_millis(self.indexer.overtake_interval_ms))
                 .fetch_interval(Duration::from_millis(self.indexer.fetch_interval_ms))
                 .filter(Multipool::filter().from_block(self.indexer.from_block))
                 .set_processor(processor)
                 .build()
                 .await
-                .map_err(|e| {
-                    println!("indexer err {e:?}");
-                    e
-                })
                 .context("Failed to build indexer")?
                 .run()
         };

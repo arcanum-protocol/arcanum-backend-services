@@ -24,6 +24,7 @@ pub struct PriceFetcherConfig {
     pub block_delay: u64,
     pub multipools_in_chunk: u64,
     pub retry_delay_ms: u64,
+    pub overtake_delay_ms: Option<u64>,
 }
 
 pub async fn run<P: Provider>(
@@ -105,9 +106,12 @@ pub async fn run<P: Provider>(
                 .expect("no finalized block")
                 .header
                 .number;
-        }
 
-        tokio::time::sleep(Duration::from_millis(config.retry_delay_ms)).await;
+            tokio::time::sleep(Duration::from_millis(config.retry_delay_ms)).await;
+        } else {
+            let overtake_delay_ms = config.overtake_delay_ms.unwrap_or(config.retry_delay_ms);
+            tokio::time::sleep(Duration::from_millis(overtake_delay_ms)).await;
+        }
     }
 }
 

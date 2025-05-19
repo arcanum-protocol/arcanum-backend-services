@@ -33,6 +33,14 @@ pub struct TradingAction {
     timestamp: i64,
 }
 
+#[derive(Deserialize)]
+pub struct IndexerConfig {
+    pub from_block: u64,
+    pub fetch_interval_ms: u64,
+    pub overtake_interval_ms: u64,
+    pub max_block_range: Option<u64>,
+}
+
 pub struct PgEventProcessor<P: Provider + Clone + 'static> {
     pub app_state: Arc<AppState<P>>,
 }

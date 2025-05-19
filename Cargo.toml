@@ -33,7 +33,7 @@ itertools = "0.14.0"
 anyhow = "1.0.79"
 
 rdkafka = {version = "0.37.0", default-features = false, features = ["tokio", "cmake_build"] }
-indexer1 = "0.2.12"
+indexer1 = "0.2.16"
 sqlx = { version = "0.8.2", features = ["tls-rustls", "runtime-tokio", "postgres", "sqlite", "bigdecimal"] }
 bigdecimal = {version = "0.4.7", features = ["serde"]}
 sled = "0.34.7"

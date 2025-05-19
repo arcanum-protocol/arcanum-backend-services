@@ -146,7 +146,7 @@ BEGIN
             NEW.chain_id,
             NEW.account,
             NEW.multipool,
-            (c_pos.profit - c_pos.loss - NEW.quote_quantity) / (c_pos.loss + NEW.quote_quantity),
+            (c_pos.profit - c_pos.loss - NEW.quote_quantity) * pow(2,96) / (c_pos.loss),
             c_pos.profit - c_pos.loss - NEW.quote_quantity,
             c_pos.opened_at,
             NEW.timestamp
