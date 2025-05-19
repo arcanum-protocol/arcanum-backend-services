@@ -260,7 +260,7 @@ pub struct DbPositions {
     #[serde(rename(serialize = "p"))]
     profit: BigDecimal,
     #[serde(rename(serialize = "l"))]
-    los: BigDecimal,
+    loss: BigDecimal,
     #[serde(rename(serialize = "o"))]
     opened_at: i64,
 }
