@@ -118,6 +118,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
 
                     let multipool_address = event.log.address;
                     if self.app_state.stats_cache.get(&multipool_address).is_none() {
+                        //TODO: FACTORY EVENTS ALSO GET HERE
                         Indexer
                             .info(json!({
                                 "m": "multipool event is orphan, skipping",
@@ -126,16 +127,17 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
                             .log();
                         continue;
                     }
+
                     if let Ok(multipool_event) = MultipoolEvents::decode_log(&event.log) {
                         match multipool_event.data {
                             MultipoolEvents::ShareTransfer(e) => {
-                                let price = match self
+                                let price = self
                                     .app_state
                                     .stats_cache
                                     .get(&multipool_address)
                                     .expect("Multipool should present when having events")
-                                    .get_price(block.timestamp)
-                                {
+                                    .get_price(block.timestamp);
+                                let price = match price {
                                     Some(p) => p,
                                     None => crate::price_fetcher::get_mps_prices(
                                         &[multipool_address],
@@ -144,7 +146,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
                                     )
                                     .await?
                                     .0[0]
-                                        .unwrap(),
+                                        .ok_or(anyhow!("Price is not returned from chain"))?,
                                 };
                                 // TODO: if price is missing - push it into cache and db also
 
@@ -176,7 +178,7 @@ impl<'a, P: Provider + Clone> Processor<Transaction<'a, Postgres>> for PgEventPr
                             MultipoolEvents::MultipoolOwnerChange(e) => {
                                 OwnerChange::new(e.newOwner, multipool_address)
                                     .apply_on_storage(&mut **db_tx)
-                                    .await?
+                                    .await?;
                             }
                             MultipoolEvents::AssetChange(e) => {
                                 if e.asset == multipool_address {

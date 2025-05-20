@@ -5,6 +5,7 @@ use alloy::eips::BlockNumberOrTag;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{Provider, MULTICALL3_ADDRESS};
 use alloy::sol_types::SolCall;
+use anyhow::bail;
 use backend_service::logging::LogTarget;
 use backend_service::KeyValue;
 use bigdecimal::{BigDecimal, Num};
@@ -77,22 +78,34 @@ pub async fn run<P: Provider>(
                             &[KeyValue::new("query_name", "insert_price")],
                         );
 
-                        app_state
-                            .stats_cache
-                            .get_mut(mp)
-                            .unwrap()
-                            .insert_price(price, ts);
+                        {
+                            app_state
+                                .stats_cache
+                                .get_mut(mp)
+                                .unwrap()
+                                .insert_price(price, ts);
+                        }
                     }
                 }
             }
             PRICE_FETCHER_HEIGHT.record(indexing_block, &[]);
 
-            sqlx::query(
-                "INSERT INTO price_indexes(chain_id, block_number) VALUES ($1, $2) ON CONFLICT (chain_id) DO UPDATE SET block_number = $2"
+            //TODO: create price indexes table in code
+            let r = sqlx::query(
+                "INSERT INTO
+                    price_indexes(chain_id, block_number)
+                VALUES ($1, $2) ON CONFLICT (chain_id)
+                    DO UPDATE SET block_number = $2
+                WHERE price_indexes.block_number = $3",
             )
-                .bind(chain_id)
-                .bind(indexing_block as i64)
-                .execute(&mut *transaction).await?;
+            .bind(chain_id)
+            .bind(indexing_block as i64)
+            .bind((indexing_block - config.block_delay) as i64)
+            .execute(&mut *transaction)
+            .await?;
+            if r.rows_affected() != 1 {
+                bail!("Inconsistency in price index");
+            }
 
             transaction.commit().await?;
 
