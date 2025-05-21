@@ -13,6 +13,7 @@ anyhow.workspace = true
 tokio.workspace = true
 indexer1.workspace = true
 sqlx.workspace = true
+futures.workspace = true
 alloy.workspace = true
 lazy_static.workspace = true
 axum-msgpack.workspace = true

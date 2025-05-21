@@ -9,12 +9,14 @@ CREATE DOMAIN I256 AS numeric(79,0);
 CREATE DOMAIN U256 AS numeric(78,0)
 CONSTRAINT u256_check CHECK (VALUE >= 0);
 
-create table if not exists blocks (
+create table if not exists events (
     chain_id            BIGINT  NOT NULL,
     block_number        BIGINT  NOT NULL,
-    payload             JSONB       NOT NULL,
+    transaction_index   INT     NOT NULL,
+    event_index         INT     NOT NULL,
+    payload             JSONB   NOT NULL,
 
-    CONSTRAINT blocks_pkey PRIMARY KEY (chain_id, block_number)
+    CONSTRAINT blocks_pkey PRIMARY KEY (chain_id, block_number, transaction_index, event_index)
 );
 
 create table if not exists price_indexes (

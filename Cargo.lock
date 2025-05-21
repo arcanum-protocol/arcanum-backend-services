@@ -2758,6 +2758,7 @@ dependencies = [
  "base64 0.22.1",
  "bigdecimal",
  "dashmap",
+ "futures",
  "indexer1",
  "lazy_static",
  "multipool",

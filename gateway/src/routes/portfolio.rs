@@ -10,10 +10,7 @@ use alloy::{
 };
 use arweave_client::{Tag, Transaction, Uploader};
 //use arweave_client::{Rpc, Tag, Transaction, Uploader};
-use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
-};
+use axum::extract::{Query, State};
 use axum_msgpack::MsgPack;
 use backend_service::KeyValue;
 use bigdecimal::BigDecimal;
