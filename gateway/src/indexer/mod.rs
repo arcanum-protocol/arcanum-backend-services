@@ -57,7 +57,7 @@ impl<'a, P: Provider + Clone> Processor<sqlx::Transaction<'a, Postgres>> for PgE
         &mut self,
         logs: &[indexer1::alloy::rpc::types::Log],
         db_tx: &mut sqlx::Transaction<'a, Postgres>,
-        prev_saved_block: u64,
+        _prev_saved_block: u64,
         new_saved_block: u64,
         chain_id: u64,
     ) -> anyhow::Result<()> {
@@ -65,13 +65,7 @@ impl<'a, P: Provider + Clone> Processor<sqlx::Transaction<'a, Postgres>> for PgE
         INDEXER_HEIGHT.record(new_saved_block, &[]);
         INDEXED_LOGS_COUNT.record(logs.len().try_into()?, &[]);
 
-        let events = parse_logs(
-            logs,
-            prev_saved_block,
-            new_saved_block,
-            &self.app_state.provider,
-        )
-        .await?;
+        let events = parse_logs(logs, &self.app_state.provider).await?;
         let mut queries = Vec::new();
 
         for event in events {
@@ -214,49 +208,42 @@ impl<'a, P: Provider + Clone> Processor<sqlx::Transaction<'a, Postgres>> for PgE
 
 struct TimestampCache<'a, P: Provider> {
     provider: &'a P,
-    inner: Vec<u64>,
+    block_number: u64,
+    timestamp: u64,
 }
 
 impl<'a, P: Provider> TimestampCache<'a, P> {
-    fn new(size: u64, provider: &'a P) -> Self {
+    fn new(provider: &'a P) -> Self {
         Self {
             provider,
-            inner: Vec::with_capacity(size.try_into().expect("Should fit usize")),
+            block_number: 0,
+            timestamp: 0,
         }
     }
     async fn extract(&mut self, log: &alloy::rpc::types::Log) -> Result<u64> {
         let block_number = log.block_number.context("block number is absent")?;
 
-        let idx = block_number as usize / self.inner.len();
-        match (self.inner.get(idx), log.block_timestamp) {
-            (Some(ts), _) => Ok(*ts),
-
-            (_, Some(ts)) => {
-                self.inner[idx] = ts;
-                Ok(ts)
-            }
-
-            (None, None) => {
-                let ts = self
-                    .provider
-                    .get_block_by_number(block_number.into())
-                    .await?
-                    .map(|b| b.header.timestamp)
-                    .context("Block timestamp is absent in RPC")?;
-                self.inner[idx] = ts;
-                Ok(ts)
-            }
+        if self.block_number == block_number {
+            Ok(self.timestamp)
+        } else {
+            let ts = self
+                .provider
+                .get_block_by_number(block_number.into())
+                .await?
+                .map(|b| b.header.timestamp)
+                .context("Block timestamp is absent in RPC")?;
+            self.block_number = block_number;
+            self.timestamp = ts;
+            Ok(ts)
         }
     }
 }
 
 pub async fn parse_logs<P: Provider + Clone + 'static>(
     logs: &[alloy::rpc::types::Log],
-    prev_saved_block: u64,
-    new_saved_block: u64,
     rpc: &P,
 ) -> anyhow::Result<Vec<Event>> {
-    let mut cache = TimestampCache::new(new_saved_block - prev_saved_block, &rpc);
+    let mut cache = TimestampCache::new(&rpc);
     let mut events = Vec::new();
 
     for log in logs {
