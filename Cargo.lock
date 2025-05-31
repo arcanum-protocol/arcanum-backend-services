@@ -2837,7 +2837,6 @@ dependencies = [
  "futures",
  "indexer1",
  "lazy_static",
- "multipool",
  "multipool-types",
  "serde",
  "serde_bytes",

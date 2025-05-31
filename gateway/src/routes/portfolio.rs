@@ -62,11 +62,12 @@ pub async fn create<P: Provider>(
     MsgPack(form): MsgPack<CreateRequest>,
 ) -> AppResult<MsgPack<()>> {
     let multipool = form.multipool;
-    let current_block = state.provider.get_block_number().await?;
 
+    let current_block = state.provider.get_block_number().await?;
     //TODO: call only if not found in DB of cache
     //maybe make other function of answer y/n multipool real, if arwave exist do we need to put sth
     //there
+
     let filter = Filter::new()
         .event(MultipoolFactory::MultipoolCreated::SIGNATURE)
         .topic1(multipool)

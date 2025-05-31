@@ -3,6 +3,8 @@ use crate::service::metrics::{
     DATABASE_REQUEST_DURATION_MS, INDEXED_LOGS_COUNT, INDEXER_HEIGHT, LOGS_COMMITEMENT_DURATION_MS,
 };
 use alloy::primitives::{LogData, U256};
+use alloy::rpc::types::Filter;
+use alloy::sol_types::SolEvent;
 use alloy::{providers::Provider, sol_types::SolEventInterface};
 use anyhow::{anyhow, Context, Result};
 use asset_change::AssetChange;
@@ -27,6 +29,20 @@ pub mod owner_change;
 pub mod share_transfer;
 
 use crate::cache::{AppState, MultipoolCache};
+
+pub fn filter() -> Filter {
+    use multipool_types::Multipool::*;
+    Filter::new().events([
+        multipool_types::MultipoolFactory::MultipoolCreated::SIGNATURE,
+        TargetShareChange::SIGNATURE,
+        AssetChange::SIGNATURE,
+        FeesChange::SIGNATURE,
+        MultipoolOwnerChange::SIGNATURE,
+        PriceFeedChange::SIGNATURE,
+        Swap::SIGNATURE,
+        ShareTransfer::SIGNATURE,
+    ])
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TradingAction {
@@ -178,14 +194,13 @@ impl<'a, P: Provider + Clone> Processor<sqlx::Transaction<'a, Postgres>> for PgE
                     }
                     MultipoolEvents::AssetChange(e) => {
                         if e.asset == multipool_address {
-                            queries.push(
-                                AssetChange::new(e.quantity.to(), multipool_address).get_query(),
-                            );
+                            queries
+                                .push(AssetChange::new(e.quantity, multipool_address).get_query());
                             self.app_state
                                 .stats_cache
                                 .get_mut(&e.asset)
                                 .expect("Multipool should present when having events")
-                                .insert_total_supply(e.quantity.to());
+                                .insert_total_supply(e.quantity);
                         }
                     }
                     _ => (),

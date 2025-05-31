@@ -34,7 +34,7 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
 
       - name: 🔨 Build contrcats
-        run: forge build --root arcanum-contracts
+        run: forge build --root arcanum-contracts --threads 0
 
       - name: Verify artifact paths
         run: |

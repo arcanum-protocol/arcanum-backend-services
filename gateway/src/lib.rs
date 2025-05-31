@@ -8,7 +8,6 @@ use alloy::{primitives::Address, rpc::client::ClientBuilder};
 use backend_service::ServiceData;
 use cache::AppState;
 use indexer1::Indexer;
-use multipool::Multipool;
 use price_fetcher::PriceFetcherConfig;
 use routes::{charts, portfolio};
 use serde::Deserialize;
@@ -123,7 +122,7 @@ impl ServiceData for GatewayService {
                 .block_range_limit_opt(self.indexer.max_block_range)
                 .overtake_interval(Duration::from_millis(self.indexer.overtake_interval_ms))
                 .fetch_interval(Duration::from_millis(self.indexer.fetch_interval_ms))
-                .filter(Multipool::filter().from_block(self.indexer.from_block))
+                .filter(crate::indexer::filter().from_block(self.indexer.from_block))
                 .set_processor(processor)
                 .build()
                 .await

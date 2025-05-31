@@ -15,7 +15,7 @@ impl Multipool {
         prices: &Vec<(Address, MayBeExpired<U256, EmptyTimeExtractor>)>,
     ) {
         let mut assets = self.assets.iter_mut().peekable();
-        let mut prices = prices.into_iter().peekable();
+        let mut prices = prices.iter().peekable();
 
         while let (Some(asset), Some(price)) = (assets.peek_mut(), prices.peek()) {
             match asset.address.cmp(&price.0) {
@@ -38,12 +38,9 @@ impl Multipool {
         use multipool_types::Multipool::*;
         Filter::new().events([
             multipool_types::MultipoolFactory::MultipoolCreated::SIGNATURE,
-            PoolCreated::SIGNATURE,
             TargetShareChange::SIGNATURE,
             AssetChange::SIGNATURE,
             FeesChange::SIGNATURE,
-            PriceOracleChange::SIGNATURE,
-            StrategyManagerChange::SIGNATURE,
             MultipoolOwnerChange::SIGNATURE,
             PriceFeedChange::SIGNATURE,
             Swap::SIGNATURE,
@@ -53,9 +50,6 @@ impl Multipool {
 
     pub fn apply_events(&mut self, events: &[MultipoolEvents]) {
         events.iter().for_each(|v| match v {
-            MultipoolEvents::PoolCreated(e) => {
-                self.initial_share_price = e.initialSharePrice;
-            }
             MultipoolEvents::AssetChange(e) => {
                 if self.contract_address == e.asset {
                     self.total_supply = U256::from(e.quantity);
@@ -74,17 +68,17 @@ impl Multipool {
                     }
                 }
             }
-            MultipoolEvents::FeesChange(e) => {
-                self.deviation_increase_fee = e.newDeviationIncreaseFee;
-                self.deviation_limit = e.newDeviationLimit;
-                self.management_fee_receiver = e.newManagementFeeRecepient;
-                self.management_fee = e.newManagementFee;
-                self.cashback_fee = e.newFeeToCashbackRatio;
-                self.base_fee = e.newBaseFee;
-            }
-            MultipoolEvents::PriceOracleChange(e) => {
-                self.oracle_address = e.newOracle;
-            }
+            // MultipoolEvents::FeesChange(e) => {
+            //     self.deviation_increase_fee = e.newDeviationIncreaseFee;
+            //     self.deviation_limit = e.newDeviationLimit;
+            //     self.management_fee_receiver = e.newManagementFeeRecepient;
+            //     self.management_fee = e.newManagementFee;
+            //     self.cashback_fee = e.newFeeToCashbackRatio;
+            //     self.base_fee = e.newBaseFee;
+            // }
+            // MultipoolEvents::PriceOracleChange(e) => {
+            //     self.oracle_address = e.newOracle;
+            // }
             MultipoolEvents::OwnershipTransferred(e) => {
                 self.owner = e.newOwner;
             }
@@ -100,9 +94,6 @@ impl Multipool {
                         self.assets.push(asset);
                     }
                 }
-            }
-            MultipoolEvents::StrategyManagerChange(e) => {
-                self.strategy_manager = e.newStrategyManager;
             }
             MultipoolEvents::PriceFeedChange(e) => {
                 match self
