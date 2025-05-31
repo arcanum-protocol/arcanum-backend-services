@@ -1,8 +1,0 @@
-service_name: "price_fetcher"
-health_check: "0.0.0.0:3030"
-environment: "dev"
-config:
-  rpc_url: https://arb-sepolia.g.alchemy.com/v2/c_34X8mrHf2CeUbKJyRn9El7loLauTbU
-  kafka_url: kafka:9092
-  kafka_group: price_fetcher1
-  chain_id: 421614

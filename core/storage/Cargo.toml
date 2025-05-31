@@ -16,7 +16,6 @@ sqlx.workspace = true
 rdkafka.workspace = true
 itertools.workspace = true
 
-
 multipool = { path = "../multipool" }
 multipool-types = { path = "../types" }
 

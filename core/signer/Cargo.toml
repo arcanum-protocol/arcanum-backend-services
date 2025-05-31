@@ -1,0 +1,31 @@
+[package]
+name = "multipool-signer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.79"
+serde = "1.0.192"
+serde_json = "1.0.108"
+primitive-types = "0.12.2"
+
+tokio.workspace = true
+
+k256.workspace = true
+rand_core.workspace = true
+argon2.workspace = true
+aes-gcm.workspace = true
+futures.workspace = true
+dashmap.workspace = true
+
+borsh.workspace = true
+alloy.workspace = true
+
+multipool-types = { path = "../types/" }
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"
+lazy_static = "1.4.0"
+criterion = { version = "0.5.1", features = ["html_reports"] }

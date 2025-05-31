@@ -42,10 +42,8 @@ pub struct CreateRequest {
     #[serde(with = "base64")]
     #[serde(rename = "l")]
     logo_bytes: Vec<u8>,
-    #[serde(rename = "st")]
-    salt: B256,
-    #[serde(rename = "ih")]
-    init_code_hash: B256,
+    #[serde(rename = "m")]
+    multipool: Address,
     #[serde(rename = "s")]
     symbol: String,
     #[serde(rename = "n")]
@@ -63,8 +61,7 @@ pub async fn create<P: Provider>(
     State(state): State<Arc<crate::AppState<P>>>,
     MsgPack(form): MsgPack<CreateRequest>,
 ) -> AppResult<MsgPack<()>> {
-    let multipool = state.factory.create2(form.salt, form.init_code_hash);
-
+    let multipool = form.multipool;
     let current_block = state.provider.get_block_number().await?;
 
     //TODO: call only if not found in DB of cache
@@ -283,6 +280,7 @@ pub async fn positions_history<P: Provider>(
 
 #[derive(Serialize, sqlx::FromRow, Debug, PartialEq, Eq)]
 pub struct DbPositionsHistory {
+    #[serde(rename(serialize = "m"))]
     #[serde(serialize_with = "serialize_address")]
     multipool: [u8; 20],
     #[serde(rename(serialize = "q"))]
